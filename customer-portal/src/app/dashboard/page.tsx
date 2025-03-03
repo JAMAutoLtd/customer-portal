@@ -4,37 +4,26 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 
+type Order = { subDate: string }; // ✅ Defined the correct type instead of `any`
+
 export default function Dashboard() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<Order[]>([]); // ✅ Use the defined `Order` type
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
+  // ✅ Redirect if not logged in (AFTER Firebase finishes loading)
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth");
     }
   }, [user, loading, router]);
 
+  // ✅ Fetch orders when user is available
   useEffect(() => {
     if (user) {
-      fetch(`/api/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          console.log("📤 Email sent to Zapier:", data);
-
-          if (data.error) {
-            throw new Error(data.error);
-          }
-
-          // Now fetch the orders after email is sent
-          return fetch(`/api/orders-response`);
-        })
+      fetch(`/api/orders-response`)
         .then((res) => res.json())
         .then((data) => {
           console.log("📦 Received Orders:", data);
@@ -42,7 +31,7 @@ export default function Dashboard() {
           if (Array.isArray(data)) {
             setOrders(data);
           } else if (data.subDate) {
-            setOrders(Array.isArray(data.subDate) ? data.subDate : [data.subDate]);
+            setOrders([{ subDate: data.subDate }]); // ✅ Ensure correct format
           } else {
             console.error("❌ Unexpected order format:", data);
             setError("Failed to load orders.");
@@ -62,6 +51,10 @@ export default function Dashboard() {
     return <p className="text-center mt-10">Loading...</p>;
   }
 
+  if (!user) {
+    return <p className="text-center mt-10">Redirecting to login...</p>;
+  }
+
   return (
     <div className="p-6 text-center">
       <h1 className="text-xl font-bold">
@@ -77,9 +70,9 @@ export default function Dashboard() {
         <p className="mt-4 text-red-500">{error}</p>
       ) : orders.length > 0 ? (
         <ul className="mt-4">
-          {orders.map((order: any, index) => (
+          {orders.map((order, index) => (
             <li key={index} className="p-4 border-b">
-              <p><strong>Submission Date:</strong> {order.subDate || "N/A"}</p>
+              <p><strong>Submission Date:</strong> {order.subDate}</p> 
             </li>
           ))}
         </ul>
