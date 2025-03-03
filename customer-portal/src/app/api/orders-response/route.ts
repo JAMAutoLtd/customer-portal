@@ -1,22 +1,35 @@
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function POST(request: Request) {
   try {
-    const ngrokURL = "https://b837-2604-3d09-137a-3f70-d4d4-245b-d024-3a73.ngrok-free.app/api/orders-response";
+    const data = await request.json();
+    console.log("🔍 Full Zapier Response:", data);
 
-    console.log("🔄 Fetching orders from ngrok...");
-
-    const response = await fetch(ngrokURL, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
+    // ✅ Allow CORS for external access
+    const headers = new Headers({
+      "Access-Control-Allow-Origin": "*", // Allows any origin to access the API
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
     });
 
-    const responseData = await response.json();
-    console.log("📦 Received Orders from ngrok:", responseData);
+    // ✅ Extract orders properly
+    const orders = data.orders ?? [];
 
-    return NextResponse.json(responseData);
+    return NextResponse.json(orders, { headers });
   } catch (error) {
-    console.error("❌ Error fetching orders from ngrok:", error);
-    return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
+    console.error("❌ Error receiving orders from Zapier:", error);
+    return NextResponse.json({ error: "Failed to process orders" }, { status: 500 });
   }
+}
+
+// ✅ Handle CORS Preflight Requests
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
 }
