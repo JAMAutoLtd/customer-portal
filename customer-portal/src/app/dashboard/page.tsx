@@ -13,6 +13,10 @@ export default function Dashboard() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // For limiting the poll attempts:
+  const MAX_POLLS = 6;
+  const [pollCount, setPollCount] = useState(0);
+
   // If not logged in, redirect
   useEffect(() => {
     if (!loading && !user) {
@@ -22,8 +26,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (user) {
-      // 1) POST user.email to /api/orders (to trigger Zapier)
-      const safeEmail = user.email || ""; // In case user.email is null
+      const safeEmail = user.email || "";
+      console.log("🟢 [Dashboard] Sending email to /api/orders:", safeEmail);
+
+      // 1) POST email to /api/orders (to trigger Zapier)
       fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -31,42 +37,59 @@ export default function Dashboard() {
       })
         .then((res) => res.json())
         .then((data) => {
-          console.log("✅ /api/orders response:", data);
+          console.log("✅ [Dashboard] /api/orders response:", data);
         })
         .catch((err) => {
-          console.error("❌ Error calling /api/orders:", err);
+          console.error("❌ [Dashboard] Error calling /api/orders:", err);
         });
 
-      // 2) Poll /api/orders-response?email=... every 5s
+      // 2) Poll /api/orders-response?email=... every 5s, up to MAX_POLLS times
       const intervalId = setInterval(() => {
+        setPollCount((prev) => prev + 1); // increment poll count
+        console.log(
+          `🔄 [Dashboard] Polling /api/orders-response?email=${safeEmail}, attempt #${
+            pollCount + 1
+          }`
+        );
+
         fetch(`/api/orders-response?email=${encodeURIComponent(safeEmail)}`)
           .then((res) => res.json())
           .then((data) => {
-            console.log("📦 Received Orders:", data);
+            console.log("📦 [Dashboard] Received Orders:", data);
+
             if (Array.isArray(data)) {
               setOrders(data);
-              // If data found, stop polling
               if (data.length > 0) {
+                // Found orders; stop polling
                 clearInterval(intervalId);
                 setLoadingOrders(false);
+                console.log("✅ [Dashboard] Orders found, stopping polling.");
               }
             } else {
-              console.error("❌ Unexpected format:", data);
+              console.error("❌ [Dashboard] Unexpected format:", data);
               setError("Failed to load orders.");
               setLoadingOrders(false);
+              clearInterval(intervalId);
             }
           })
           .catch((error) => {
-            console.error("❌ Error loading orders:", error);
+            console.error("❌ [Dashboard] Error loading orders:", error);
             setError("An error occurred while fetching orders.");
             setLoadingOrders(false);
+            clearInterval(intervalId);
           });
+
+        // If we reach MAX_POLLS without finding orders, stop and show "No orders found"
+        if (pollCount + 1 >= MAX_POLLS) {
+          console.log("⚠️ [Dashboard] Reached max polls, stopping.");
+          setLoadingOrders(false);
+          clearInterval(intervalId);
+        }
       }, 5000);
 
-      // Cleanup interval on unmount
       return () => clearInterval(intervalId);
     }
-  }, [user]);
+  }, [user, pollCount]);
 
   if (loading || loadingOrders) {
     return <p className="text-center mt-10">Loading...</p>;
