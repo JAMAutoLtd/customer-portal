@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 
 type Order = { subDate: string }; // ✅ Defined the correct type instead of `any`
 
+export const dynamic = "force-dynamic"; // ✅ Ensure server rendering
+
 export default function Dashboard() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
