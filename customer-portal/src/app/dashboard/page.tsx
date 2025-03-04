@@ -1,12 +1,28 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
+
+type Order = {
+  subDate: string;
+};
 
 const MAX_POLLS = 10; // Define MAX_POLLS
 
 const Dashboard: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, logout, loading } = useAuth();
+  const router = useRouter();
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // If not logged in, redirect
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/auth");
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     if (user) {
@@ -83,8 +99,33 @@ const Dashboard: React.FC = () => {
   }, [user]);
 
   return (
-    <div>
-      {/* Render your component content here */}
+    <div className="p-6 text-center">
+      <h1 className="text-xl font-bold">
+        Welcome, {user?.displayName || user?.email || "User"}!
+      </h1>
+      <button onClick={logout} className="mt-4 px-4 py-2 bg-red-500 text-white rounded">
+        Logout
+      </button>
+
+      <h2 className="text-lg font-bold mt-6">Your Orders</h2>
+
+      {error ? (
+        <p className="mt-4 text-red-500">{error}</p>
+      ) : loadingOrders ? (
+        <p className="text-center mt-10">Loading...</p>
+      ) : orders.length > 0 ? (
+        <ul className="mt-4">
+          {orders.map((order, index) => (
+            <li key={index} className="p-4 border-b">
+              <p>
+                <strong>Submission Date:</strong> {order.subDate}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-4">No orders found.</p>
+      )}
     </div>
   );
 };
