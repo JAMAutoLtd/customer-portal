@@ -134,17 +134,23 @@ const Dashboard: React.FC = () => {
             <tbody className="divide-y divide-gray-200">
               {orders.map((order, index) => (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
                     {order.subDate}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
                     {order.vehicleYear} {order.vehicleMM}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
                     {order.serviceReq || '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {order.orderComplete.toLowerCase() === 'true' ? 'Complete' : 'Pending'}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-left">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      order.orderComplete.toLowerCase() === 'true' 
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {order.orderComplete.toLowerCase() === 'true' ? 'Complete' : 'Pending'}
+                    </span>
                   </td>
                 </tr>
               ))}
