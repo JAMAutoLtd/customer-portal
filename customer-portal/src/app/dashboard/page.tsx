@@ -63,26 +63,34 @@ const Dashboard: React.FC = () => {
 
             if (Array.isArray(data)) {
               if (data.length > 0) {
-                // Parse the comma-separated strings into arrays
-                const dates = data[0].split(',').map((s: string) => s.trim());
-                const years = data[1]?.split(',').map((s: string) => s.trim()) || [];
-                const makeModels = data[2]?.split(',').map((s: string) => s.trim()) || [];
-                const services = data[3]?.split(',').map((s: string) => s.trim()) || [];
-                const completeStatus = data[4]?.split(',').map((s: string) => s.trim()) || [];
+                // Get the first item which should be our data object
+                const orderData = data[0];
+                if (typeof orderData === 'object' && orderData !== null) {
+                  const dates = orderData.subDate?.split(',').map((s: string) => s.trim()) || [];
+                  const years = orderData.vehicleYear?.split(',').map((s: string) => s.trim()) || [];
+                  const makeModels = orderData.vehicleMM?.split(',').map((s: string) => s.trim()) || [];
+                  const services = orderData.serviceReq?.split(',').map((s: string) => s.trim()) || [];
+                  const completeStatus = orderData.orderComplete?.split(',').map((s: string) => s.trim()) || [];
 
-                // Combine the arrays into an array of Order objects
-                const orderArray = dates.map((date: string, i: number) => ({
-                  subDate: date,
-                  vehicleYear: years[i] || '',
-                  vehicleMM: makeModels[i] || '',
-                  serviceReq: services[i] || '',
-                  orderComplete: completeStatus[i] || ''
-                }));
+                  // Combine the arrays into an array of Order objects
+                  const orderArray = dates.map((date: string, i: number) => ({
+                    subDate: date,
+                    vehicleYear: years[i] || '',
+                    vehicleMM: makeModels[i] || '',
+                    serviceReq: services[i] || '',
+                    orderComplete: completeStatus[i] || ''
+                  }));
 
-                setOrders(orderArray);
-                clearInterval(intervalId);
-                setLoadingOrders(false);
-                console.log(`✅ [Dashboard] Received ${orderArray.length} orders, stopping polls.`);
+                  setOrders(orderArray);
+                  clearInterval(intervalId);
+                  setLoadingOrders(false);
+                  console.log(`✅ [Dashboard] Received ${orderArray.length} orders, stopping polls.`);
+                } else {
+                  console.error("❌ [Dashboard] Unexpected data format:", orderData);
+                  setError("Failed to load orders: invalid data format");
+                  setLoadingOrders(false);
+                  clearInterval(intervalId);
+                }
               } else {
                 console.log("ℹ️ [Dashboard] Received empty array, continuing to poll...");
               }
