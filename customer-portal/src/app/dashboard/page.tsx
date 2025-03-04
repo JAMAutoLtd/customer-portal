@@ -1,51 +1,69 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 
-type Order = { subDate: string }; // ✅ Defined the correct type instead of `any`
-
-export const dynamic = "force-dynamic"; // ✅ Ensure server rendering
+type Order = { subDate: string };
+export const dynamic = "force-dynamic";
 
 export default function Dashboard() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]); // ✅ Use the defined `Order` type
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Redirect if not logged in (AFTER Firebase finishes loading)
+  // If not logged in, redirect
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth");
     }
   }, [user, loading, router]);
 
-  // ✅ Fetch orders when user is available
   useEffect(() => {
     if (user) {
-      fetch(`/api/orders-response`)
+      // Step A: POST email to /api/orders so Zapier is triggered
+      fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email }),
+      })
         .then((res) => res.json())
         .then((data) => {
-          console.log("📦 Received Orders:", data);
-
-          if (Array.isArray(data)) {
-            setOrders(data);
-          } else if (data.subDate) {
-            setOrders([{ subDate: data.subDate }]); // ✅ Ensure correct format
-          } else {
-            console.error("❌ Unexpected order format:", data);
-            setError("Failed to load orders.");
-          }
-
-          setLoadingOrders(false);
+          console.log("✅ /api/orders response:", data);
+          // e.g. data: { message: "Email sent to Zapier" } or error
         })
-        .catch((error) => {
-          console.error("❌ Error loading orders:", error);
-          setError("An error occurred while fetching orders.");
-          setLoadingOrders(false);
+        .catch((err) => {
+          console.error("❌ Error calling /api/orders:", err);
         });
+
+      // Step B: Poll /api/orders-response?email=... every 5 seconds
+      const intervalId = setInterval(() => {
+        fetch(`/api/orders-response?email=${encodeURIComponent(user.email)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("📦 Received Orders:", data);
+            if (Array.isArray(data)) {
+              setOrders(data);
+              // if data found, we can stop polling
+              if (data.length > 0) {
+                clearInterval(intervalId);
+                setLoadingOrders(false);
+              }
+            } else {
+              console.error("❌ Unexpected format:", data);
+              setError("Failed to load orders.");
+              setLoadingOrders(false);
+            }
+          })
+          .catch((error) => {
+            console.error("❌ Error loading orders:", error);
+            setError("An error occurred while fetching orders.");
+            setLoadingOrders(false);
+          });
+      }, 5000);
+
+      return () => clearInterval(intervalId);
     }
   }, [user]);
 
@@ -72,9 +90,9 @@ export default function Dashboard() {
         <p className="mt-4 text-red-500">{error}</p>
       ) : orders.length > 0 ? (
         <ul className="mt-4">
-          {orders.map((order, index) => (
-            <li key={index} className="p-4 border-b">
-              <p><strong>Submission Date:</strong> {order.subDate}</p> 
+          {orders.map((order, i) => (
+            <li key={i} className="p-4 border-b">
+              <p><strong>Submission Date:</strong> {order.subDate}</p>
             </li>
           ))}
         </ul>
