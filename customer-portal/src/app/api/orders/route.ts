@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
     console.log("📤 Sending email to Zapier:", email);
 
-    const zapierWebhookURL = "https://hooks.zapier.com/hooks/catch/20160419/2q4feka/";
+    const zapierWebhookURL = "https://hooks.zapier.com/hooks/catch/20160419/2qtxry8/";
 
     const response = await fetch(zapierWebhookURL, {
       method: "POST",
