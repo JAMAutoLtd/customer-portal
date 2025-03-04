@@ -1,16 +1,17 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   eslint: {
-    ignoreDuringBuilds: true, // ✅ Correct placement inside nextConfig
+    ignoreDuringBuilds: true,
   },
-  redirects: async () => [
-    {
-      source: "/",
-      destination: "/dashboard",
-      permanent: true, // Use `true` if this redirect is permanent
-    },
-  ],
+  async redirects() {
+    return [
+      {
+        source: "/",
+        destination: "/dashboard",
+        permanent: true, // ✅ Use `true` if this redirect is permanent
+      },
+    ];
+  },
 };
 
 export default nextConfig;
