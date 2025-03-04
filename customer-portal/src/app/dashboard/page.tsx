@@ -1,32 +1,18 @@
-"use client";
-import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-type Order = { subDate: string };
-export const dynamic = "force-dynamic";
+const MAX_POLLS = 10; // Define MAX_POLLS
 
-export default function Dashboard() {
-  const { user, logout, loading } = useAuth();
-  const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
+const Dashboard: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  // For limiting the poll attempts:
-  const MAX_POLLS = 6;
-  const [pollCount, setPollCount] = useState(0);
-
-  // If not logged in, redirect
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/auth");
-    }
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (user) {
       const safeEmail = user.email || "";
+      let localPollCount = 0;
+      let maxResultsCount = 0; // Track the maximum number of results we've seen
       console.log("🟢 [Dashboard] Sending email to /api/orders:", safeEmail);
 
       // 1) POST email to /api/orders (to trigger Zapier)
@@ -45,11 +31,9 @@ export default function Dashboard() {
 
       // 2) Poll /api/orders-response?email=... every 5s, up to MAX_POLLS times
       const intervalId = setInterval(() => {
-        setPollCount((prev) => prev + 1); // increment poll count
+        localPollCount++;
         console.log(
-          `🔄 [Dashboard] Polling /api/orders-response?email=${safeEmail}, attempt #${
-            pollCount + 1
-          }`
+          `🔄 [Dashboard] Polling /api/orders-response?email=${safeEmail}, attempt #${localPollCount}`
         );
 
         fetch(`/api/orders-response?email=${encodeURIComponent(safeEmail)}`)
@@ -58,12 +42,19 @@ export default function Dashboard() {
             console.log("📦 [Dashboard] Received Orders:", data);
 
             if (Array.isArray(data)) {
-              setOrders(data);
-              if (data.length > 0) {
-                // Found orders; stop polling
-                clearInterval(intervalId);
-                setLoadingOrders(false);
-                console.log("✅ [Dashboard] Orders found, stopping polling.");
+              // Only update if we get more results than before
+              if (data.length >= maxResultsCount) {
+                maxResultsCount = data.length;
+                setOrders(data);
+                
+                // Stop polling if we have results and have polled enough times
+                if (data.length > 0 && localPollCount >= 3) { // Minimum 3 polls to ensure stability
+                  clearInterval(intervalId);
+                  setLoadingOrders(false);
+                  console.log("✅ [Dashboard] Orders found and stable, stopping polling.");
+                }
+              } else {
+                console.log("ℹ️ [Dashboard] Received fewer results than before, ignoring.");
               }
             } else {
               console.error("❌ [Dashboard] Unexpected format:", data);
@@ -79,8 +70,8 @@ export default function Dashboard() {
             clearInterval(intervalId);
           });
 
-        // If we reach MAX_POLLS without finding orders, stop and show "No orders found"
-        if (pollCount + 1 >= MAX_POLLS) {
+        // Still maintain maximum polls safety net
+        if (localPollCount >= MAX_POLLS) {
           console.log("⚠️ [Dashboard] Reached max polls, stopping.");
           setLoadingOrders(false);
           clearInterval(intervalId);
@@ -89,42 +80,13 @@ export default function Dashboard() {
 
       return () => clearInterval(intervalId);
     }
-  }, [user, pollCount]);
-
-  if (loading || loadingOrders) {
-    return <p className="text-center mt-10">Loading...</p>;
-  }
-
-  if (!user) {
-    return <p className="text-center mt-10">Redirecting to login...</p>;
-  }
+  }, [user]);
 
   return (
-    <div className="p-6 text-center">
-      <h1 className="text-xl font-bold">
-        Welcome, {user.displayName || user.email || "User"}!
-      </h1>
-      <button onClick={logout} className="mt-4 px-4 py-2 bg-red-500 text-white rounded">
-        Logout
-      </button>
-
-      <h2 className="text-lg font-bold mt-6">Your Orders</h2>
-
-      {error ? (
-        <p className="mt-4 text-red-500">{error}</p>
-      ) : orders.length > 0 ? (
-        <ul className="mt-4">
-          {orders.map((order, index) => (
-            <li key={index} className="p-4 border-b">
-              <p>
-                <strong>Submission Date:</strong> {order.subDate}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-4">No orders found.</p>
-      )}
+    <div>
+      {/* Render your component content here */}
     </div>
   );
-}
+};
+
+export default Dashboard; 
