@@ -4,9 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 
-type Order = {
-  subDate: string;
-};
+type Order = string;
 
 const MAX_POLLS = 10; // Define MAX_POLLS
 
@@ -120,10 +118,10 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {orders.map((order, index) => (
+              {orders.map((date, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(order.subDate).toLocaleString()}
+                    {date}
                   </td>
                   {/* Add more columns here as needed */}
                 </tr>
