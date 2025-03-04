@@ -1,38 +1,31 @@
-// A global map that won't persist across serverless restarts.
-const globalOrderMap = new Map<string, any[]>();
+// A global array that won't persist across serverless restarts.
+const globalSubDates: string[] = [];
 
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const { email, orders } = await request.json();
-    console.log("🔍 Full Zapier Response:", { email, orders });
+    // Expect a single field: { subDate: "2025-03-03 22:49:28" }
+    const { subDate } = await request.json();
+    console.log("🔍 Full Zapier Response:", { subDate });
 
-    if (!email || !Array.isArray(orders)) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    // Validate
+    if (!subDate || typeof subDate !== "string") {
+      return NextResponse.json({ error: "Invalid payload; missing subDate" }, { status: 400 });
     }
 
-    // Store in an in-memory map keyed by the user's email
-    globalOrderMap.set(email, orders);
+    // Store the subDate in memory
+    globalSubDates.push(subDate);
 
-    
-
-    return NextResponse.json({ status: "stored" });
+    return NextResponse.json({ status: "stored", total: globalSubDates.length });
   } catch (error) {
-    console.error("❌ Error receiving orders from Zapier:", error);
-    return NextResponse.json({ error: "Failed to process orders" }, { status: 500 });
+    console.error("❌ Error receiving subDate:", error);
+    return NextResponse.json({ error: "Failed to process subDate" }, { status: 500 });
   }
 }
 
-// For polling from the dashboard: GET /api/orders-response?email=some@domain.com
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const userEmail = searchParams.get("email");
-  if (!userEmail) {
-    return NextResponse.json({ error: "Missing email param" }, { status: 400 });
-  }
-
-  // Return the stored orders if found
-  const foundOrders = globalOrderMap.get(userEmail) ?? [];
-  return NextResponse.json(foundOrders);
+// For polling from the dashboard: GET /api/orders-response
+export async function GET() {
+  // Return the entire array of submission dates
+  return NextResponse.json(globalSubDates);
 }
