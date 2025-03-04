@@ -57,11 +57,13 @@ const Dashboard: React.FC = () => {
 
             if (Array.isArray(data)) {
               if (data.length > 0) {
-                setOrders(data);
+                // Split the first (and only) string into an array of dates
+                const dateArray = data[0].split(',').map((date: string) => date.trim());
+                setOrders(dateArray);
                 // Stop polling when we get actual results
                 clearInterval(intervalId);
                 setLoadingOrders(false);
-                console.log(`✅ [Dashboard] Received ${data.length} orders, stopping polls.`);
+                console.log(`✅ [Dashboard] Received ${dateArray.length} orders, stopping polls.`);
               } else {
                 console.log("ℹ️ [Dashboard] Received empty array, continuing to poll...");
               }
