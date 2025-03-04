@@ -1,17 +1,15 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
-// ✅ Remove direct `getAnalytics` import
-// import { getAnalytics } from "firebase/analytics"; ❌ REMOVE THIS LINE
-
+// ✅ Use environment variables to store Firebase credentials
 const firebaseConfig = {
-  apiKey: "AIzaSyBVfxoHVst_cJc8kPuk5qd22wDFgOk9eI0",
-  authDomain: "customer-portal-f1bf8.firebaseapp.com",
-  projectId: "customer-portal-f1bf8",
-  storageBucket: "customer-portal-f1bf8.firebasestorage.app",
-  messagingSenderId: "460546169013",
-  appId: "1:460546169013:web:a2a4c19ff85a1c7c3446fc",
-  measurementId: "G-K19W2B64FE"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // ✅ Initialize Firebase
