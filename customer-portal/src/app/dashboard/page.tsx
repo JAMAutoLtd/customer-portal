@@ -22,30 +22,30 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (user) {
-      // Step A: POST email to /api/orders so Zapier is triggered
+      // 1) POST user.email to /api/orders (to trigger Zapier)
+      const safeEmail = user.email || ""; // In case user.email is null
       fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
+        body: JSON.stringify({ email: safeEmail }),
       })
         .then((res) => res.json())
         .then((data) => {
           console.log("✅ /api/orders response:", data);
-          // e.g. data: { message: "Email sent to Zapier" } or error
         })
         .catch((err) => {
           console.error("❌ Error calling /api/orders:", err);
         });
 
-      // Step B: Poll /api/orders-response?email=... every 5 seconds
+      // 2) Poll /api/orders-response?email=... every 5s
       const intervalId = setInterval(() => {
-        fetch(`/api/orders-response?email=${encodeURIComponent(user.email)}`)
+        fetch(`/api/orders-response?email=${encodeURIComponent(safeEmail)}`)
           .then((res) => res.json())
           .then((data) => {
             console.log("📦 Received Orders:", data);
             if (Array.isArray(data)) {
               setOrders(data);
-              // if data found, we can stop polling
+              // If data found, stop polling
               if (data.length > 0) {
                 clearInterval(intervalId);
                 setLoadingOrders(false);
@@ -63,6 +63,7 @@ export default function Dashboard() {
           });
       }, 5000);
 
+      // Cleanup interval on unmount
       return () => clearInterval(intervalId);
     }
   }, [user]);
@@ -90,9 +91,11 @@ export default function Dashboard() {
         <p className="mt-4 text-red-500">{error}</p>
       ) : orders.length > 0 ? (
         <ul className="mt-4">
-          {orders.map((order, i) => (
-            <li key={i} className="p-4 border-b">
-              <p><strong>Submission Date:</strong> {order.subDate}</p>
+          {orders.map((order, index) => (
+            <li key={index} className="p-4 border-b">
+              <p>
+                <strong>Submission Date:</strong> {order.subDate}
+              </p>
             </li>
           ))}
         </ul>
