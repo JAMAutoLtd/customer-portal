@@ -58,11 +58,15 @@ const Dashboard: React.FC = () => {
             console.log("📦 [Dashboard] Received Orders:", data);
 
             if (Array.isArray(data)) {
-              setOrders(data);
-              // Stop polling as soon as we get a valid response
-              clearInterval(intervalId);
-              setLoadingOrders(false);
-              console.log(`✅ [Dashboard] Received ${data.length} orders, stopping polls.`);
+              if (data.length > 0) {
+                setOrders(data);
+                // Stop polling when we get actual results
+                clearInterval(intervalId);
+                setLoadingOrders(false);
+                console.log(`✅ [Dashboard] Received ${data.length} orders, stopping polls.`);
+              } else {
+                console.log("ℹ️ [Dashboard] Received empty array, continuing to poll...");
+              }
             } else {
               console.error("❌ [Dashboard] Unexpected format:", data);
               setError("Failed to load orders.");
