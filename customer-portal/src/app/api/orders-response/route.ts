@@ -15,6 +15,7 @@ export async function POST(request: Request) {
     // Store in an in-memory map keyed by the user's email
     globalOrderMap.set(email, orders);
 
+    
     return NextResponse.json({ status: "stored" });
   } catch (error) {
     console.error("❌ Error receiving orders from Zapier:", error);
