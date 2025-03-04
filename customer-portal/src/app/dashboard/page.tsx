@@ -121,10 +121,7 @@ const Dashboard: React.FC = () => {
                   Submission Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vehicle Year
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Make and Model
+                  Vehicle
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Services Required
@@ -141,16 +138,13 @@ const Dashboard: React.FC = () => {
                     {order.subDate}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {order.vehicleYear || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {order.vehicleMM || '-'}
+                    {order.vehicleYear} {order.vehicleMM}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {order.serviceReq || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {order.orderComplete === 'true' ? 'Complete' : 'Pending'}
+                    {order.orderComplete.toLowerCase() === 'true' ? 'Complete' : 'Pending'}
                   </td>
                 </tr>
               ))}
