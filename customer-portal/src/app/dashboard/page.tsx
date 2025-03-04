@@ -58,21 +58,11 @@ const Dashboard: React.FC = () => {
             console.log("📦 [Dashboard] Received Orders:", data);
 
             if (Array.isArray(data)) {
-              // Only update if we get more results than before
-              if (data.length >= maxResultsCount) {
-                maxResultsCount = data.length;
-                setOrders(data);
-                console.log(`✅ [Dashboard] Updated orders with ${data.length} results`);
-              } else {
-                console.log(`ℹ️ [Dashboard] Received fewer results (${data.length}) than max seen (${maxResultsCount}), ignoring.`);
-              }
-
-              // Only stop polling when we hit MAX_POLLS
-              if (localPollCount >= MAX_POLLS) {
-                clearInterval(intervalId);
-                setLoadingOrders(false);
-                console.log(`✅ [Dashboard] Completed ${MAX_POLLS} polls, stopping with ${maxResultsCount} results.`);
-              }
+              setOrders(data);
+              // Stop polling as soon as we get a valid response
+              clearInterval(intervalId);
+              setLoadingOrders(false);
+              console.log(`✅ [Dashboard] Received ${data.length} orders, stopping polls.`);
             } else {
               console.error("❌ [Dashboard] Unexpected format:", data);
               setError("Failed to load orders.");
@@ -86,6 +76,13 @@ const Dashboard: React.FC = () => {
             setLoadingOrders(false);
             clearInterval(intervalId);
           });
+
+        // Safety net to stop polling after MAX_POLLS attempts even if no valid response
+        if (localPollCount >= MAX_POLLS) {
+          console.log("⚠️ [Dashboard] Reached max polls without valid response, stopping.");
+          setLoadingOrders(false);
+          clearInterval(intervalId);
+        }
       }, 5000);
 
       return () => clearInterval(intervalId);
