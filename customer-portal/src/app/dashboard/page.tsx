@@ -4,7 +4,13 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 
-type Order = string;
+type Order = {
+  subDate: string;
+  vehicleYear: string;
+  vehicleMM: string;  // Make and Model
+  serviceReq: string;
+  orderComplete: string;
+};
 
 const MAX_POLLS = 10; // Define MAX_POLLS
 
@@ -57,13 +63,26 @@ const Dashboard: React.FC = () => {
 
             if (Array.isArray(data)) {
               if (data.length > 0) {
-                // Split the first (and only) string into an array of dates
-                const dateArray = data[0].split(',').map((date: string) => date.trim());
-                setOrders(dateArray);
-                // Stop polling when we get actual results
+                // Parse the comma-separated strings into arrays
+                const dates = data[0].split(',').map((s: string) => s.trim());
+                const years = data[1]?.split(',').map((s: string) => s.trim()) || [];
+                const makeModels = data[2]?.split(',').map((s: string) => s.trim()) || [];
+                const services = data[3]?.split(',').map((s: string) => s.trim()) || [];
+                const completeStatus = data[4]?.split(',').map((s: string) => s.trim()) || [];
+
+                // Combine the arrays into an array of Order objects
+                const orderArray = dates.map((date: string, i: number) => ({
+                  subDate: date,
+                  vehicleYear: years[i] || '',
+                  vehicleMM: makeModels[i] || '',
+                  serviceReq: services[i] || '',
+                  orderComplete: completeStatus[i] || ''
+                }));
+
+                setOrders(orderArray);
                 clearInterval(intervalId);
                 setLoadingOrders(false);
-                console.log(`✅ [Dashboard] Received ${dateArray.length} orders, stopping polls.`);
+                console.log(`✅ [Dashboard] Received ${orderArray.length} orders, stopping polls.`);
               } else {
                 console.log("ℹ️ [Dashboard] Received empty array, continuing to poll...");
               }
@@ -116,16 +135,38 @@ const Dashboard: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Submission Date
                 </th>
-                {/* Add more header columns here as needed */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Vehicle Year
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Make and Model
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Services Required
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {orders.map((date, index) => (
+              {orders.map((order, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {date}
+                    {order.subDate}
                   </td>
-                  {/* Add more columns here as needed */}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {order.vehicleYear || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {order.vehicleMM || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {order.serviceReq || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {order.orderComplete === 'true' ? 'Complete' : 'Pending'}
+                  </td>
                 </tr>
               ))}
             </tbody>
