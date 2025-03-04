@@ -13,23 +13,28 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    // Expect all fields from Zapier
-    const order = await request.json();
-    console.log("🔍 Full Zapier Response:", order);
+    // Expect all fields from Zapier with comma-separated values
+    const orderData = await request.json();
+    console.log("🔍 Full Zapier Response:", orderData);
 
-    // Validate required fields
-    if (!order.subDate || typeof order.subDate !== "string") {
-      return NextResponse.json({ error: "Invalid payload; missing subDate" }, { status: 400 });
-    }
+    // Split all fields into arrays
+    const dates = (orderData.subDate || '').split(',').map((s: string) => s.trim());
+    const years = (orderData.vehicleYear || '').split(',').map((s: string) => s.trim());
+    const makeModels = (orderData.vehicleMM || '').split(',').map((s: string) => s.trim());
+    const services = (orderData.serviceReq || '').split(',').map((s: string) => s.trim());
+    const completeStatus = (orderData.orderComplete || '').split(',').map((s: string) => s.trim());
 
-    // Store the complete order object
-    globalOrders.push({
-      subDate: order.subDate,
-      vehicleYear: order.vehicleYear || '',
-      vehicleMM: order.vehicleMM || '',
-      serviceReq: order.serviceReq || '',
-      orderComplete: order.orderComplete || ''
-    });
+    // Create individual order objects
+    const orders = dates.map((date: string, i: number) => ({
+      subDate: date,
+      vehicleYear: years[i] || '',
+      vehicleMM: makeModels[i] || '',
+      serviceReq: services[i] || '',
+      orderComplete: completeStatus[i] || ''
+    }));
+
+    // Store all orders
+    globalOrders.push(...orders);
 
     return NextResponse.json({ status: "stored", total: globalOrders.length });
   } catch (error) {
