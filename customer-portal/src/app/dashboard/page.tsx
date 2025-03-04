@@ -62,15 +62,16 @@ const Dashboard: React.FC = () => {
               if (data.length >= maxResultsCount) {
                 maxResultsCount = data.length;
                 setOrders(data);
-                
-                // Stop polling if we have results and have polled enough times
-                if (data.length > 0 && localPollCount >= 3) { // Minimum 3 polls to ensure stability
-                  clearInterval(intervalId);
-                  setLoadingOrders(false);
-                  console.log("✅ [Dashboard] Orders found and stable, stopping polling.");
-                }
+                console.log(`✅ [Dashboard] Updated orders with ${data.length} results`);
               } else {
-                console.log("ℹ️ [Dashboard] Received fewer results than before, ignoring.");
+                console.log(`ℹ️ [Dashboard] Received fewer results (${data.length}) than max seen (${maxResultsCount}), ignoring.`);
+              }
+
+              // Only stop polling when we hit MAX_POLLS
+              if (localPollCount >= MAX_POLLS) {
+                clearInterval(intervalId);
+                setLoadingOrders(false);
+                console.log(`✅ [Dashboard] Completed ${MAX_POLLS} polls, stopping with ${maxResultsCount} results.`);
               }
             } else {
               console.error("❌ [Dashboard] Unexpected format:", data);
@@ -85,13 +86,6 @@ const Dashboard: React.FC = () => {
             setLoadingOrders(false);
             clearInterval(intervalId);
           });
-
-        // Still maintain maximum polls safety net
-        if (localPollCount >= MAX_POLLS) {
-          console.log("⚠️ [Dashboard] Reached max polls, stopping.");
-          setLoadingOrders(false);
-          clearInterval(intervalId);
-        }
       }, 5000);
 
       return () => clearInterval(intervalId);
