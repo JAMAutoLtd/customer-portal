@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import VehicleSelect from "@/components/VehicleSelect";
 
 type ServiceCategory = 'Insurance Claim' | 'Salvage Repair or Commercial' | 'Residential or Personal';
 
@@ -15,15 +16,15 @@ type OrderFormData = {
   serviceCategory: ServiceCategory;
   vin: string;
   vinUnknown: boolean;
-  vehicleYear: string;
-  vehicleMake: string;
-  vehicleModel: string;
-  notes: string;
   address: string;
   earliestDate: string;
   earliestTime: string;
+  notes: string;
   customerName: string;
   customerEmail: string;
+  vehicleYear: string;
+  vehicleMake: string;
+  vehicleModel: string;
 };
 
 const OrderForm: React.FC = () => {
@@ -33,15 +34,15 @@ const OrderForm: React.FC = () => {
     serviceCategory: 'Residential or Personal',
     vin: '',
     vinUnknown: false,
-    vehicleYear: '',
-    vehicleMake: '',
-    vehicleModel: '',
-    notes: '',
     address: '',
     earliestDate: '',
     earliestTime: '',
+    notes: '',
     customerName: '',
     customerEmail: '',
+    vehicleYear: '',
+    vehicleMake: '',
+    vehicleModel: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,15 +176,15 @@ const OrderForm: React.FC = () => {
         serviceCategory: 'Residential or Personal',
         vin: '',
         vinUnknown: false,
-        vehicleYear: '',
-        vehicleMake: '',
-        vehicleModel: '',
-        notes: '',
         address: '',
         earliestDate: getNextAvailableDate(),
         earliestTime: getNextAvailableTime(),
+        notes: '',
         customerName: user?.displayName || '',
         customerEmail: user?.email || '',
+        vehicleYear: '',
+        vehicleMake: '',
+        vehicleModel: '',
       });
     } catch (err) {
       setError("Failed to submit order. Please try again.");
@@ -308,65 +309,16 @@ const OrderForm: React.FC = () => {
         </div>
 
         {formData.vinUnknown && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="vehicleYear" className="block text-sm font-medium text-gray-700 mb-1">
-                Year
-              </label>
-              <select
-                id="vehicleYear"
-                name="vehicleYear"
-                value={formData.vehicleYear}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Year</option>
-                {years.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="vehicleMake" className="block text-sm font-medium text-gray-700 mb-1">
-                Make
-              </label>
-              <select
-                id="vehicleMake"
-                name="vehicleMake"
-                value={formData.vehicleMake}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Make</option>
-                {vehicleMakes.map(make => (
-                  <option key={make} value={make}>{make}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="vehicleModel" className="block text-sm font-medium text-gray-700 mb-1">
-                Model
-              </label>
-              <select
-                id="vehicleModel"
-                name="vehicleModel"
-                value={formData.vehicleModel}
-                onChange={handleChange}
-                required
-                disabled={!formData.vehicleMake}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Model</option>
-                {formData.vehicleMake && vehicleModels[formData.vehicleMake]?.map(model => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <VehicleSelect
+            onVehicleSelect={({ year, make, model }) => {
+              setFormData(prev => ({
+                ...prev,
+                vehicleYear: year,
+                vehicleMake: make,
+                vehicleModel: model
+              }));
+            }}
+          />
         )}
 
         <div>

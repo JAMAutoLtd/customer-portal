@@ -1,6 +1,7 @@
 "use client"; // Required for Next.js 13+ to run in the browser
 
 import { useState, useEffect } from "react";
+import { GOOGLE_MAPS_API_KEY } from "@/config/maps";
 
 interface AddressAutocompleteProps {
   onAddressSelect: (address: string) => void;
@@ -8,7 +9,8 @@ interface AddressAutocompleteProps {
 
 declare global {
   interface Window {
-    _googleMapsCallback?: () => void;
+    initializeAutocomplete?: () => void;
+    google: any;
   }
 }
 
@@ -17,89 +19,84 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    
-    // More detailed debugging
-    console.log('Debug Info:', {
-      apiKeyExists: !!apiKey,
-      apiKeyLength: apiKey?.length,
-      windowGoogle: !!(window as any).google,
-      windowGoogleMaps: !!(window as any).google?.maps,
-      env: process.env.NODE_ENV
-    });
-
-    if (!apiKey) {
+    if (!GOOGLE_MAPS_API_KEY) {
       console.error('API Key is missing or invalid');
       setError("Google Maps API key is not configured");
       setIsLoading(false);
       return;
     }
 
-    // Check if script is already loaded
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existingScript) {
-      console.log('Google Maps script already exists, initializing...');
+    // Function to initialize autocomplete
+    const initializeAutocomplete = () => {
+      try {
+        const input = document.getElementById("address-input") as HTMLInputElement;
+        if (!input) {
+          console.error('Address input element not found');
+          return;
+        }
+
+        const autocomplete = new window.google.maps.places.Autocomplete(input, {
+          componentRestrictions: { country: "ca" },
+          fields: ["name", "formatted_address", "place_id", "types"],
+          types: ["geocode", "establishment"]
+        });
+
+        autocomplete.addListener("place_changed", () => {
+          const place = autocomplete.getPlace();
+          let fullAddress = place.formatted_address || '';
+          
+          // If it's a business (establishment), prepend the business name
+          if (place.types?.includes('establishment') && place.name && !fullAddress.startsWith(place.name)) {
+            fullAddress = `${place.name}, ${fullAddress}`;
+          }
+          
+          onAddressSelect(fullAddress);
+        });
+
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error initializing autocomplete:', err);
+        setError("Failed to initialize address search");
+        setIsLoading(false);
+      }
+    };
+
+    // If Google Maps is already loaded, just initialize
+    if (window.google && window.google.maps) {
       initializeAutocomplete();
       return;
     }
 
-    // Load the script if not already loaded
-    const script = document.createElement('script');
-    const callbackName = '_googleMapsCallback';
-    (window as any)[callbackName] = initializeAutocomplete;
+    // Set up the callback
+    window.initializeAutocomplete = initializeAutocomplete;
 
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
-    script.async = true;
-    script.defer = true;
+    // Load Google Maps script if not already present
+    const scriptId = 'google-maps-script';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
     
-    script.onerror = (error) => {
-      console.error('Google Maps script failed to load:', error);
-      setError("Failed to load Google Maps");
-      setIsLoading(false);
-    };
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initializeAutocomplete&loading=async`;
+      script.async = true;
+      script.defer = true;
+      
+      script.onerror = () => {
+        setError("Failed to load Google Maps");
+        setIsLoading(false);
+      };
 
-    document.head.appendChild(script);
-
-    return () => {
-      if (window._googleMapsCallback) {
-        delete window._googleMapsCallback;
-      }
-      const scriptToRemove = document.querySelector(`script[src*="${script.src}"]`);
-      if (scriptToRemove) {
-        document.head.removeChild(scriptToRemove);
-      }
-    };
-  }, []);
-
-  const initializeAutocomplete = () => {
-    try {
-      const input = document.getElementById("address-input") as HTMLInputElement;
-      if (!input) {
-        console.error('Address input element not found');
-        return;
-      }
-
-      const autocomplete = new google.maps.places.Autocomplete(input, {
-        componentRestrictions: { country: "ca" },
-        fields: ["formatted_address"],
-        types: ["address"]
-      });
-
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (place.formatted_address) {
-          onAddressSelect(place.formatted_address);
-        }
-      });
-
-      setIsLoading(false);
-      console.log('Autocomplete initialized successfully');
-    } catch (err) {
-      console.error('Error initializing autocomplete:', err);
-      setError("Failed to initialize address search");
-      setIsLoading(false);
+      document.head.appendChild(script);
     }
-  };
+
+    // Cleanup function
+    return () => {
+      // Remove the global callback
+      if (window.initializeAutocomplete) {
+        delete window.initializeAutocomplete;
+      }
+    };
+  }, [onAddressSelect]);
 
   if (error) {
     return (
@@ -114,9 +111,14 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
       <input
         id="address-input"
         type="text"
-        placeholder="Enter address"
+        placeholder="Enter business name or address"
         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading}
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        role="combobox"
+        aria-autocomplete="list"
       />
       {isLoading && (
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
