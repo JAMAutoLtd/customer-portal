@@ -45,7 +45,6 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
           const place = autocomplete.getPlace();
           let fullAddress = place.formatted_address || '';
           
-          // If it's a business (establishment), prepend the business name
           if (place.types?.includes('establishment') && place.name && !fullAddress.startsWith(place.name)) {
             fullAddress = `${place.name}, ${fullAddress}`;
           }
@@ -61,9 +60,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
       }
     };
 
-    // If Google Maps is already loaded, just initialize
-    if (window.google && window.google.maps) {
-      initializeAutocomplete();
+    // If Google Maps is already loaded, initialize with a small delay to ensure API is ready
+    if (window.google?.maps) {
+      setTimeout(initializeAutocomplete, 100);
       return;
     }
 
@@ -77,7 +76,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initializeAutocomplete&loading=async`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initializeAutocomplete`;
       script.async = true;
       script.defer = true;
       
@@ -86,12 +85,22 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
         setIsLoading(false);
       };
 
+      // Add a timeout to handle cases where the script fails to load or callback isn't called
+      const timeoutId = setTimeout(() => {
+        if (isLoading) {
+          setError("Failed to initialize Google Maps");
+          setIsLoading(false);
+        }
+      }, 10000); // 10 second timeout
+
+      // Clean up timeout on successful load
+      script.onload = () => clearTimeout(timeoutId);
+
       document.head.appendChild(script);
     }
 
     // Cleanup function
     return () => {
-      // Remove the global callback
       if (window.initializeAutocomplete) {
         delete window.initializeAutocomplete;
       }
