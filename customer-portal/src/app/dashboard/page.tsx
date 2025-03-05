@@ -102,9 +102,17 @@ const Dashboard: React.FC = () => {
       <h1 className="text-xl font-bold">
         Welcome, {user?.displayName || user?.email || "User"}!
       </h1>
-      <button onClick={logout} className="mt-4 px-4 py-2 bg-red-500 text-white rounded">
-        Logout
-      </button>
+      <div className="flex justify-center space-x-4 mt-4">
+        <button
+          onClick={() => router.push("/order")}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          New Order
+        </button>
+        <button onClick={logout} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+          Logout
+        </button>
+      </div>
 
       <h2 className="text-lg font-bold mt-6">Your Orders</h2>
 
