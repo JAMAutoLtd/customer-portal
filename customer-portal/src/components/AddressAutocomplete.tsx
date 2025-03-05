@@ -1,7 +1,6 @@
 "use client"; // Required for Next.js 13+ to run in the browser
 
 import { useState, useEffect } from "react";
-import { GOOGLE_MAPS_API_KEY } from "@/config/maps";
 
 interface AddressAutocompleteProps {
   onAddressSelect: (address: string) => void;
@@ -10,7 +9,6 @@ interface AddressAutocompleteProps {
 declare global {
   interface Window {
     _googleMapsCallback?: () => void;
-    google: any;
   }
 }
 
@@ -19,17 +17,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    
     // More detailed debugging
     console.log('Debug Info:', {
-      apiKey: GOOGLE_MAPS_API_KEY,
-      apiKeyExists: !!GOOGLE_MAPS_API_KEY,
-      apiKeyLength: GOOGLE_MAPS_API_KEY?.length,
-      windowGoogle: !!window.google,
-      windowGoogleMaps: !!window.google?.maps,
+      apiKeyExists: !!apiKey,
+      apiKeyLength: apiKey?.length,
+      windowGoogle: !!(window as any).google,
+      windowGoogleMaps: !!(window as any).google?.maps,
       env: process.env.NODE_ENV
     });
 
-    if (!GOOGLE_MAPS_API_KEY) {
+    if (!apiKey) {
       console.error('API Key is missing or invalid');
       setError("Google Maps API key is not configured");
       setIsLoading(false);
@@ -46,10 +45,12 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
 
     // Load the script if not already loaded
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=_googleMapsCallback`;
+    const callbackName = '_googleMapsCallback';
+    (window as any)[callbackName] = initializeAutocomplete;
+
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}`;
     script.async = true;
     script.defer = true;
-    window._googleMapsCallback = initializeAutocomplete;
     
     script.onerror = (error) => {
       console.error('Google Maps script failed to load:', error);
@@ -60,8 +61,10 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
     document.head.appendChild(script);
 
     return () => {
-      window._googleMapsCallback = undefined;
-      const scriptToRemove = document.querySelector(`script[src*="maps.googleapis.com"]`);
+      if (window._googleMapsCallback) {
+        delete window._googleMapsCallback;
+      }
+      const scriptToRemove = document.querySelector(`script[src*="${script.src}"]`);
       if (scriptToRemove) {
         document.head.removeChild(scriptToRemove);
       }
@@ -76,7 +79,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({ onAddressSele
         return;
       }
 
-      const autocomplete = new window.google.maps.places.Autocomplete(input, {
+      const autocomplete = new google.maps.places.Autocomplete(input, {
         componentRestrictions: { country: "ca" },
         fields: ["formatted_address"],
         types: ["address"]
