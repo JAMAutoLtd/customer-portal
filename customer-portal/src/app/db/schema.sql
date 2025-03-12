@@ -1,7 +1,14 @@
 -- Create ENUM type for CustomerType
-CREATE TYPE customer_type AS ENUM ('residential', 'commercial', 'dealer');
+CREATE TYPE customer_type AS ENUM ('residential', 'commercial', 'insurance');
 
 -- Create tables with proper constraints and types
+CREATE TABLE Addresses (
+    AddressId SERIAL PRIMARY KEY,
+    StreetAddress VARCHAR(255) NOT NULL,
+    Lat DECIMAL(9,6),
+    Lng DECIMAL(9,6)
+);
+
 CREATE TABLE Users (
     UserId SERIAL PRIMARY KEY,
     Username VARCHAR(100) UNIQUE NOT NULL,
@@ -9,7 +16,7 @@ CREATE TABLE Users (
     FullName VARCHAR(100) NOT NULL,
     Email VARCHAR(100) UNIQUE NOT NULL,
     Phone VARCHAR(100),
-    HomeAddress VARCHAR(255),
+    HomeAddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
     IsAdmin BOOLEAN DEFAULT FALSE,
     CustomerType customer_type NOT NULL
 );
@@ -27,13 +34,6 @@ CREATE TABLE Technicians (
     Workload INTEGER CHECK (Workload >= 0)
 );
 
-CREATE TABLE Addresses (
-    AddressId SERIAL PRIMARY KEY,
-    StreetAddress VARCHAR(255) NOT NULL,
-    Lat DECIMAL(9,6),
-    Lng DECIMAL(9,6)
-);
-
 CREATE TABLE UserAddressesJunction (
     UserId INTEGER REFERENCES Users(UserId) ON DELETE CASCADE,
     AddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE CASCADE,
@@ -49,8 +49,16 @@ CREATE TABLE Orders (
     AddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
     EarliestAvailableTime TIMESTAMP WITH TIME ZONE,
     Notes TEXT,
-    Uploads TEXT,
     Invoice INTEGER
+);
+
+CREATE TABLE OrderUploads (
+    UploadId SERIAL PRIMARY KEY,
+    OrderId INTEGER REFERENCES Orders(OrderId) ON DELETE CASCADE,
+    FileName VARCHAR(255) NOT NULL,
+    FileType VARCHAR(100),
+    FileUrl TEXT NOT NULL,
+    UploadedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE Services (
@@ -67,7 +75,6 @@ CREATE TABLE OrdersServicesJunction (
 CREATE TABLE Jobs (
     JobId SERIAL PRIMARY KEY,
     OrderId INTEGER REFERENCES Orders(OrderId) ON DELETE RESTRICT,
-    CustomerId INTEGER REFERENCES Users(UserId) ON DELETE RESTRICT,
     AssignedTechnician INTEGER REFERENCES Technicians(TechnicianId) ON DELETE RESTRICT,
     AddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
     Priority INTEGER CHECK (Priority >= 0),
