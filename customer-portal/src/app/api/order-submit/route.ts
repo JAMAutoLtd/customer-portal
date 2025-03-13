@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   try {
     const orderData = await request.json();
 
-    // Extract data from the request
     const {
       serviceCategory,
       vin,
@@ -14,20 +13,42 @@ export async function POST(request: Request) {
       earliestDate,
       earliestTime,
       notes,
-      customerName,
-      customerEmail,
       vehicleYear,
       vehicleMake,
       vehicleModel,
       servicesRequired,
     } = orderData;
 
-    // Initialize Supabase client
+    const cookieStore = await cookies();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Format YMM (Year Make Model)
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    });
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      console.error(
+        "Error getting session or user not authenticated:",
+        sessionError
+      );
+      return NextResponse.json(
+        { error: "User not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const userId = session.user.id;
+
     const ymm = `${vehicleYear} ${vehicleMake} ${vehicleModel}`.trim();
 
     // Convert service category to customer_type enum value
@@ -45,32 +66,10 @@ export async function POST(request: Request) {
         break;
     }
 
-    console.log("Looking up user with email:", customerEmail);
-
-    // Get user ID directly from the database
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("userid, email")
-      .eq("email", customerEmail)
-      .single();
-
-    let userId;
-
-    if (userError) {
-      console.error("Error finding user by email:", userError.message);
-      return NextResponse.json(
-        { error: `User not found: ${userError.message}` },
-        { status: 404 }
-      );
-    } else {
-      userId = userData.userid;
-      console.log("Found user in database with ID:", userId);
-    }
-
     // Create address record
     const { data: addressData, error: addressError } = await supabase
       .from("addresses")
-      .insert([{ streetaddress: address }])
+      .insert([{ street_address: address }])
       .select()
       .single();
 
@@ -82,21 +81,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const addressId = addressData.addressid;
+    const addressId = addressData.id;
+
+    // Create vehicle record if VIN is provided
+    let vehicleId = null;
+    if (vin) {
+      const { data: existingVehicle } = await supabase
+        .from("vehicles")
+        .select("id")
+        .eq("vin", vin)
+        .single();
+
+      if (existingVehicle) {
+        vehicleId = existingVehicle.id;
+      } else {
+        const { data: vehicleData, error: vehicleError } = await supabase
+          .from("vehicles")
+          .insert([{ vin, ymm }])
+          .select()
+          .single();
+
+        if (vehicleError) {
+          console.error("Error creating vehicle:", vehicleError);
+        } else {
+          vehicleId = vehicleData.id;
+        }
+      }
+    }
 
     const [hours, minutes] = earliestTime.split(":");
     const earliestDateTime = new Date(earliestDate);
     earliestDateTime.setHours(parseInt(hours), parseInt(minutes) || 0, 0, 0);
 
+    // Create order record
     const { data: orderResult, error: orderError } = await supabase
       .from("orders")
       .insert([
         {
-          userid: userId,
-          vin: vin || null,
-          ymm: ymm,
-          addressid: addressId,
-          earliestavailabletime: earliestDateTime.toISOString(),
+          user_id: userId,
+          vehicle_id: vehicleId,
+          address_id: addressId,
+          earliest_available_time: earliestDateTime.toISOString(),
           notes: notes,
         },
       ])
@@ -111,7 +136,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const orderId = orderResult.orderid;
+    const orderId = orderResult.id;
 
     // Process services
     const servicesToAdd = [];
@@ -172,8 +197,8 @@ export async function POST(request: Request) {
       // Check if service exists, if not create it
       const { data: serviceData, error: serviceError } = await supabase
         .from("services")
-        .select("serviceid")
-        .eq("servicename", serviceName)
+        .select("id")
+        .eq("service_name", serviceName)
         .single();
 
       let serviceId;
@@ -182,7 +207,7 @@ export async function POST(request: Request) {
         // Service doesn't exist, create it
         const { data: newService, error: newServiceError } = await supabase
           .from("services")
-          .insert([{ servicename: serviceName }])
+          .insert([{ service_name: serviceName }])
           .select()
           .single();
 
@@ -191,15 +216,15 @@ export async function POST(request: Request) {
           continue;
         }
 
-        serviceId = newService.serviceid;
+        serviceId = newService.id;
       } else {
-        serviceId = serviceData.serviceid;
+        serviceId = serviceData.id;
       }
 
-      // Create junction record
+      // Create junction record in order_services table
       await supabase
-        .from("ordersservicesjunction")
-        .insert([{ orderid: orderId, serviceid: serviceId }]);
+        .from("order_services")
+        .insert([{ order_id: orderId, service_id: serviceId }]);
     }
 
     return NextResponse.json({

@@ -48,18 +48,18 @@ export async function POST(request: Request) {
     // Check if address already exists (case-insensitive search)
     const { data: existingAddress } = await supabase
       .from("addresses")
-      .select("addressid")
-      .ilike("streetaddress", streetAddress)
+      .select("id")
+      .ilike("street_address", streetAddress)
       .single();
 
     let addressId;
 
     if (existingAddress) {
-      addressId = existingAddress.addressid;
+      addressId = existingAddress.id;
     } else {
       const { data: newAddress, error: addressError } = await supabase
         .from("addresses")
-        .insert([{ streetaddress: streetAddress }])
+        .insert([{ street_address: streetAddress }])
         .select()
         .single();
 
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
         );
       }
 
-      addressId = newAddress.addressid;
+      addressId = newAddress.id;
     }
 
     // Insert user into our database
@@ -79,14 +79,12 @@ export async function POST(request: Request) {
       .from("users")
       .insert([
         {
-          username: email,
-          passwordhash: "MANAGED_BY_SUPABASE",
-          fullname: fullName,
-          email: email,
+          id: authData.user.id,
+          full_name: fullName,
           phone: phone,
-          customertype: customerType,
-          homeaddressid: addressId,
-          authid: authData.user.id,
+          home_address_id: addressId,
+          customer_type: customerType,
+          is_admin: false,
         },
       ])
       .select()
@@ -102,11 +100,11 @@ export async function POST(request: Request) {
 
     // Create user-address junction
     const { error: junctionError } = await supabase
-      .from("useraddressesjunction")
+      .from("user_addresses")
       .insert([
         {
-          userid: userData.userid,
-          addressid: addressId,
+          user_id: userData.id,
+          address_id: addressId,
         },
       ]);
 

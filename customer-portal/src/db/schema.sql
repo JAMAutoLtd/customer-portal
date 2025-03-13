@@ -10,7 +10,6 @@ CREATE TABLE addresses (
 
 CREATE TABLE users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    username VARCHAR(100) UNIQUE NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     phone VARCHAR(100),
     home_address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
