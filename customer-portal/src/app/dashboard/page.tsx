@@ -7,12 +7,12 @@ import { useRouter } from "next/navigation";
 type Order = {
   subDate: string;
   vehicleYear: string;
-  vehicleMM: string;  // Make and Model
+  vehicleMM: string;
   serviceReq: string;
   orderComplete: string;
 };
 
-const MAX_POLLS = 10; // Define MAX_POLLS
+const MAX_POLLS = 10;
 
 const Dashboard: React.FC = () => {
   const { user, logout, loading } = useAuth();
@@ -21,10 +21,10 @@ const Dashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // If not logged in, redirect
+  // If not logged in, redirect to login page
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/auth");
+      router.push("/login");
     }
   }, [user, loading, router]);
 
@@ -32,8 +32,6 @@ const Dashboard: React.FC = () => {
     if (user) {
       const safeEmail = user.email || "";
       let localPollCount = 0;
-      let maxResultsCount = 0; // Track the maximum number of results we've seen
-      console.log("🟢 [Dashboard] Sending email to /api/orders:", safeEmail);
 
       // 1) POST email to /api/orders (to trigger Zapier)
       fetch("/api/orders", {
@@ -67,9 +65,13 @@ const Dashboard: React.FC = () => {
                 setOrders(data);
                 clearInterval(intervalId);
                 setLoadingOrders(false);
-                console.log(`✅ [Dashboard] Received ${data.length} orders, stopping polls.`);
+                console.log(
+                  `✅ [Dashboard] Received ${data.length} orders, stopping polls.`
+                );
               } else {
-                console.log("ℹ️ [Dashboard] Received empty array, continuing to poll...");
+                console.log(
+                  "ℹ️ [Dashboard] Received empty array, continuing to poll..."
+                );
               }
             } else {
               console.error("❌ [Dashboard] Unexpected format:", data);
@@ -87,7 +89,9 @@ const Dashboard: React.FC = () => {
 
         // Safety net to stop polling after MAX_POLLS attempts even if no valid response
         if (localPollCount >= MAX_POLLS) {
-          console.log("⚠️ [Dashboard] Reached max polls without valid response, stopping.");
+          console.log(
+            "⚠️ [Dashboard] Reached max polls without valid response, stopping."
+          );
           setLoadingOrders(false);
           clearInterval(intervalId);
         }
@@ -100,7 +104,8 @@ const Dashboard: React.FC = () => {
   return (
     <div className="p-6 text-center">
       <h1 className="text-xl font-bold">
-        Welcome, {user?.displayName || user?.email || "User"}!
+        {/* Welcome, {user?.displayName || user?.email || "User"}! */}
+        Welcome, {user?.user_metadata.full_name || user?.email || "User"}!
       </h1>
       <div className="flex justify-center space-x-4 mt-4">
         <button
@@ -109,7 +114,10 @@ const Dashboard: React.FC = () => {
         >
           New Order
         </button>
-        <button onClick={logout} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+        <button
+          onClick={logout}
+          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+        >
           Logout
         </button>
       </div>
@@ -149,15 +157,19 @@ const Dashboard: React.FC = () => {
                     {order.vehicleYear} {order.vehicleMM}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
-                    {order.serviceReq || '-'}
+                    {order.serviceReq || "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-left">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      order.orderComplete.toLowerCase() === 'true' 
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {order.orderComplete.toLowerCase() === 'true' ? 'Complete' : 'Pending'}
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        order.orderComplete.toLowerCase() === "true"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {order.orderComplete.toLowerCase() === "true"
+                        ? "Complete"
+                        : "Pending"}
                     </span>
                   </td>
                 </tr>
@@ -172,4 +184,4 @@ const Dashboard: React.FC = () => {
   );
 };
 
-export default Dashboard; 
+export default Dashboard;

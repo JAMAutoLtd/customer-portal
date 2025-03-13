@@ -1,4 +1,4 @@
-"use client"; // Required for Next.js 13+ to run in the browser
+"use client"
 
 import { useState, useEffect } from "react";
 import { GOOGLE_MAPS_API_KEY } from "@/config/maps";
