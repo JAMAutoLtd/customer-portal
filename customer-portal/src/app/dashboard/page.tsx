@@ -21,7 +21,6 @@ const Dashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // If not logged in, redirect to login page
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
@@ -102,27 +101,28 @@ const Dashboard: React.FC = () => {
   }, [user]);
 
   return (
-    <div className="p-6 text-center">
-      <h1 className="text-xl font-bold">
-        {/* Welcome, {user?.displayName || user?.email || "User"}! */}
-        Welcome, {user?.user_metadata.full_name || user?.email || "User"}!
-      </h1>
-      <div className="flex justify-center space-x-4 mt-4">
-        <button
-          onClick={() => router.push("/order")}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          New Order
-        </button>
-        <button
-          onClick={logout}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Logout
-        </button>
+    <div className="p-6">
+      <div className="flex justify-end items-center mb-8 gap-3">
+        <div>
+          <button
+            onClick={() => router.push("/order")}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 whitespace-nowrap"
+          >
+            New Order
+          </button>
+        </div>
+
+        <div>
+          <button
+            onClick={logout}
+            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
-      <h2 className="text-lg font-bold mt-6">Your Orders</h2>
+      <h2 className="text-lg font-bold mt-6 text-center ">Your Orders</h2>
 
       {error ? (
         <p className="mt-4 text-red-500">{error}</p>
