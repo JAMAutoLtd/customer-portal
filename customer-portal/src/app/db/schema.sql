@@ -18,7 +18,8 @@ CREATE TABLE Users (
     Phone VARCHAR(100),
     HomeAddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
     IsAdmin BOOLEAN DEFAULT FALSE,
-    CustomerType customer_type NOT NULL
+    CustomerType customer_type NOT NULL,
+    AuthId UUID UNIQUE
 );
 
 CREATE TABLE FleetVehicles (

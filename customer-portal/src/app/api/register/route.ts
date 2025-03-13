@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/app/db/db';
-import { hash } from 'bcryptjs';
+import supabase from '@/app/db/supabaseClient';
 
 export async function POST(request: Request) {
   try {
@@ -15,61 +14,108 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if email already exists
-    const existingUser = await db.query(
-      'SELECT userid FROM users WHERE email = $1',
-      [email]
-    );
+    // Create user with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          phone: phone,
+          customer_type: customerType
+        }
+      }
+    });
 
-    if (existingUser.rows.length > 0) {
+    if (authError) {
       return NextResponse.json(
-        { detail: 'Email already registered' },
+        { detail: authError.message },
         { status: 400 }
       );
     }
 
-    // Hash password
-    const hashedPassword = await hash(password, 10);
-
-    // Start transaction
-    await db.query('BEGIN');
-
-    try {
-      // Insert user
-      const userResult = await db.query(
-        `INSERT INTO users (username, passwordhash, fullname, email, phone, customertype)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING userid`,
-        [email, hashedPassword, fullName, email, phone, customerType]
-      );
-      const userId = userResult.rows[0].userid;
-
-      // Insert address
-      const addressResult = await db.query(
-        `INSERT INTO addresses (streetaddress)
-         VALUES ($1)
-         RETURNING addressid`,
-        [streetAddress]
-      );
-      const addressId = addressResult.rows[0].addressid;
-
-      // Link user and address
-      await db.query(
-        `INSERT INTO useraddressesjunction (userid, addressid)
-         VALUES ($1, $2)`,
-        [userId, addressId]
-      );
-
-      await db.query('COMMIT');
-
+    if (!authData.user) {
       return NextResponse.json(
-        { message: 'Registration successful' },
+        { detail: 'Failed to create user' },
+        { status: 500 }
+      );
+    }
+
+    // Check if address already exists (case-insensitive search)
+    const { data: existingAddress } = await supabase
+      .from('addresses')
+      .select('addressid')
+      .ilike('streetaddress', streetAddress)
+      .single();
+
+    let addressId;
+    
+    if (existingAddress) {
+      // Use existing address
+      addressId = existingAddress.addressid;
+    } else {
+      // Create new address if it doesn't exist
+      const { data: newAddress, error: addressError } = await supabase
+        .from('addresses')
+        .insert([{ streetaddress: streetAddress }])
+        .select()
+        .single();
+
+      if (addressError) {
+        console.error('Failed to create address:', addressError);
+        return NextResponse.json(
+          { detail: 'User created but failed to save address' },
+          { status: 201 }
+        );
+      }
+
+      addressId = newAddress.addressid;
+    }
+
+    // Insert user into our database
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert([{
+        username: email,
+        passwordhash: 'MANAGED_BY_SUPABASE', // We don't store the actual password
+        fullname: fullName,
+        email: email,
+        phone: phone,
+        customertype: customerType,
+        homeaddressid: addressId,
+        authid: authData.user.id // Store the Supabase auth ID
+      }])
+      .select()
+      .single();
+
+    if (userError) {
+      console.error('Failed to create user profile:', userError);
+      return NextResponse.json(
+        { detail: 'User created but profile creation failed' },
         { status: 201 }
       );
-    } catch (error) {
-      await db.query('ROLLBACK');
-      throw error;
     }
+
+    // Create user-address junction
+    const { error: junctionError } = await supabase
+      .from('useraddressesjunction')
+      .insert([{
+        userid: userData.userid,
+        addressid: addressId
+      }]);
+
+    if (junctionError) {
+      console.error('Failed to create address junction:', junctionError);
+      return NextResponse.json(
+        { detail: 'User created but address linking failed' },
+        { status: 201 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: 'Registration successful' },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
