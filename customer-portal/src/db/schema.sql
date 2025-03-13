@@ -1,129 +1,126 @@
--- Create ENUM type for CustomerType
 CREATE TYPE customer_type AS ENUM ('residential', 'commercial', 'insurance');
+CREATE TYPE job_status AS ENUM ('pending', 'assigned', 'in_progress', 'completed', 'cancelled');
 
--- Create tables with proper constraints and types
-CREATE TABLE Addresses (
-    AddressId SERIAL PRIMARY KEY,
-    StreetAddress VARCHAR(255) NOT NULL,
-    Lat DECIMAL(9,6),
-    Lng DECIMAL(9,6)
+CREATE TABLE addresses (
+    id SERIAL PRIMARY KEY,
+    street_address VARCHAR(255) NOT NULL,
+    lat DECIMAL(9,6),
+    lng DECIMAL(9,6)
 );
 
-CREATE TABLE Users (
-    UserId SERIAL PRIMARY KEY,
-    Username VARCHAR(100) UNIQUE NOT NULL,
-    PasswordHash VARCHAR(100) NOT NULL,
-    FullName VARCHAR(100) NOT NULL,
-    Email VARCHAR(100) UNIQUE NOT NULL,
-    Phone VARCHAR(100),
-    HomeAddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
-    IsAdmin BOOLEAN DEFAULT FALSE,
-    CustomerType customer_type NOT NULL,
-    AuthId UUID UNIQUE
+CREATE TABLE users (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(100),
+    home_address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
+    is_admin BOOLEAN DEFAULT FALSE,
+    customer_type customer_type NOT NULL
 );
 
-CREATE TABLE FleetVehicles (
-    FleetVehicleId SERIAL PRIMARY KEY,
-    LastService TIMESTAMP WITH TIME ZONE,
-    NextService TIMESTAMP WITH TIME ZONE
+CREATE TABLE fleet_vehicles (
+    id SERIAL PRIMARY KEY,
+    last_service TIMESTAMP WITH TIME ZONE,
+    next_service TIMESTAMP WITH TIME ZONE
 );
 
-CREATE TABLE Technicians (
-    TechnicianId SERIAL PRIMARY KEY,
-    UserId INTEGER REFERENCES Users(UserId) ON DELETE RESTRICT,
-    AssignedVanId INTEGER REFERENCES FleetVehicles(FleetVehicleId) ON DELETE SET NULL,
-    Workload INTEGER CHECK (Workload >= 0)
+CREATE TABLE technicians (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE RESTRICT,
+    assigned_van_id INTEGER REFERENCES fleet_vehicles(id) ON DELETE SET NULL,
+    workload INTEGER CHECK (workload >= 0)
 );
 
-CREATE TABLE UserAddressesJunction (
-    UserId INTEGER REFERENCES Users(UserId) ON DELETE CASCADE,
-    AddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE CASCADE,
-    PRIMARY KEY (UserId, AddressId)
+CREATE TABLE user_addresses (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    address_id INTEGER REFERENCES addresses(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, address_id)
 );
 
-CREATE TABLE Orders (
-    OrderId SERIAL PRIMARY KEY,
-    UserId INTEGER REFERENCES Users(UserId) ON DELETE RESTRICT,
-    VIN VARCHAR(17),
-    YMM VARCHAR(100),
-    RepairOrderNumber VARCHAR(50),
-    AddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
-    EarliestAvailableTime TIMESTAMP WITH TIME ZONE,
-    Notes TEXT,
-    Invoice INTEGER
+CREATE TABLE vehicles (
+    id SERIAL PRIMARY KEY,
+    vin VARCHAR(17) UNIQUE,
+    ymm VARCHAR(100) NOT NULL
 );
 
-CREATE TABLE OrderUploads (
-    UploadId SERIAL PRIMARY KEY,
-    OrderId INTEGER REFERENCES Orders(OrderId) ON DELETE CASCADE,
-    FileName VARCHAR(255) NOT NULL,
-    FileType VARCHAR(100),
-    FileUrl TEXT NOT NULL,
-    UploadedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE RESTRICT,
+    vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE RESTRICT,
+    repair_order_number VARCHAR(50),
+    address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
+    earliest_available_time TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    invoice INTEGER
 );
 
-CREATE TABLE Services (
-    ServiceId SERIAL PRIMARY KEY,
-    ServiceName VARCHAR(100) NOT NULL UNIQUE
+CREATE TABLE order_uploads (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100),
+    file_url TEXT NOT NULL,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE OrdersServicesJunction (
-    OrderId INTEGER REFERENCES Orders(OrderId) ON DELETE CASCADE,
-    ServiceId INTEGER REFERENCES Services(ServiceId) ON DELETE CASCADE,
-    PRIMARY KEY (OrderId, ServiceId)
+CREATE TABLE services (
+    id SERIAL PRIMARY KEY,
+    service_name VARCHAR(100) NOT NULL UNIQUE
 );
 
-CREATE TABLE Jobs (
-    JobId SERIAL PRIMARY KEY,
-    OrderId INTEGER REFERENCES Orders(OrderId) ON DELETE RESTRICT,
-    AssignedTechnician INTEGER REFERENCES Technicians(TechnicianId) ON DELETE RESTRICT,
-    AddressId INTEGER REFERENCES Addresses(AddressId) ON DELETE RESTRICT,
-    Priority INTEGER CHECK (Priority >= 0),
-    Status VARCHAR(50) NOT NULL,
-    RequestedTime TIMESTAMP WITH TIME ZONE,
-    EstimatedSched TIMESTAMP WITH TIME ZONE,
-    JobDuration INTEGER CHECK (JobDuration > 0),
-    VIN VARCHAR(17),
-    YMM VARCHAR(100),
-    Notes TEXT
+CREATE TABLE order_services (
+    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    service_id INTEGER REFERENCES services(id) ON DELETE CASCADE,
+    PRIMARY KEY (order_id, service_id)
 );
 
-CREATE TABLE JobsServicesJunction (
-    JobId INTEGER REFERENCES Jobs(JobId) ON DELETE CASCADE,
-    ServReq INTEGER REFERENCES Services(ServiceId) ON DELETE CASCADE,
-    PRIMARY KEY (JobId, ServReq)
+CREATE TABLE jobs (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
+    assigned_technician INTEGER REFERENCES technicians(id) ON DELETE RESTRICT,
+    address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
+    priority INTEGER CHECK (priority >= 0),
+    status job_status NOT NULL,
+    requested_time TIMESTAMP WITH TIME ZONE,
+    estimated_sched TIMESTAMP WITH TIME ZONE,
+    job_duration INTEGER CHECK (job_duration > 0),
+    notes TEXT
 );
 
-CREATE TABLE Keys (
-    SkuId VARCHAR(50) PRIMARY KEY,
-    Quantity INTEGER NOT NULL CHECK (Quantity >= 0),
-    MinQuantity INTEGER NOT NULL CHECK (MinQuantity >= 0),
-    PartNumber VARCHAR(50),
-    PurchasePrice DECIMAL(10,2),
-    SalePrice DECIMAL(10,2),
-    Supplier VARCHAR(100),
-    FccId VARCHAR(50)
+CREATE TABLE job_services (
+    job_id INTEGER REFERENCES jobs(id) ON DELETE CASCADE,
+    service_id INTEGER REFERENCES services(id) ON DELETE CASCADE,
+    PRIMARY KEY (job_id, service_id)
 );
 
-CREATE TABLE Equipment (
-    EquipmentId SERIAL PRIMARY KEY,
-    EquipmentName VARCHAR(100) NOT NULL UNIQUE
+CREATE TABLE keys (
+    sku_id VARCHAR(50) PRIMARY KEY,
+    quantity INTEGER NOT NULL CHECK (quantity >= 0),
+    min_quantity INTEGER NOT NULL CHECK (min_quantity >= 0),
+    part_number VARCHAR(50),
+    purchase_price DECIMAL(10,2),
+    sale_price DECIMAL(10,2),
+    supplier VARCHAR(100),
+    fcc_id VARCHAR(50)
 );
 
-CREATE TABLE ServEquipJunction (
-    ServiceId INTEGER REFERENCES Services(ServiceId) ON DELETE CASCADE,
-    EquipmentId INTEGER REFERENCES Equipment(EquipmentId) ON DELETE CASCADE,
-    PRIMARY KEY (ServiceId, EquipmentId)
+CREATE TABLE equipment (
+    id SERIAL PRIMARY KEY,
+    equipment_name VARCHAR(100) NOT NULL UNIQUE
 );
 
-CREATE TABLE FleetVehiclesEquipmentJunction (
-    FleetVehicleId INTEGER REFERENCES FleetVehicles(FleetVehicleId) ON DELETE CASCADE,
-    EquipmentId INTEGER REFERENCES Equipment(EquipmentId) ON DELETE CASCADE,
-    PRIMARY KEY (FleetVehicleId, EquipmentId)
+CREATE TABLE service_equipment (
+    service_id INTEGER REFERENCES services(id) ON DELETE CASCADE,
+    equipment_id INTEGER REFERENCES equipment(id) ON DELETE CASCADE,
+    PRIMARY KEY (service_id, equipment_id)
 );
 
--- Create indexes for frequently accessed columns
-CREATE INDEX idx_users_email ON Users(Email);
-CREATE INDEX idx_jobs_status ON Jobs(Status);
-CREATE INDEX idx_jobs_estimated_sched ON Jobs(EstimatedSched);
-CREATE INDEX idx_addresses_coords ON Addresses(Lat, Lng);
+CREATE TABLE fleet_vehicle_equipment (
+    fleet_vehicle_id INTEGER REFERENCES fleet_vehicles(id) ON DELETE CASCADE,
+    equipment_id INTEGER REFERENCES equipment(id) ON DELETE CASCADE,
+    PRIMARY KEY (fleet_vehicle_id, equipment_id)
+);
+
+CREATE INDEX idx_jobs_status ON jobs(status);
+CREATE INDEX idx_jobs_estimated_sched ON jobs(estimated_sched);
+CREATE INDEX idx_addresses_coords ON addresses(lat, lng);

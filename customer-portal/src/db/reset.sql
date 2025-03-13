@@ -1,19 +1,18 @@
--- Drop all tables in correct order (respecting foreign key constraints)
-DROP TABLE IF EXISTS FleetVehiclesEquipmentJunction;
-DROP TABLE IF EXISTS ServEquipJunction;
-DROP TABLE IF EXISTS JobsServicesJunction;
-DROP TABLE IF EXISTS OrdersServicesJunction;
-DROP TABLE IF EXISTS Equipment;
-DROP TABLE IF EXISTS Keys;
-DROP TABLE IF EXISTS Jobs;
-DROP TABLE IF EXISTS OrderUploads;
-DROP TABLE IF EXISTS Orders;
-DROP TABLE IF EXISTS Services;
-DROP TABLE IF EXISTS UserAddressesJunction;
-DROP TABLE IF EXISTS Technicians;
-DROP TABLE IF EXISTS FleetVehicles;
-DROP TABLE IF EXISTS Users;
-DROP TABLE IF EXISTS Addresses;
+DROP TABLE IF EXISTS fleet_vehicle_equipment CASCADE;
+DROP TABLE IF EXISTS service_equipment CASCADE;
+DROP TABLE IF EXISTS job_services CASCADE;
+DROP TABLE IF EXISTS order_services CASCADE;
+DROP TABLE IF EXISTS user_addresses CASCADE;
 
--- Drop the enum type
-DROP TYPE IF EXISTS customer_type; 
+DROP TABLE IF EXISTS jobs CASCADE;
+DROP TABLE IF EXISTS order_uploads CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS technicians CASCADE;
+DROP TABLE IF EXISTS keys CASCADE;
+DROP TABLE IF EXISTS equipment CASCADE;
+DROP TABLE IF EXISTS services CASCADE;
+DROP TABLE IF EXISTS fleet_vehicles CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS addresses CASCADE;
+
+DROP TYPE IF EXISTS customer_type CASCADE; 
