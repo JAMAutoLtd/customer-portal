@@ -1,187 +1,318 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { createClient } from "@/utils/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
-type Order = {
-  subDate: string;
-  vehicleYear: string;
-  vehicleMM: string;
-  serviceReq: string;
-  orderComplete: string;
+// Define types based on the database schema
+type Address = {
+  id: number;
+  street_address: string;
+  lat?: number;
+  lng?: number;
 };
 
-const MAX_POLLS = 10;
+type Vehicle = {
+  id: number;
+  vin?: string;
+  ymm: string;
+};
 
-const Dashboard: React.FC = () => {
+type Service = {
+  id: number;
+  service_name: string;
+};
+
+type Order = {
+  id: number;
+  repair_order_number?: string;
+  earliest_available_time?: string;
+  notes?: string;
+  invoice?: number;
+  address: Address;
+  vehicle: Vehicle;
+  services: Service[];
+  uploads: {
+    id: number;
+    file_name: string;
+    file_url: string;
+  }[];
+  jobs: {
+    id: number;
+    status: string;
+    requested_time?: string;
+    estimated_sched?: string;
+    job_duration?: number;
+    notes?: string;
+  }[];
+};
+
+export default function Dashboard() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
-  const [loadingOrders, setLoadingOrders] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const supabase = createClient();
 
   useEffect(() => {
+    // Redirect to login if not authenticated
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user) {
-      const safeEmail = user.email || "";
-      let localPollCount = 0;
+    const fetchOrders = async () => {
+      if (!user) return;
 
-      // 1) POST email to /api/orders (to trigger Zapier)
-      fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: safeEmail }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          console.log("✅ [Dashboard] /api/orders response:", data);
-        })
-        .catch((err) => {
-          console.error("❌ [Dashboard] Error calling /api/orders:", err);
-        });
+      try {
+        // Fetch orders with related data
+        const { data: ordersData, error: ordersError } = await supabase
+          .from("orders")
+          .select(
+            `
+            id, 
+            repair_order_number, 
+            earliest_available_time, 
+            notes, 
+            invoice,
+            addresses:address_id(id, street_address, lat, lng),
+            vehicles:vehicle_id(id, vin, ymm)
+          `
+          )
+          .eq("user_id", user.id)
+          .order("id", { ascending: false });
 
-      // 2) Poll /api/orders-response?email=... every 5s, up to MAX_POLLS times
-      const intervalId = setInterval(() => {
-        localPollCount++;
-        console.log(
-          `🔄 [Dashboard] Polling /api/orders-response?email=${safeEmail}, attempt #${localPollCount}`
+        if (ordersError) throw ordersError;
+
+        // For each order, fetch related services, uploads, and jobs
+        const ordersWithDetails = await Promise.all(
+          (ordersData || []).map(async (order) => {
+            // Fetch services for this order
+            const { data: servicesData } = await supabase
+              .from("order_services")
+              .select("services:service_id(id, service_name)")
+              .eq("order_id", order.id);
+
+            // Fetch uploads for this order
+            const { data: uploadsData } = await supabase
+              .from("order_uploads")
+              .select("id, file_name, file_url")
+              .eq("order_id", order.id);
+
+            // Fetch jobs for this order
+            const { data: jobsData } = await supabase
+              .from("jobs")
+              .select(
+                "id, status, requested_time, estimated_sched, job_duration, notes"
+              )
+              .eq("order_id", order.id);
+
+            // Create a properly typed order object
+            return {
+              id: order.id,
+              repair_order_number: order.repair_order_number,
+              earliest_available_time: order.earliest_available_time,
+              notes: order.notes,
+              invoice: order.invoice,
+              address: order.addresses,
+              vehicle: order.vehicles,
+              services: servicesData?.map((item) => item.services) || [],
+              uploads: uploadsData || [],
+              jobs: jobsData || [],
+            } as unknown as Order;
+          })
         );
 
-        fetch(`/api/orders-response?email=${encodeURIComponent(safeEmail)}`)
-          .then((res) => res.json())
-          .then((data) => {
-            console.log("📦 [Dashboard] Received Orders:", data);
+        setOrders(ordersWithDetails);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-            if (Array.isArray(data)) {
-              if (data.length > 0) {
-                // Data is now an array of complete order objects
-                setOrders(data);
-                clearInterval(intervalId);
-                setLoadingOrders(false);
-                console.log(
-                  `✅ [Dashboard] Received ${data.length} orders, stopping polls.`
-                );
-              } else {
-                console.log(
-                  "ℹ️ [Dashboard] Received empty array, continuing to poll..."
-                );
-              }
-            } else {
-              console.error("❌ [Dashboard] Unexpected format:", data);
-              setError("Failed to load orders.");
-              setLoadingOrders(false);
-              clearInterval(intervalId);
-            }
-          })
-          .catch((error) => {
-            console.error("❌ [Dashboard] Error loading orders:", error);
-            setError("An error occurred while fetching orders.");
-            setLoadingOrders(false);
-            clearInterval(intervalId);
-          });
-
-        // Safety net to stop polling after MAX_POLLS attempts even if no valid response
-        if (localPollCount >= MAX_POLLS) {
-          console.log(
-            "⚠️ [Dashboard] Reached max polls without valid response, stopping."
-          );
-          setLoadingOrders(false);
-          clearInterval(intervalId);
-        }
-      }, 5000);
-
-      return () => clearInterval(intervalId);
+    if (user) {
+      fetchOrders();
     }
-  }, [user]);
+  }, [user, supabase]);
+
+  const handleNewOrder = () => {
+    router.push("/order/new");
+  };
+
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  if (loading || isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-end items-center mb-8 gap-3">
-        <div>
-          <button
-            onClick={() => router.push("/order")}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 whitespace-nowrap"
-          >
-            New Order
-          </button>
-        </div>
-
-        <div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-          >
-            Logout
-          </button>
+    <div className="container mx-auto px-4 py-8">
+      {/* Header with buttons */}
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-2xl font-bold">Your Dashboard</h1>
+        <div className="flex gap-4">
+          <Button onClick={handleNewOrder}>New Order</Button>
+          <Button variant="default" onClick={handleLogout}>
+            Log Out
+          </Button>
         </div>
       </div>
 
-      <h2 className="text-lg font-bold mt-6 text-center ">Your Orders</h2>
+      {/* Orders list */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Your Orders</h2>
 
-      {error ? (
-        <p className="mt-4 text-red-500">{error}</p>
-      ) : loadingOrders ? (
-        <p className="text-center mt-10">Loading...</p>
-      ) : orders.length > 0 ? (
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full bg-white rounded-lg overflow-hidden">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Submission Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vehicle
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Services Required
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {orders.map((order, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
-                    {order.subDate}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
-                    {order.vehicleYear} {order.vehicleMM}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-left">
-                    {order.serviceReq || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-left">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        order.orderComplete.toLowerCase() === "true"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {order.orderComplete.toLowerCase() === "true"
-                        ? "Complete"
-                        : "Pending"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="mt-4">No orders found.</p>
-      )}
+        {orders.length === 0 ? (
+          <p className="text-gray-500">You don't have any orders yet.</p>
+        ) : (
+          orders.map((order) => (
+            <Card key={order.id}>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Order #{order.id}
+                    </h3>
+                    {order.repair_order_number && (
+                      <p>
+                        <span className="font-medium">
+                          Repair Order Number:
+                        </span>{" "}
+                        {order.repair_order_number}
+                      </p>
+                    )}
+                    {order.earliest_available_time && (
+                      <p>
+                        <span className="font-medium">
+                          Earliest Available Time:
+                        </span>{" "}
+                        {new Date(
+                          order.earliest_available_time
+                        ).toLocaleString()}
+                      </p>
+                    )}
+                    {order.invoice && (
+                      <p>
+                        <span className="font-medium">Invoice:</span> $
+                        {order.invoice}
+                      </p>
+                    )}
+                    {order.notes && (
+                      <p>
+                        <span className="font-medium">Notes:</span>{" "}
+                        {order.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium mb-1">Vehicle Information</h4>
+                    <p>{order.vehicle.ymm}</p>
+                    {order.vehicle.vin && (
+                      <p>
+                        <span className="font-medium">VIN:</span>{" "}
+                        {order.vehicle.vin}
+                      </p>
+                    )}
+
+                    <h4 className="font-medium mt-4 mb-1">Address</h4>
+                    <p>{order.address.street_address}</p>
+                  </div>
+                </div>
+
+                {/* Services */}
+                {order.services.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Services</h4>
+                    <ul className="list-disc pl-5">
+                      {order.services.map((service) => (
+                        <li key={service.id}>{service.service_name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Jobs */}
+                {order.jobs.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Jobs</h4>
+                    <div className="space-y-2">
+                      {order.jobs.map((job) => (
+                        <div key={job.id} className="p-3 bg-gray-50 rounded">
+                          <p>
+                            <span className="font-medium">Status:</span>{" "}
+                            {job.status}
+                          </p>
+                          {job.requested_time && (
+                            <p>
+                              <span className="font-medium">
+                                Requested Time:
+                              </span>{" "}
+                              {new Date(job.requested_time).toLocaleString()}
+                            </p>
+                          )}
+                          {job.estimated_sched && (
+                            <p>
+                              <span className="font-medium">
+                                Estimated Schedule:
+                              </span>{" "}
+                              {new Date(job.estimated_sched).toLocaleString()}
+                            </p>
+                          )}
+                          {job.job_duration && (
+                            <p>
+                              <span className="font-medium">Duration:</span>{" "}
+                              {job.job_duration} minutes
+                            </p>
+                          )}
+                          {job.notes && (
+                            <p>
+                              <span className="font-medium">Notes:</span>{" "}
+                              {job.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Uploads/Attachments */}
+                {order.uploads.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Attachments</h4>
+                    <ul className="list-disc pl-5">
+                      {order.uploads.map((upload) => (
+                        <li key={upload.id}>
+                          <a
+                            href={upload.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            {upload.file_name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   );
-};
-
-export default Dashboard;
+}
