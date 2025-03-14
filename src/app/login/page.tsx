@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { Loader } from "@/components/ui/Loader";
 
 function LoginContent() {
   const router = useRouter();
@@ -169,7 +170,13 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={
+        <div>
+          <Loader />
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

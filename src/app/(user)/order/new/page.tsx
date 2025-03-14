@@ -16,6 +16,7 @@ import {
 } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { CheckMarkIcon } from "@/components/icons/CheckMarkIcon";
+import { Loader } from "@/components/ui/Loader";
 
 const initialFormData: OrderFormData = {
   serviceCategory: "Residential or Personal",
@@ -297,7 +298,11 @@ const OrderForm: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="p-6 text-center">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader />
+      </div>
+    );
   }
 
   return (

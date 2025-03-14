@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/Card";
 import { OrderCardProps } from "@/types";
 import { InfoIcon } from "./icons/InfoIcon";
 import { LocationIcon } from "./icons/LocationIcon";
-import { ClipboardIcon } from "lucide-react";
+import { ClipboardIcon } from "./icons/ClipboardIcon";
 import { ServiceIcon } from "./icons/ServiceIcon";
 
 export function OrderCard({ order }: OrderCardProps) {

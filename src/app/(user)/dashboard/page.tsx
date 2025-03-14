@@ -6,8 +6,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/utils/supabase/client";
 import { OrderCard } from "@/components/OrderCard";
 import { Order } from "@/types";
-import { ClipboardIcon } from "lucide-react";
+import { ClipboardIcon } from "@/components/icons/ClipboardIcon";
 import { DocumentIcon } from "@/components/icons/DocumentIcon";
+import { Loader } from "@/components/ui/Loader";
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -95,7 +96,7 @@ export default function Dashboard() {
   if (loading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        Loading...
+        <Loader />
       </div>
     );
   }

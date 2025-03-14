@@ -1,49 +1,49 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import AddressAutocomplete from '@/components/AddressAutocomplete';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
-type CustomerType = 'residential' | 'commercial' | 'insurance';
+type CustomerType = "residential" | "commercial" | "insurance";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    fullName: '',
-    phone: '',
-    streetAddress: '',
-    customerType: 'residential' as CustomerType,
+    email: "",
+    password: "",
+    confirmPassword: "",
+    fullName: "",
+    phone: "",
+    streetAddress: "",
+    customerType: "residential" as CustomerType,
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAddressSelect = (address: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      streetAddress: address
+      streetAddress: address,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsSubmitting(true);
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError("Passwords do not match");
       setIsSubmitting(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/register', {
-        method: 'POST',
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: formData.email,
@@ -57,12 +57,12 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.detail || 'Registration failed');
+        throw new Error(data.detail || "Registration failed");
       }
 
-      router.push('/login?registered=true');
+      router.push("/login?registered=true");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setIsSubmitting(false);
     }
@@ -72,9 +72,9 @@ export default function RegisterPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -86,15 +86,21 @@ export default function RegisterPage() {
             Create your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            Or{" "}
+            <Link
+              href="/login"
+              className="font-medium text-blue-600 hover:text-blue-500"
+            >
               sign in to your existing account
             </Link>
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative" role="alert">
+          <div
+            className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded relative"
+            role="alert"
+          >
             <span className="block sm:inline">{error}</span>
           </div>
         )}
@@ -102,7 +108,10 @@ export default function RegisterPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Email address
               </label>
               <input
@@ -117,7 +126,10 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Password
               </label>
               <input
@@ -132,7 +144,10 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Confirm Password
               </label>
               <input
@@ -147,7 +162,10 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="fullName"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Full Name
               </label>
               <input
@@ -162,7 +180,10 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Phone Number
               </label>
               <input
@@ -177,7 +198,10 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="streetAddress" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="streetAddress"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Street Address
               </label>
               <AddressAutocomplete onAddressSelect={handleAddressSelect} />
@@ -189,7 +213,10 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="customerType" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="customerType"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Customer Type
               </label>
               <select
@@ -212,14 +239,14 @@ export default function RegisterPage() {
               type="submit"
               disabled={isSubmitting}
               className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                isSubmitting ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
-              {isSubmitting ? 'Creating account...' : 'Create account'}
+              {isSubmitting ? "Creating account..." : "Create account"}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
-} 
+}

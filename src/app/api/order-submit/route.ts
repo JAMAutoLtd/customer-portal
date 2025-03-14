@@ -51,21 +51,6 @@ export async function POST(request: Request) {
 
     const ymm = `${vehicleYear} ${vehicleMake} ${vehicleModel}`.trim();
 
-    // Convert service category to customer_type enum value
-    let customerType;
-    switch (serviceCategory) {
-      case "Insurance Claim":
-        customerType = "insurance";
-        break;
-      case "Salvage Repair or Commercial":
-        customerType = "commercial";
-        break;
-      case "Residential or Personal":
-      default:
-        customerType = "residential";
-        break;
-    }
-
     // Create address record
     const { data: addressData, error: addressError } = await supabase
       .from("addresses")
@@ -194,37 +179,26 @@ export async function POST(request: Request) {
 
     // Add services to the database and create junction records
     for (const serviceName of servicesToAdd) {
-      // Check if service exists, if not create it
+      // Check if service exists
       const { data: serviceData, error: serviceError } = await supabase
         .from("services")
         .select("id")
         .eq("service_name", serviceName)
         .single();
 
-      let serviceId;
+      // Only proceed if the service exists
+      if (!serviceError && serviceData) {
+        const serviceId = serviceData.id;
 
-      if (serviceError) {
-        // Service doesn't exist, create it
-        const { data: newService, error: newServiceError } = await supabase
-          .from("services")
-          .insert([{ service_name: serviceName }])
-          .select()
-          .single();
-
-        if (newServiceError) {
-          console.error("Error creating service:", newServiceError);
-          continue;
-        }
-
-        serviceId = newService.id;
+        // Create junction record in order_services table
+        await supabase
+          .from("order_services")
+          .insert([{ order_id: orderId, service_id: serviceId }]);
       } else {
-        serviceId = serviceData.id;
+        console.error(
+          `Service "${serviceName}" not found in database, skipping`
+        );
       }
-
-      // Create junction record in order_services table
-      await supabase
-        .from("order_services")
-        .insert([{ order_id: orderId, service_id: serviceId }]);
     }
 
     return NextResponse.json({
