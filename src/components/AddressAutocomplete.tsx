@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { GOOGLE_MAPS_API_KEY } from "@/config/maps";
+import { CheckMarkIcon } from "./icons/CheckMarkIcon";
 
 interface AddressAutocompleteProps {
-  onAddressSelect: (address: string) => void;
+  onAddressSelect: (address: string, isValid: boolean) => void;
 }
 
 declare global {
@@ -19,6 +20,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAddressValid, setIsAddressValid] = useState(false);
+  const [inputValue, setInputValue] = useState("");
 
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
@@ -57,7 +60,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
             fullAddress = `${place.name}, ${fullAddress}`;
           }
 
-          onAddressSelect(fullAddress);
+          setInputValue(fullAddress);
+          setIsAddressValid(!!place.place_id);
+          onAddressSelect(fullAddress, !!place.place_id);
         });
 
         setIsLoading(false);
@@ -107,13 +112,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       document.head.appendChild(script);
     }
 
-    // Cleanup function
     return () => {
       if (window.initializeAutocomplete) {
         delete window.initializeAutocomplete;
       }
     };
   }, [onAddressSelect]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+    setIsAddressValid(false);
+    onAddressSelect(e.target.value, false);
+  };
 
   if (error) {
     return (
@@ -141,17 +151,26 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           id="address-input"
           type="text"
           placeholder="Enter business name or address"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={`w-full px-3 py-2 border ${
+            isAddressValid ? "border-green-500" : "border-gray-300"
+          } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
           disabled={isLoading}
           autoComplete="off"
           autoCapitalize="off"
           spellCheck="false"
           role="combobox"
           aria-autocomplete="list"
+          value={inputValue}
+          onChange={handleInputChange}
         />
         {isLoading && (
           <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+        {isAddressValid && (
+          <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+            <CheckMarkIcon />
           </div>
         )}
       </div>

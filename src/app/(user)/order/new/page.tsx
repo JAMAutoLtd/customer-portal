@@ -15,6 +15,7 @@ import {
   ServicesRequired,
 } from "@/types";
 import { Button } from "@/components/ui/Button";
+import { CheckMarkIcon } from "@/components/icons/CheckMarkIcon";
 
 const initialFormData: OrderFormData = {
   serviceCategory: "Residential or Personal",
@@ -42,6 +43,7 @@ const OrderForm: React.FC = () => {
   const [isCheckingVin, setIsCheckingVin] = useState(false);
   const [vinError, setVinError] = useState<string | null>(null);
   const [isVinValid, setIsVinValid] = useState(false);
+  const [isAddressValid, setIsAddressValid] = useState(false);
 
   // Format time for 12-hour format
   const formatTime = (hour: number) => {
@@ -130,6 +132,14 @@ const OrderForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate address before submission
+    if (!isAddressValid) {
+      setError("Please select a valid address from the dropdown suggestions.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
     setSuccess(false);
@@ -343,25 +353,32 @@ const OrderForm: React.FC = () => {
               </label>
               <div className="flex space-x-3">
                 <div className="flex-1">
-                  <input
-                    type="text"
-                    id="vin"
-                    name="vin"
-                    value={formData.vin}
-                    onChange={handleVinChange}
-                    required
-                    maxLength={17}
-                    className={`w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      vinError ? "border-red-500" : ""
-                    }`}
-                    placeholder="Enter VIN"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="vin"
+                      name="vin"
+                      value={formData.vin}
+                      onChange={handleVinChange}
+                      required
+                      maxLength={17}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        vinError ? "border-red-500" : ""
+                      } ${isVinValid ? "border-green-500" : ""}`}
+                      placeholder="Enter VIN"
+                    />
+                    {!vinError && formData.vehicleMake && (
+                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                        <CheckMarkIcon />
+                      </div>
+                    )}
+                  </div>
                   {vinError && (
                     <p className="mt-2 text-sm text-red-600">{vinError}</p>
                   )}
                   {!vinError && formData.vehicleMake && (
                     <p className="mt-2 text-sm text-emerald-600">
-                      ✓ Vehicle: {formData.vehicleYear} {formData.vehicleMake}{" "}
+                      Vehicle: {formData.vehicleYear} {formData.vehicleMake}{" "}
                       {formData.vehicleModel}
                     </p>
                   )}
@@ -371,7 +388,7 @@ const OrderForm: React.FC = () => {
                   onClick={handleVinCheck}
                   disabled={formData.vin.length !== 17 || isCheckingVin}
                   variant="secondary"
-                  className="h-[46px]"
+                  className="h-[42px]"
                 >
                   {isCheckingVin ? "Checking..." : "Check VIN"}
                 </Button>
@@ -437,13 +454,19 @@ const OrderForm: React.FC = () => {
             Address
           </label>
           <AddressAutocomplete
-            onAddressSelect={(address: string) => {
+            onAddressSelect={(address: string, isValid: boolean) => {
               setFormData((prev) => ({
                 ...prev,
                 address,
               }));
+              setIsAddressValid(isValid);
             }}
           />
+          {formData.address && !isAddressValid && (
+            <p className="mt-1 text-sm text-red-600">
+              Please select a valid address from the dropdown suggestions.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
