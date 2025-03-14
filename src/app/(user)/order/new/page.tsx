@@ -14,25 +14,28 @@ import {
   ModuleService,
   ServicesRequired,
 } from "@/types";
+import { Button } from "@/components/ui/Button";
+
+const initialFormData: OrderFormData = {
+  serviceCategory: "Residential or Personal",
+  vin: "",
+  vinUnknown: false,
+  address: "",
+  earliestDate: "",
+  earliestTime: "",
+  notes: "",
+  customerName: "",
+  customerEmail: "",
+  vehicleYear: "",
+  vehicleMake: "",
+  vehicleModel: "",
+  servicesRequired: {},
+};
 
 const OrderForm: React.FC = () => {
-  const { user, loading, logout } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const [formData, setFormData] = useState<OrderFormData>({
-    serviceCategory: "Residential or Personal",
-    vin: "",
-    vinUnknown: false,
-    address: "",
-    earliestDate: "",
-    earliestTime: "",
-    notes: "",
-    customerName: "",
-    customerEmail: "",
-    vehicleYear: "",
-    vehicleMake: "",
-    vehicleModel: "",
-    servicesRequired: {},
-  });
+  const [formData, setFormData] = useState<OrderFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -149,8 +152,8 @@ const OrderForm: React.FC = () => {
       }
 
       setSuccess(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
-      // Reset form
       setFormData({
         serviceCategory: "Residential or Personal",
         vin: "",
@@ -288,29 +291,8 @@ const OrderForm: React.FC = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Submit New Order</h1>
-          <p className="text-gray-600 mt-1">
-            {user?.user_metadata.full_name || user?.email}
-          </p>
-        </div>
-        <div className="flex space-x-4">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={logout}
-            className="px-4 py-2 text-white bg-red-500 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+    <div className="container mx-auto px-4 py-8 max-w-[768px]">
+      <h1 className="text-2xl font-bold mb-8">Submit New Order</h1>
 
       {success && (
         <div className="mb-4 p-4 bg-green-100 text-green-800 rounded-lg">
@@ -378,36 +360,21 @@ const OrderForm: React.FC = () => {
                     <p className="mt-2 text-sm text-red-600">{vinError}</p>
                   )}
                   {!vinError && formData.vehicleMake && (
-                    <p className="mt-2 text-sm text-gray-600">
-                      Vehicle: {formData.vehicleYear} {formData.vehicleMake}{" "}
+                    <p className="mt-2 text-sm text-emerald-600">
+                      ✓ Vehicle: {formData.vehicleYear} {formData.vehicleMake}{" "}
                       {formData.vehicleModel}
                     </p>
                   )}
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={handleVinCheck}
                   disabled={formData.vin.length !== 17 || isCheckingVin}
-                  className={`px-5 py-2.5 text-white rounded-md focus:outline-none focus:ring-2 whitespace-nowrap ${
-                    isCheckingVin
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : isVinValid
-                      ? "bg-green-600 hover:bg-green-700 focus:ring-green-500"
-                      : formData.vin.length === 17
-                      ? "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500"
-                      : "bg-gray-400 cursor-not-allowed"
-                  }`}
+                  variant="secondary"
+                  className="h-[46px]"
                 >
-                  {isCheckingVin ? (
-                    <span className="inline-flex items-center">
-                      Checking...
-                    </span>
-                  ) : isVinValid ? (
-                    "Valid"
-                  ) : (
-                    "Check VIN"
-                  )}
-                </button>
+                  {isCheckingVin ? "Checking..." : "Check VIN"}
+                </Button>
               </div>
             </div>
           )}
@@ -967,22 +934,16 @@ const OrderForm: React.FC = () => {
         </div>
 
         <div className="flex justify-end space-x-4">
-          <button
+          <Button
+            variant="secondary"
             type="button"
             onClick={() => router.push("/dashboard")}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              isSubmitting ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Submit Order"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
