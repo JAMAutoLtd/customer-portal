@@ -5,71 +5,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import VehicleSelect from "@/components/VehicleSelect";
-
-type ServiceCategory =
-  | "Insurance Claim"
-  | "Salvage Repair or Commercial"
-  | "Residential or Personal";
-
-type ADASService =
-  | "Front Radar"
-  | "Windshield Camera"
-  | "360 Camera or Side Mirror"
-  | "Blind Spot Monitor"
-  | "Parking Assist Sensor";
-type ModuleService =
-  | "ECM"
-  | "TCM"
-  | "BCM"
-  | "Airbag Module"
-  | "Instrument Cluster"
-  | "Front Radar"
-  | "Windshield Camera"
-  | "Blind Spot Monitor"
-  | "Headlamp Module"
-  | "Other";
-type KeyService =
-  | "All Keys Lost/No Working Keys"
-  | "Adding Additional Spare Keys"
-  | "Immobilizer Module Replaced";
-type KeyType = "Push Button Start" | "Blade Ignition";
-type KeySource = "JAM Providing" | "Customer Providing";
-
-interface KeyProgrammingDetails {
-  keyType: KeyType;
-  keySource: KeySource;
-  quantity: number;
-}
-
-interface ServicesRequired {
-  adasCalibration?: ADASService[];
-  airbagModuleReset?: boolean;
-  moduleReplacement?: ModuleService[];
-  keyProgramming?: {
-    service: KeyService;
-    keyType: KeyType;
-    keySource: KeySource;
-    quantity: number;
-    partNumber?: string;
-  };
-  diagnosticOrWiring?: boolean;
-}
-
-type OrderFormData = {
-  serviceCategory: ServiceCategory;
-  vin: string;
-  vinUnknown: boolean;
-  address: string;
-  earliestDate: string;
-  earliestTime: string;
-  notes: string;
-  customerName: string;
-  customerEmail: string;
-  vehicleYear: string;
-  vehicleMake: string;
-  vehicleModel: string;
-  servicesRequired: ServicesRequired;
-};
+import {
+  ADASService,
+  KeyService,
+  KeySource,
+  OrderFormData,
+  KeyType,
+  ModuleService,
+  ServicesRequired,
+} from "@/types";
 
 const OrderForm: React.FC = () => {
   const { user, loading, logout } = useAuth();
@@ -175,7 +119,6 @@ const OrderForm: React.FC = () => {
     }
   }, [loading, user]);
 
-  // If not logged in, redirect
   React.useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
@@ -206,6 +149,7 @@ const OrderForm: React.FC = () => {
       }
 
       setSuccess(true);
+
       // Reset form
       setFormData({
         serviceCategory: "Residential or Personal",
@@ -245,12 +189,11 @@ const OrderForm: React.FC = () => {
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     if (value.length <= 17) {
-      // VINs are 17 characters
       setFormData((prev) => ({
         ...prev,
         vin: value,
       }));
-      setIsVinValid(false); // Reset validation when VIN changes
+      setIsVinValid(false);
     }
   };
 
@@ -382,7 +325,6 @@ const OrderForm: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Service Category */}
         <div>
           <label
             htmlFor="serviceCategory"
@@ -408,7 +350,6 @@ const OrderForm: React.FC = () => {
           </select>
         </div>
 
-        {/* VIN Section */}
         <div className="space-y-4">
           {!formData.vinUnknown && (
             <div>
