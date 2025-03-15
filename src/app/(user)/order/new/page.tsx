@@ -1,10 +1,10 @@
-"use client";
+'use client'
 
-import React, { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
-import VehicleSelect from "@/components/VehicleSelect";
+import React, { useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
+import AddressAutocomplete from '@/components/AddressAutocomplete'
+import VehicleSelect from '@/components/VehicleSelect'
 import {
   ADASService,
   KeyService,
@@ -13,104 +13,103 @@ import {
   KeyType,
   ModuleService,
   ServicesRequired,
-} from "@/types";
-import { Button } from "@/components/ui/Button";
-import { CheckMarkIcon } from "@/components/icons/CheckMarkIcon";
-import { Loader } from "@/components/ui/Loader";
+} from '@/types'
+import { Button } from '@/components/ui/Button'
+import { CheckMarkIcon } from '@/components/icons/CheckMarkIcon'
+import { Loader } from '@/components/ui/Loader'
 
 const initialFormData: OrderFormData = {
-  serviceCategory: "Residential or Personal",
-  vin: "",
+  vin: '',
   vinUnknown: false,
-  address: "",
-  earliestDate: "",
-  earliestTime: "",
-  notes: "",
-  customerName: "",
-  customerEmail: "",
-  vehicleYear: "",
-  vehicleMake: "",
-  vehicleModel: "",
+  address: '',
+  earliestDate: '',
+  earliestTime: '',
+  notes: '',
+  customerName: '',
+  customerEmail: '',
+  vehicleYear: '',
+  vehicleMake: '',
+  vehicleModel: '',
   servicesRequired: {},
-};
+}
 
 const OrderForm: React.FC = () => {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [formData, setFormData] = useState<OrderFormData>(initialFormData);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [isCheckingVin, setIsCheckingVin] = useState(false);
-  const [vinError, setVinError] = useState<string | null>(null);
-  const [isVinValid, setIsVinValid] = useState(false);
-  const [isAddressValid, setIsAddressValid] = useState(false);
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  const [formData, setFormData] = useState<OrderFormData>(initialFormData)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+  const [isCheckingVin, setIsCheckingVin] = useState(false)
+  const [vinError, setVinError] = useState<string | null>(null)
+  const [isVinValid, setIsVinValid] = useState(false)
+  const [isAddressValid, setIsAddressValid] = useState(false)
 
   // Format time for 12-hour format
   const formatTime = (hour: number) => {
-    const period = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour > 12 ? hour - 12 : hour;
-    return `${displayHour}:00 ${period}`;
-  };
+    const period = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour > 12 ? hour - 12 : hour
+    return `${displayHour}:00 ${period}`
+  }
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-CA", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-CA', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
 
   // Check if a date is a weekend
   const isWeekend = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDay();
-    return day === 0 || day === 6; // 0 is Sunday, 6 is Saturday
-  };
+    const date = new Date(dateString)
+    const day = date.getDay()
+    return day === 0 || day === 6 // 0 is Sunday, 6 is Saturday
+  }
 
   // Handle date change with weekend validation
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const date = e.target.value;
+    const date = e.target.value
     if (!isWeekend(date)) {
-      handleChange(e);
+      handleChange(e)
     }
-  };
+  }
 
   // Get the next available date (excluding weekends)
   const getNextAvailableDate = () => {
-    const today = new Date();
-    let nextDate = new Date(today);
+    const today = new Date()
+    let nextDate = new Date(today)
 
     // If it's a weekend, move to next Monday
     if (nextDate.getDay() === 0) {
       // Sunday
-      nextDate.setDate(nextDate.getDate() + 1);
+      nextDate.setDate(nextDate.getDate() + 1)
     } else if (nextDate.getDay() === 6) {
       // Saturday
-      nextDate.setDate(nextDate.getDate() + 2);
+      nextDate.setDate(nextDate.getDate() + 2)
     }
 
-    return nextDate.toISOString().split("T")[0];
-  };
+    return nextDate.toISOString().split('T')[0]
+  }
 
   // Get the next available time slot
   const getNextAvailableTime = () => {
-    const now = new Date();
-    const currentHour = now.getHours();
+    const now = new Date()
+    const currentHour = now.getHours()
 
     // If current time is before 9 AM, return 9:00
-    if (currentHour < 9) return "9:00";
+    if (currentHour < 9) return '9:00'
 
     // If current time is after 5 PM, return 9:00
-    if (currentHour >= 17) return "9:00";
+    if (currentHour >= 17) return '9:00'
 
     // Round up to the next hour
-    const nextHour = currentHour + 1;
-    return `${nextHour}:00`;
-  };
+    const nextHour = currentHour + 1
+    return `${nextHour}:00`
+  }
 
   // Initialize form with default values and user info
   React.useEffect(() => {
@@ -119,97 +118,96 @@ const OrderForm: React.FC = () => {
         ...prev,
         earliestDate: getNextAvailableDate(),
         earliestTime: getNextAvailableTime(),
-        customerName: user.user_metadata.full_name || "",
-        customerEmail: user.email || "",
-      }));
+        customerName: user.user_metadata.full_name || '',
+        customerEmail: user.email || '',
+      }))
     }
-  }, [loading, user]);
+  }, [loading, user])
 
   React.useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.push('/login')
     }
-  }, [user, loading, router]);
+  }, [user, loading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
     // Validate address before submission
     if (!isAddressValid) {
-      setError("Please select a valid address from the dropdown suggestions.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
+      setError('Please select a valid address from the dropdown suggestions.')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
     }
 
-    setIsSubmitting(true);
-    setError(null);
-    setSuccess(false);
+    setIsSubmitting(true)
+    setError(null)
+    setSuccess(false)
 
     try {
-      const response = await fetch("/api/order-submit", {
-        method: "POST",
+      const response = await fetch('/api/order-submit', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           ...formData,
-          customerName: user?.user_metadata.full_name || "",
-          customerEmail: user?.email || "",
+          customerName: user?.user_metadata.full_name || '',
+          customerEmail: user?.email || '',
         }),
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Failed to submit order");
+        throw new Error('Failed to submit order')
       }
 
-      setSuccess(true);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setSuccess(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
 
       setFormData({
-        serviceCategory: "Residential or Personal",
-        vin: "",
+        vin: '',
         vinUnknown: false,
-        address: "",
+        address: '',
         earliestDate: getNextAvailableDate(),
         earliestTime: getNextAvailableTime(),
-        notes: "",
-        customerName: user?.user_metadata.full_name || "",
-        customerEmail: user?.email || "",
-        vehicleYear: "",
-        vehicleMake: "",
-        vehicleModel: "",
+        notes: '',
+        customerName: user?.user_metadata.full_name || '',
+        customerEmail: user?.email || '',
+        vehicleYear: '',
+        vehicleMake: '',
+        vehicleModel: '',
         servicesRequired: {},
-      });
+      })
     } catch (err) {
-      setError("Failed to submit order. Please try again.");
+      setError('Failed to submit order. Please try again.')
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
-    const { name, value, type } = e.target;
+    const { name, value, type } = e.target
     setFormData((prev) => ({
       ...prev,
       [name]:
-        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-    }));
-  };
+        type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+    }))
+  }
 
   const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const value = e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
     if (value.length <= 17) {
       setFormData((prev) => ({
         ...prev,
         vin: value,
-      }));
-      setIsVinValid(false);
+      }))
+      setIsVinValid(false)
     }
-  };
+  }
 
   const handleServiceChange = (
     serviceType: keyof ServicesRequired,
@@ -221,8 +219,8 @@ const OrderForm: React.FC = () => {
         ...prev.servicesRequired,
         [serviceType]: value,
       },
-    }));
-  };
+    }))
+  }
 
   const handleKeyProgrammingChange = (
     service: KeyService,
@@ -243,66 +241,66 @@ const OrderForm: React.FC = () => {
           ...(partNumber !== undefined ? { partNumber } : {}),
         },
       },
-    }));
-  };
+    }))
+  }
 
   const handleVinCheck = async () => {
-    setIsCheckingVin(true);
-    setVinError(null);
-    setIsVinValid(false);
+    setIsCheckingVin(true)
+    setVinError(null)
+    setIsVinValid(false)
 
     try {
       const response = await fetch(
         `https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${formData.vin}?format=json`
-      );
-      const data = await response.json();
+      )
+      const data = await response.json()
 
       // Check if the VIN is valid and returns a make
       const make = data.Results.find(
-        (item: any) => item.Variable === "Make"
-      )?.Value;
+        (item: any) => item.Variable === 'Make'
+      )?.Value
       const error = data.Results.find(
-        (item: any) => item.Variable === "Error Code"
-      )?.Value;
+        (item: any) => item.Variable === 'Error Code'
+      )?.Value
 
-      if (error !== "0" || !make) {
+      if (error !== '0' || !make) {
         setVinError(
           'Invalid VIN. Please check the number or use "VIN Unknown" option.'
-        );
-        return;
+        )
+        return
       }
 
       // If valid, update the form with the decoded info
       const year = data.Results.find(
-        (item: any) => item.Variable === "Model Year"
-      )?.Value;
+        (item: any) => item.Variable === 'Model Year'
+      )?.Value
       const model = data.Results.find(
-        (item: any) => item.Variable === "Model"
-      )?.Value;
+        (item: any) => item.Variable === 'Model'
+      )?.Value
 
       setFormData((prev) => ({
         ...prev,
-        vehicleYear: year || "",
+        vehicleYear: year || '',
         vehicleMake: make.toUpperCase(),
-        vehicleModel: model?.toUpperCase() || "",
-      }));
+        vehicleModel: model?.toUpperCase() || '',
+      }))
 
-      setIsVinValid(true);
+      setIsVinValid(true)
     } catch (err) {
       setVinError(
         'Failed to validate VIN. Please try again or use "VIN Unknown" option.'
-      );
+      )
     } finally {
-      setIsCheckingVin(false);
+      setIsCheckingVin(false)
     }
-  };
+  }
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader />
       </div>
-    );
+    )
   }
 
   return (
@@ -322,31 +320,6 @@ const OrderForm: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div>
-          <label
-            htmlFor="serviceCategory"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            Service Category
-          </label>
-          <select
-            id="serviceCategory"
-            name="serviceCategory"
-            value={formData.serviceCategory}
-            onChange={handleChange}
-            required
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="Residential or Personal">
-              Residential or Personal
-            </option>
-            <option value="Insurance Claim">Insurance Claim</option>
-            <option value="Salvage Repair or Commercial">
-              Salvage Repair or Commercial
-            </option>
-          </select>
-        </div>
-
         <div className="space-y-4">
           {!formData.vinUnknown && (
             <div>
@@ -368,8 +341,8 @@ const OrderForm: React.FC = () => {
                       required
                       maxLength={17}
                       className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        vinError ? "border-red-500" : ""
-                      } ${isVinValid ? "border-green-500" : ""}`}
+                        vinError ? 'border-red-500' : ''
+                      } ${isVinValid ? 'border-green-500' : ''}`}
                       placeholder="Enter VIN"
                     />
                     {!vinError && formData.vehicleMake && (
@@ -383,7 +356,7 @@ const OrderForm: React.FC = () => {
                   )}
                   {!vinError && formData.vehicleMake && (
                     <p className="mt-2 text-sm text-emerald-600">
-                      Vehicle: {formData.vehicleYear} {formData.vehicleMake}{" "}
+                      Vehicle: {formData.vehicleYear} {formData.vehicleMake}{' '}
                       {formData.vehicleModel}
                     </p>
                   )}
@@ -395,7 +368,7 @@ const OrderForm: React.FC = () => {
                   variant="secondary"
                   className="h-[42px]"
                 >
-                  {isCheckingVin ? "Checking..." : "Check VIN"}
+                  {isCheckingVin ? 'Checking...' : 'Check VIN'}
                 </Button>
               </div>
             </div>
@@ -425,13 +398,13 @@ const OrderForm: React.FC = () => {
                   vehicleYear: year,
                   vehicleMake: make,
                   vehicleModel: model,
-                };
+                }
 
                 // If it's a Ford vehicle and key programming is already selected with "All Keys Lost"
                 if (
-                  make === "FORD" &&
+                  make === 'FORD' &&
                   formData.servicesRequired.keyProgramming?.service ===
-                    "All Keys Lost/No Working Keys"
+                    'All Keys Lost/No Working Keys'
                 ) {
                   updatedFormData.servicesRequired = {
                     ...formData.servicesRequired,
@@ -442,10 +415,10 @@ const OrderForm: React.FC = () => {
                         formData.servicesRequired.keyProgramming.quantity
                       ),
                     },
-                  };
+                  }
                 }
 
-                setFormData(updatedFormData);
+                setFormData(updatedFormData)
               }}
             />
           </div>
@@ -463,8 +436,8 @@ const OrderForm: React.FC = () => {
               setFormData((prev) => ({
                 ...prev,
                 address,
-              }));
-              setIsAddressValid(isValid);
+              }))
+              setIsAddressValid(isValid)
             }}
           />
           {formData.address && !isAddressValid && (
@@ -492,11 +465,11 @@ const OrderForm: React.FC = () => {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               style={{
-                colorScheme: "light",
+                colorScheme: 'light',
               }}
             />
             <p className="mt-1 text-sm text-gray-600">
-              {formData.earliestDate ? formatDate(formData.earliestDate) : ""}
+              {formData.earliestDate ? formatDate(formData.earliestDate) : ''}
             </p>
           </div>
 
@@ -554,7 +527,7 @@ const OrderForm: React.FC = () => {
                 checked={!!formData.servicesRequired.adasCalibration}
                 onChange={(e) =>
                   handleServiceChange(
-                    "adasCalibration",
+                    'adasCalibration',
                     e.target.checked ? [] : undefined
                   )
                 }
@@ -566,11 +539,11 @@ const OrderForm: React.FC = () => {
               <div className="ml-6 space-y-2">
                 {(
                   [
-                    "Front Radar",
-                    "Windshield Camera",
-                    "360 Camera or Side Mirror",
-                    "Blind Spot Monitor",
-                    "Parking Assist Sensor",
+                    'Front Radar',
+                    'Windshield Camera',
+                    '360 Camera or Side Mirror',
+                    'Blind Spot Monitor',
+                    'Parking Assist Sensor',
                   ] as ADASService[]
                 ).map((service) => (
                   <label key={service} className="flex items-center space-x-2">
@@ -581,13 +554,13 @@ const OrderForm: React.FC = () => {
                       )}
                       onChange={(e) => {
                         const current =
-                          formData.servicesRequired.adasCalibration || [];
+                          formData.servicesRequired.adasCalibration || []
                         handleServiceChange(
-                          "adasCalibration",
+                          'adasCalibration',
                           e.target.checked
                             ? [...current, service]
                             : current.filter((s) => s !== service)
-                        );
+                        )
                       }}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
@@ -605,7 +578,7 @@ const OrderForm: React.FC = () => {
                 type="checkbox"
                 checked={!!formData.servicesRequired.airbagModuleReset}
                 onChange={(e) =>
-                  handleServiceChange("airbagModuleReset", e.target.checked)
+                  handleServiceChange('airbagModuleReset', e.target.checked)
                 }
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
@@ -621,7 +594,7 @@ const OrderForm: React.FC = () => {
                 checked={!!formData.servicesRequired.moduleReplacement}
                 onChange={(e) =>
                   handleServiceChange(
-                    "moduleReplacement",
+                    'moduleReplacement',
                     e.target.checked ? [] : undefined
                   )
                 }
@@ -635,16 +608,16 @@ const OrderForm: React.FC = () => {
               <div className="ml-6 space-y-2">
                 {(
                   [
-                    "ECM",
-                    "TCM",
-                    "BCM",
-                    "Airbag Module",
-                    "Instrument Cluster",
-                    "Front Radar",
-                    "Windshield Camera",
-                    "Blind Spot Monitor",
-                    "Headlamp Module",
-                    "Other",
+                    'ECM',
+                    'TCM',
+                    'BCM',
+                    'Airbag Module',
+                    'Instrument Cluster',
+                    'Front Radar',
+                    'Windshield Camera',
+                    'Blind Spot Monitor',
+                    'Headlamp Module',
+                    'Other',
                   ] as ModuleService[]
                 ).map((service) => (
                   <label key={service} className="flex items-center space-x-2">
@@ -655,13 +628,13 @@ const OrderForm: React.FC = () => {
                       )}
                       onChange={(e) => {
                         const current =
-                          formData.servicesRequired.moduleReplacement || [];
+                          formData.servicesRequired.moduleReplacement || []
                         handleServiceChange(
-                          "moduleReplacement",
+                          'moduleReplacement',
                           e.target.checked
                             ? [...current, service]
                             : current.filter((s) => s !== service)
-                        );
+                        )
                       }}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
@@ -680,18 +653,18 @@ const OrderForm: React.FC = () => {
                 checked={!!formData.servicesRequired.keyProgramming}
                 onChange={(e) => {
                   const defaultQuantity =
-                    formData.vehicleMake === "FORD" ? 2 : 1;
+                    formData.vehicleMake === 'FORD' ? 2 : 1
                   handleServiceChange(
-                    "keyProgramming",
+                    'keyProgramming',
                     e.target.checked
                       ? {
-                          service: "All Keys Lost/No Working Keys",
-                          keyType: "Push Button Start",
-                          keySource: "JAM Providing",
+                          service: 'All Keys Lost/No Working Keys',
+                          keyType: 'Push Button Start',
+                          keySource: 'JAM Providing',
                           quantity: defaultQuantity,
                         }
                       : undefined
-                  );
+                  )
                 }}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
@@ -709,9 +682,9 @@ const OrderForm: React.FC = () => {
                   <div className="space-y-2">
                     {(
                       [
-                        "Immobilizer Module Replaced",
-                        "All Keys Lost/No Working Keys",
-                        "Adding Additional Spare Keys",
+                        'Immobilizer Module Replaced',
+                        'All Keys Lost/No Working Keys',
+                        'Adding Additional Spare Keys',
                       ] as KeyService[]
                     ).map((service) => (
                       <label
@@ -727,8 +700,8 @@ const OrderForm: React.FC = () => {
                           onChange={() =>
                             handleKeyProgrammingChange(
                               service,
-                              "Push Button Start",
-                              "JAM Providing",
+                              'Push Button Start',
+                              'JAM Providing',
                               1
                             )
                           }
@@ -742,16 +715,16 @@ const OrderForm: React.FC = () => {
 
                 {/* Key Type Selection (only for All Keys Lost and Adding Additional Spare Keys) */}
                 {(formData.servicesRequired.keyProgramming.service ===
-                  "All Keys Lost/No Working Keys" ||
+                  'All Keys Lost/No Working Keys' ||
                   formData.servicesRequired.keyProgramming.service ===
-                    "Adding Additional Spare Keys") && (
+                    'Adding Additional Spare Keys') && (
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">
                       Key Type
                     </label>
                     <div className="space-y-2">
                       {(
-                        ["Push Button Start", "Blade Ignition"] as KeyType[]
+                        ['Push Button Start', 'Blade Ignition'] as KeyType[]
                       ).map((type) => (
                         <label
                           key={type}
@@ -785,16 +758,16 @@ const OrderForm: React.FC = () => {
 
                 {/* Key Source Selection (only for All Keys Lost and Adding Additional Spare Keys) */}
                 {(formData.servicesRequired.keyProgramming.service ===
-                  "All Keys Lost/No Working Keys" ||
+                  'All Keys Lost/No Working Keys' ||
                   formData.servicesRequired.keyProgramming.service ===
-                    "Adding Additional Spare Keys") && (
+                    'Adding Additional Spare Keys') && (
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">
                       Key Source
                     </label>
                     <div className="space-y-2">
                       {(
-                        ["JAM Providing", "Customer Providing"] as KeySource[]
+                        ['JAM Providing', 'Customer Providing'] as KeySource[]
                       ).map((source) => (
                         <label
                           key={source}
@@ -829,78 +802,78 @@ const OrderForm: React.FC = () => {
                 {/* Quantity Selection (only for All Keys Lost and Adding Additional Spare Keys) */}
                 {(() => {
                   const keyProgramming =
-                    formData.servicesRequired.keyProgramming;
-                  if (!keyProgramming?.service) return null;
+                    formData.servicesRequired.keyProgramming
+                  if (!keyProgramming?.service) return null
 
                   if (
                     keyProgramming.service ===
-                      "All Keys Lost/No Working Keys" ||
-                    keyProgramming.service === "Adding Additional Spare Keys"
+                      'All Keys Lost/No Working Keys' ||
+                    keyProgramming.service === 'Adding Additional Spare Keys'
                   ) {
                     return (
                       <div className="space-y-2">
                         <label className="block text-sm font-medium text-gray-700">
-                          Quantity{" "}
-                          {formData.vehicleMake === "FORD" &&
+                          Quantity{' '}
+                          {formData.vehicleMake === 'FORD' &&
                           keyProgramming.service ===
-                            "All Keys Lost/No Working Keys"
-                            ? "(minimum 2 required for Ford all-keys-lost)"
-                            : "(max 3)"}
+                            'All Keys Lost/No Working Keys'
+                            ? '(minimum 2 required for Ford all-keys-lost)'
+                            : '(max 3)'}
                         </label>
                         <input
                           type="number"
                           min={
-                            formData.vehicleMake === "FORD" &&
+                            formData.vehicleMake === 'FORD' &&
                             keyProgramming.service ===
-                              "All Keys Lost/No Working Keys"
-                              ? "2"
-                              : "1"
+                              'All Keys Lost/No Working Keys'
+                              ? '2'
+                              : '1'
                           }
                           max="3"
                           value={
                             keyProgramming.quantity ||
-                            (formData.vehicleMake === "FORD" &&
+                            (formData.vehicleMake === 'FORD' &&
                             keyProgramming.service ===
-                              "All Keys Lost/No Working Keys"
+                              'All Keys Lost/No Working Keys'
                               ? 2
                               : 1)
                           }
                           onChange={(e) => {
-                            const newQuantity = parseInt(e.target.value);
+                            const newQuantity = parseInt(e.target.value)
                             if (
-                              formData.vehicleMake === "FORD" &&
+                              formData.vehicleMake === 'FORD' &&
                               keyProgramming.service ===
-                                "All Keys Lost/No Working Keys" &&
+                                'All Keys Lost/No Working Keys' &&
                               newQuantity < 2
                             ) {
-                              return; // Don't allow less than 2 keys for Ford all keys lost
+                              return // Don't allow less than 2 keys for Ford all keys lost
                             }
                             handleKeyProgrammingChange(
                               keyProgramming.service,
                               keyProgramming.keyType,
                               keyProgramming.keySource,
                               newQuantity
-                            );
+                            )
                           }}
                           className={`mt-1 block w-14 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                            formData.vehicleMake === "FORD" &&
+                            formData.vehicleMake === 'FORD' &&
                             keyProgramming.service ===
-                              "All Keys Lost/No Working Keys" &&
+                              'All Keys Lost/No Working Keys' &&
                             keyProgramming.quantity < 2
-                              ? "border-red-500"
-                              : ""
+                              ? 'border-red-500'
+                              : ''
                           }`}
                         />
-                        {formData.vehicleMake === "FORD" &&
+                        {formData.vehicleMake === 'FORD' &&
                           keyProgramming.service ===
-                            "All Keys Lost/No Working Keys" &&
+                            'All Keys Lost/No Working Keys' &&
                           keyProgramming.quantity < 2 && (
                             <p className="mt-1 text-sm text-red-600">
                               Ford all-keys-lost requires a minimum of 2 keys
                             </p>
                           )}
-                        {(formData.vehicleMake === "KIA" ||
-                          formData.vehicleMake === "HYUNDAI") && (
+                        {(formData.vehicleMake === 'KIA' ||
+                          formData.vehicleMake === 'HYUNDAI') && (
                           <div className="mt-4 space-y-2">
                             <p className="text-sm text-red-600">
                               Important: For {formData.vehicleMake} vehicles,
@@ -913,31 +886,31 @@ const OrderForm: React.FC = () => {
                               </label>
                               <input
                                 type="text"
-                                value={keyProgramming.partNumber || ""}
+                                value={keyProgramming.partNumber || ''}
                                 onChange={(e) => {
-                                  const partNumber = e.target.value;
+                                  const partNumber = e.target.value
                                   handleKeyProgrammingChange(
                                     keyProgramming.service,
                                     keyProgramming.keyType,
                                     keyProgramming.keySource,
                                     keyProgramming.quantity,
                                     partNumber
-                                  );
+                                  )
                                 }}
                                 placeholder="Enter dealer key part number"
                                 className="mt-1 block w-full text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                                 required={
-                                  formData.vehicleMake === "KIA" ||
-                                  formData.vehicleMake === "HYUNDAI"
+                                  formData.vehicleMake === 'KIA' ||
+                                  formData.vehicleMake === 'HYUNDAI'
                                 }
                               />
                             </div>
                           </div>
                         )}
                       </div>
-                    );
+                    )
                   }
-                  return null;
+                  return null
                 })()}
               </div>
             )}
@@ -950,7 +923,7 @@ const OrderForm: React.FC = () => {
                 type="checkbox"
                 checked={!!formData.servicesRequired.diagnosticOrWiring}
                 onChange={(e) =>
-                  handleServiceChange("diagnosticOrWiring", e.target.checked)
+                  handleServiceChange('diagnosticOrWiring', e.target.checked)
                 }
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
@@ -965,17 +938,17 @@ const OrderForm: React.FC = () => {
           <Button
             variant="secondary"
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push('/dashboard')}
           >
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Submitting..." : "Submit Order"}
+            {isSubmitting ? 'Submitting...' : 'Submit Order'}
           </Button>
         </div>
       </form>
     </div>
-  );
-};
+  )
+}
 
-export default OrderForm;
+export default OrderForm
