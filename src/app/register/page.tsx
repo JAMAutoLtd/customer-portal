@@ -1,49 +1,49 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import AddressInput from '@/components/inputs/AddressInput'
 
-type CustomerType = "residential" | "commercial" | "insurance";
+type CustomerType = 'residential' | 'commercial' | 'insurance'
 
 export default function RegisterPage() {
-  const router = useRouter();
+  const router = useRouter()
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    confirmPassword: "",
-    fullName: "",
-    phone: "",
-    streetAddress: "",
-    customerType: "residential" as CustomerType,
-  });
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+    email: '',
+    password: '',
+    confirmPassword: '',
+    fullName: '',
+    phone: '',
+    streetAddress: '',
+    customerType: 'residential' as CustomerType,
+  })
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleAddressSelect = (address: string) => {
     setFormData((prev) => ({
       ...prev,
       streetAddress: address,
-    }));
-  };
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setIsSubmitting(true);
+    e.preventDefault()
+    setError('')
+    setIsSubmitting(true)
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      setIsSubmitting(false);
-      return;
+      setError('Passwords do not match')
+      setIsSubmitting(false)
+      return
     }
 
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           email: formData.email,
@@ -53,30 +53,30 @@ export default function RegisterPage() {
           streetAddress: formData.streetAddress,
           customerType: formData.customerType,
         }),
-      });
+      })
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "Registration failed");
+        const data = await response.json()
+        throw new Error(data.detail || 'Registration failed')
       }
 
-      router.push("/login?registered=true");
+      router.push('/login?registered=true')
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
+    const { name, value } = e.target
     setFormData((prev) => ({
       ...prev,
       [name]: value,
-    }));
-  };
+    }))
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -86,7 +86,7 @@ export default function RegisterPage() {
             Create your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{" "}
+            Or{' '}
             <Link
               href="/login"
               className="font-medium text-blue-600 hover:text-blue-500"
@@ -204,7 +204,7 @@ export default function RegisterPage() {
               >
                 Street Address
               </label>
-              <AddressAutocomplete onAddressSelect={handleAddressSelect} />
+              <AddressInput onAddressSelect={handleAddressSelect} />
               {formData.streetAddress && (
                 <p className="mt-1 text-sm text-gray-500">
                   Selected: {formData.streetAddress}
@@ -239,14 +239,14 @@ export default function RegisterPage() {
               type="submit"
               disabled={isSubmitting}
               className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                isSubmitting ? "opacity-50 cursor-not-allowed" : ""
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isSubmitting ? "Creating account..." : "Create account"}
+              {isSubmitting ? 'Creating account...' : 'Create account'}
             </button>
           </div>
         </form>
       </div>
     </div>
-  );
+  )
 }

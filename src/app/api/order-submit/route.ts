@@ -8,7 +8,6 @@ export async function POST(request: Request) {
     console.log('❤️ orderData', orderData)
 
     const {
-      serviceCategory,
       vin,
       address,
       earliestDate,
