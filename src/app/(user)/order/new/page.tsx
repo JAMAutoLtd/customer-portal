@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
@@ -17,15 +17,16 @@ import {
 import { Button } from '@/components/ui/Button'
 import { CheckMarkIcon } from '@/components/icons/CheckMarkIcon'
 import { Loader } from '@/components/ui/Loader'
+import { DayPicker } from 'react-day-picker'
+import { format, isBefore, addDays } from 'date-fns'
+import 'react-day-picker/dist/style.css'
 
 const initialFormData: OrderFormData = {
   vin: '',
   vinUnknown: false,
   address: '',
   earliestDate: '',
-  earliestTime: '',
   notes: '',
-  customerName: '',
   customerEmail: '',
   vehicleYear: '',
   vehicleMake: '',
@@ -44,69 +45,38 @@ const OrderForm: React.FC = () => {
   const [vinError, setVinError] = useState<string | null>(null)
   const [isVinValid, setIsVinValid] = useState(false)
   const [isAddressValid, setIsAddressValid] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const calendarRef = useRef<HTMLDivElement>(null)
+  const [selectedTime, setSelectedTime] = useState<string>('')
 
-  // Format time for 12-hour format
+  console.log(formData)
+
   const formatTime = (hour: number) => {
     const period = hour >= 12 ? 'PM' : 'AM'
     const displayHour = hour > 12 ? hour - 12 : hour
     return `${displayHour}:00 ${period}`
   }
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-CA', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  }
-
-  // Check if a date is a weekend
-  const isWeekend = (dateString: string) => {
-    const date = new Date(dateString)
-    const day = date.getDay()
-    return day === 0 || day === 6 // 0 is Sunday, 6 is Saturday
-  }
-
-  // Handle date change with weekend validation
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const date = e.target.value
-    if (!isWeekend(date)) {
-      handleChange(e)
-    }
-  }
-
-  // Get the next available date (excluding weekends)
   const getNextAvailableDate = () => {
-    const today = new Date()
-    let nextDate = new Date(today)
+    let nextDate = new Date()
 
     // If it's a weekend, move to next Monday
     if (nextDate.getDay() === 0) {
-      // Sunday
-      nextDate.setDate(nextDate.getDate() + 1)
+      nextDate = addDays(nextDate, 1)
     } else if (nextDate.getDay() === 6) {
-      // Saturday
-      nextDate.setDate(nextDate.getDate() + 2)
+      nextDate = addDays(nextDate, 2)
     }
 
-    return nextDate.toISOString().split('T')[0]
+    return nextDate
   }
 
   // Get the next available time slot
   const getNextAvailableTime = () => {
     const now = new Date()
     const currentHour = now.getHours()
-
-    // If current time is before 9 AM, return 9:00
     if (currentHour < 9) return '9:00'
-
-    // If current time is after 5 PM, return 9:00
     if (currentHour >= 17) return '9:00'
-
-    // Round up to the next hour
     const nextHour = currentHour + 1
     return `${nextHour}:00`
   }
@@ -114,11 +84,13 @@ const OrderForm: React.FC = () => {
   // Initialize form with default values and user info
   React.useEffect(() => {
     if (!loading && user) {
+      const nextAvailableDate = getNextAvailableDate()
+      setSelectedDate(nextAvailableDate)
+      setSelectedTime(getNextAvailableTime())
+
       setFormData((prev) => ({
         ...prev,
-        earliestDate: getNextAvailableDate(),
-        earliestTime: getNextAvailableTime(),
-        customerName: user.user_metadata.full_name || '',
+        earliestDate: format(nextAvailableDate, 'yyyy-MM-dd'),
         customerEmail: user.email || '',
       }))
     }
@@ -130,10 +102,58 @@ const OrderForm: React.FC = () => {
     }
   }, [user, loading, router])
 
+  const disabledDays = [
+    { from: new Date(0), to: addDays(new Date(), -1) }, // Past dates
+    { daysOfWeek: [0, 6] }, // Sundays and Saturdays
+  ]
+
+  // Add a function to explicitly check if a day is disabled
+  const isDateDisabled = (date: Date) => {
+    const day = date.getDay()
+    return day === 0 || day === 6 || isBefore(date, new Date()) // Disable weekends and past dates
+  }
+
+  // Close calendar when clicking outside
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        calendarRef.current &&
+        !calendarRef.current.contains(event.target as Node)
+      ) {
+        setShowCalendar(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [calendarRef])
+
+  // Handle date selection and close calendar
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      console.log('❤️ date', format(date, 'yyyy-MM-dd'))
+      setSelectedDate(date)
+
+      setFormData((prev) => ({
+        ...prev,
+        earliestDate: format(date, 'yyyy-MM-dd'),
+      }))
+
+      // Close calendar after selection
+      setShowCalendar(false)
+    }
+  }
+
+  // Handle time selection
+  const handleTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedTime(e.target.value)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validate address before submission
     if (!isAddressValid) {
       setError('Please select a valid address from the dropdown suggestions.')
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -145,16 +165,26 @@ const OrderForm: React.FC = () => {
     setSuccess(false)
 
     try {
+      const [hours, minutes] = selectedTime.split(":")
+      // Create the ISO string from the date and time fields
+      const earliestDateTimeISO = `${formData.earliestDate}T${hours.padStart(2, '0')}:${(minutes || '00').padStart(2, '0')}:00`
+
+      // Create the request object with combined datetime
+      const requestData = {
+        ...formData,
+        customerEmail: user?.email || '',
+        // Set earliestDate to the combined datetime string
+        earliestDate: earliestDateTimeISO,
+      }
+
+      console.log('❤️ requestData', requestData)
+
       const response = await fetch('/api/order-submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          customerName: user?.user_metadata.full_name || '',
-          customerEmail: user?.email || '',
-        }),
+        body: JSON.stringify(requestData),
       })
 
       if (!response.ok) {
@@ -164,20 +194,20 @@ const OrderForm: React.FC = () => {
       setSuccess(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
 
+      // Reset form
       setFormData({
         vin: '',
         vinUnknown: false,
         address: '',
-        earliestDate: getNextAvailableDate(),
-        earliestTime: getNextAvailableTime(),
+        earliestDate: format(getNextAvailableDate(), 'yyyy-MM-dd'),
         notes: '',
-        customerName: user?.user_metadata.full_name || '',
         customerEmail: user?.email || '',
         vehicleYear: '',
         vehicleMake: '',
         vehicleModel: '',
         servicesRequired: {},
       })
+      setSelectedTime(getNextAvailableTime())
     } catch (err) {
       setError('Failed to submit order. Please try again.')
     } finally {
@@ -447,54 +477,79 @@ const OrderForm: React.FC = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="earliestDate"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Earliest Available Date
-            </label>
-            <input
-              type="date"
-              id="earliestDate"
-              name="earliestDate"
-              value={formData.earliestDate}
-              onChange={handleDateChange}
-              min={getNextAvailableDate()}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              style={{
-                colorScheme: 'light',
-              }}
-            />
-            <p className="mt-1 text-sm text-gray-600">
-              {formData.earliestDate ? formatDate(formData.earliestDate) : ''}
-            </p>
-          </div>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Appointment Details</h2>
 
-          <div>
-            <label
-              htmlFor="earliestTime"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Preferred Time
-            </label>
-            <select
-              id="earliestTime"
-              name="earliestTime"
-              value={formData.earliestTime}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Time</option>
-              {Array.from({ length: 9 }, (_, i) => i + 9).map((hour) => (
-                <option key={hour} value={`${hour}:00`}>
-                  {formatTime(hour)}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label
+                htmlFor="earliestDate"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Earliest Available Date
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  readOnly
+                  id="earliestDate"
+                  value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
+                  onClick={() => setShowCalendar(true)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  placeholder="Click to select a date"
+                  required
+                />
+
+                {showCalendar && (
+                  <div
+                    ref={calendarRef}
+                    className="absolute z-10 mt-1 border border-gray-300 rounded-md p-2 bg-white shadow-lg"
+                  >
+                    <DayPicker
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={handleDateSelect}
+                      disabled={isDateDisabled}
+                      fromMonth={new Date()}
+                      toMonth={addDays(new Date(), 90)}
+                      captionLayout="dropdown"
+                      className="mx-auto"
+                    />
+                  </div>
+                )}
+
+                {/* Hidden input to store the date value for form submission */}
+                <input
+                  type="hidden"
+                  name="earliestDate"
+                  value={formData.earliestDate}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-start">
+              <label
+                htmlFor="selectedTime"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Preferred Time
+              </label>
+              <select
+                id="selectedTime"
+                name="selectedTime"
+                value={selectedTime}
+                onChange={handleTimeChange}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Time</option>
+                {Array.from({ length: 9 }, (_, i) => i + 9).map((hour) => (
+                  <option key={hour} value={`${hour}:00`}>
+                    {formatTime(hour)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

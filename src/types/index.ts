@@ -96,9 +96,7 @@ export type OrderFormData = {
   vinUnknown: boolean
   address: string
   earliestDate: string
-  earliestTime: string
   notes: string
-  customerName: string
   customerEmail: string
   vehicleYear: string
   vehicleMake: string
