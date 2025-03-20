@@ -5,7 +5,6 @@ import { cookies } from 'next/headers'
 export async function POST(request: Request) {
   try {
     const orderData = await request.json()
-    console.log('❤️ orderData', orderData)
 
     const {
       vin,
@@ -15,7 +14,7 @@ export async function POST(request: Request) {
       vehicleYear,
       vehicleMake,
       vehicleModel,
-      servicesRequired,
+      selectedServiceIds,
     } = orderData
 
     const cookieStore = await cookies()
@@ -119,80 +118,21 @@ export async function POST(request: Request) {
 
     const orderId = orderResult.id
 
-    // Process services
-    const servicesToAdd = []
+    if (selectedServiceIds && selectedServiceIds.length > 0) {
+      const { error: orderServicesError } = await supabase
+        .from('order_services')
+        .insert(
+          selectedServiceIds.map((serviceId: string) => ({
+            order_id: orderId,
+            service_id: parseInt(serviceId),
+          }))
+        )
 
-    // ADAS Calibration
-    if (
-      servicesRequired.adasCalibration &&
-      servicesRequired.adasCalibration.length > 0
-    ) {
-      for (const adasService of servicesRequired.adasCalibration) {
-        servicesToAdd.push(`ADAS Calibration - ${adasService}`)
-      }
-    }
-
-    // Airbag Module Reset
-    if (servicesRequired.airbagModuleReset) {
-      servicesToAdd.push('Airbag Module Reset')
-    }
-
-    // Module Replacement
-    if (
-      servicesRequired.moduleReplacement &&
-      servicesRequired.moduleReplacement.length > 0
-    ) {
-      for (const moduleService of servicesRequired.moduleReplacement) {
-        servicesToAdd.push(`Module Replacement - ${moduleService}`)
-      }
-    }
-
-    // Key Programming
-    if (servicesRequired.keyProgramming) {
-      const { service, keyType, keySource, quantity, partNumber } =
-        servicesRequired.keyProgramming
-      let keyServiceName = `Key Programming - ${service} - ${keyType}`
-
-      if (keySource) {
-        keyServiceName += ` - ${keySource}`
-      }
-
-      if (quantity) {
-        keyServiceName += ` - Qty: ${quantity}`
-      }
-
-      if (partNumber) {
-        keyServiceName += ` - Part#: ${partNumber}`
-      }
-
-      servicesToAdd.push(keyServiceName)
-    }
-
-    // Diagnostic or Wiring
-    if (servicesRequired.diagnosticOrWiring) {
-      servicesToAdd.push('Diagnostic or Wiring Repair')
-    }
-
-    // Add services to the database and create junction records
-    for (const serviceName of servicesToAdd) {
-      // Check if service exists
-      const { data: serviceData, error: serviceError } = await supabase
-        .from('services')
-        .select('id')
-        .eq('service_name', serviceName)
-        .single()
-
-      // Only proceed if the service exists
-      if (!serviceError && serviceData) {
-        const serviceId = serviceData.id
-
-        // Create junction record in order_services table
-        await supabase
-          .from('order_services')
-          .insert([{ order_id: orderId, service_id: serviceId }])
-      } else {
-        console.error(
-          `Service "${serviceName}" not found in database, skipping`
+      if (orderServicesError) {
+        console.error('Error creating order services:', orderServicesError)
+        return NextResponse.json(
+          { error: 'Failed to create order services' },
+          { status: 500 }
         )
       }
     }

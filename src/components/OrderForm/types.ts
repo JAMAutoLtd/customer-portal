@@ -1,3 +1,6 @@
+import { Service } from '@/types'
+
+// OLD FORM TYPES
 export type ServiceCategory =
   | 'Insurance Claim'
   | 'Salvage Repair or Commercial'
@@ -55,4 +58,12 @@ export type OrderFormData = {
   vehicleMake: string
   vehicleModel: string
   servicesRequired: ServicesRequired
+}
+
+// NEW FORM TYPES
+
+export interface ServicesSectionProps {
+  services: Service[]
+  selectedServices: number[]
+  onServiceChange: (serviceId: number, checked: boolean) => void
 }

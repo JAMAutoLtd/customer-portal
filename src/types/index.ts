@@ -14,6 +14,7 @@ export type Vehicle = {
 export type Service = {
   id: number
   service_name: string
+  slug: string
 }
 
 export type Order = {

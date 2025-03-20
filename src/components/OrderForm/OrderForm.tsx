@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import AddressInput from '@/components/inputs/AddressInput'
@@ -23,6 +23,9 @@ import {
   ServicesRequired,
   KeyType,
 } from './types'
+
+import { supabase } from '@/utils/supabase/client'
+import { Service } from '@/types'
 import { ServicesSection } from './ServicesSection'
 
 export const OrderForm: React.FC = () => {
@@ -38,6 +41,8 @@ export const OrderForm: React.FC = () => {
   const [isVinValid, setIsVinValid] = useState(false)
   const [isAddressValid, setIsAddressValid] = useState(false)
   const [selectedTime, setSelectedTime] = useState<string>('')
+  const [services, setServices] = useState<Service[]>([])
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
 
   React.useEffect(() => {
     if (!loading && !user) {
@@ -57,6 +62,24 @@ export const OrderForm: React.FC = () => {
       }))
     }
   }, [loading, user])
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('services')
+          .select('id, service_name, slug')
+          .order('service_name')
+
+        if (error) throw error
+        setServices(data || [])
+      } catch (error) {
+        console.error('Error fetching services:', error)
+      }
+    }
+
+    fetchServices()
+  }, [])
 
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
@@ -97,6 +120,7 @@ export const OrderForm: React.FC = () => {
         ...formData,
         customerEmail: user?.email || '',
         earliestDate: earliestDateTimeISO,
+        selectedServiceIds,
       }
 
       const response = await fetch('/api/order-submit', {
@@ -159,6 +183,18 @@ export const OrderForm: React.FC = () => {
         vin: value,
       }))
       setIsVinValid(false)
+    }
+  }
+
+  const handleServiceSelection = (serviceId: number, checked: boolean) => {
+    setSelectedServiceIds((prev) =>
+      checked ? [...prev, serviceId] : prev.filter((id) => id !== serviceId)
+    )
+
+    const selectedService = services.find((s) => s.id === serviceId)
+    if (selectedService) {
+      const [category] = selectedService.slug.split('_')
+      handleServiceChange(category, checked)
     }
   }
 
@@ -472,9 +508,9 @@ export const OrderForm: React.FC = () => {
         </div>
 
         <ServicesSection
-          formData={formData}
-          handleServiceChange={handleServiceChange}
-          handleKeyProgrammingChange={handleKeyProgrammingChange}
+          services={services}
+          selectedServices={selectedServiceIds}
+          onServiceChange={handleServiceSelection}
         />
 
         <div className="flex justify-end space-x-4">

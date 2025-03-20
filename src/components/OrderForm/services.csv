@@ -1,0 +1,20 @@
+id,service_name,slug
+1,Front Radar,adas_front_radar
+2,Windshield Camera,adas_windshield_camera
+3,360 Camera or Side Mirror,adas_360_camera
+4,Blind Spot Monitor,adas_blind_spot_monitor
+5,Parking Assist Sensor,adas_parking_assist_sensor
+6,ECM,prog_ecm
+7,TCM,prog_tcm
+8,BCM,prog_bcm
+9,Airbag Module Reset,prog_airbag
+10,Instrument Cluster,prog_instrument_cluster
+11,Front Radar R&R,prog_front_radar
+12,Windshield Camera R&R,prog_windshield_camera
+13,Blind Spot Monitor R&R,prog_blind_spot_monitor
+14,Headlamp Module,prog_headlamp
+15,Other,prog_other
+16,Immobilizer R&R,immo_module_prog
+17,All Keys Lost,immo_all_keys_lost
+18,Adding Spare Keys,immo_add_spare
+19,Diagnostic or Wiring,diag_wiring

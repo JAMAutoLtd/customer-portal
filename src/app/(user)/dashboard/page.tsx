@@ -1,35 +1,34 @@
-"use client";
+'use client'
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { createClient } from "@/utils/supabase/client";
-import { OrderCard } from "@/components/OrderCard";
-import { Order } from "@/types";
-import { ClipboardIcon } from "@/components/icons/ClipboardIcon";
-import { DocumentIcon } from "@/components/icons/DocumentIcon";
-import { Loader } from "@/components/ui/Loader";
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/utils/supabase/client'
+import { OrderCard } from '@/components/OrderCard'
+import { Order } from '@/types'
+import { ClipboardIcon } from '@/components/icons/ClipboardIcon'
+import { DocumentIcon } from '@/components/icons/DocumentIcon'
+import { Loader } from '@/components/ui/Loader'
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  const [orders, setOrders] = useState<Order[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.push('/login')
     }
-  }, [user, loading, router]);
+  }, [user, loading, router])
 
   useEffect(() => {
     const fetchOrders = async () => {
-      if (!user) return;
+      if (!user) return
 
       try {
         const { data: ordersData, error: ordersError } = await supabase
-          .from("orders")
+          .from('orders')
           .select(
             `
             id, 
@@ -41,29 +40,29 @@ export default function Dashboard() {
             vehicles:vehicle_id(id, vin, ymm)
           `
           )
-          .eq("user_id", user.id)
-          .order("id", { ascending: false });
+          .eq('user_id', user.id)
+          .order('id', { ascending: false })
 
-        if (ordersError) throw ordersError;
+        if (ordersError) throw ordersError
 
         const ordersWithDetails = await Promise.all(
           (ordersData || []).map(async (order) => {
             const { data: servicesData } = await supabase
-              .from("order_services")
-              .select("services:service_id(id, service_name)")
-              .eq("order_id", order.id);
+              .from('order_services')
+              .select('services:service_id(id, service_name)')
+              .eq('order_id', order.id)
 
             const { data: uploadsData } = await supabase
-              .from("order_uploads")
-              .select("id, file_name, file_url")
-              .eq("order_id", order.id);
+              .from('order_uploads')
+              .select('id, file_name, file_url')
+              .eq('order_id', order.id)
 
             const { data: jobsData } = await supabase
-              .from("jobs")
+              .from('jobs')
               .select(
-                "id, status, requested_time, estimated_sched, job_duration, notes"
+                'id, status, requested_time, estimated_sched, job_duration, notes'
               )
-              .eq("order_id", order.id);
+              .eq('order_id', order.id)
 
             return {
               id: order.id,
@@ -76,29 +75,29 @@ export default function Dashboard() {
               services: servicesData?.map((item) => item.services) || [],
               uploads: uploadsData || [],
               jobs: jobsData || [],
-            } as unknown as Order;
+            } as unknown as Order
           })
-        );
+        )
 
-        setOrders(ordersWithDetails);
+        setOrders(ordersWithDetails)
       } catch (error) {
-        console.error("Error fetching orders:", error);
+        console.error('Error fetching orders:', error)
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
     if (user) {
-      fetchOrders();
+      fetchOrders()
     }
-  }, [user, supabase]);
+  }, [user, supabase])
 
   if (loading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader />
       </div>
-    );
+    )
   }
 
   return (
@@ -123,5 +122,5 @@ export default function Dashboard() {
         </div>
       )}
     </div>
-  );
+  )
 }
