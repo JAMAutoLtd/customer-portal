@@ -39,7 +39,9 @@ CREATE TABLE user_addresses (
 CREATE TABLE vehicles (
     id SERIAL PRIMARY KEY,
     vin VARCHAR(17) UNIQUE,
-    ymm VARCHAR(100) NOT NULL
+    year SMALLINT NOT NULL,
+    make VARCHAR(50) NOT NULL,
+    model VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE orders (
