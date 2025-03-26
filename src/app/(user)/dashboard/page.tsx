@@ -14,6 +14,7 @@ export default function Dashboard() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
+  console.log(orders)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {

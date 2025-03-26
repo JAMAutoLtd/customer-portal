@@ -1,9 +1,9 @@
-import { Card } from "@/components/ui/Card";
-import { OrderCardProps } from "@/types";
-import { InfoIcon } from "./icons/InfoIcon";
-import { LocationIcon } from "./icons/LocationIcon";
-import { ClipboardIcon } from "./icons/ClipboardIcon";
-import { ServiceIcon } from "./icons/ServiceIcon";
+import { Card } from '@/components/ui/Card'
+import { OrderCardProps } from '@/types'
+import { InfoIcon } from './icons/InfoIcon'
+import { LocationIcon } from './icons/LocationIcon'
+import { ClipboardIcon } from './icons/ClipboardIcon'
+import { ServiceIcon } from './icons/ServiceIcon'
 
 export function OrderCard({ order }: OrderCardProps) {
   return (
@@ -22,7 +22,7 @@ export function OrderCard({ order }: OrderCardProps) {
                 <p className="mb-2">
                   <span className="font-medium text-gray-700">
                     Repair Order:
-                  </span>{" "}
+                  </span>{' '}
                   <span className="text-gray-800">
                     {order.repair_order_number}
                   </span>
@@ -30,29 +30,29 @@ export function OrderCard({ order }: OrderCardProps) {
               )}
               {order.earliest_available_time && (
                 <p className="mb-2">
-                  <span className="font-medium text-gray-700">Time:</span>{" "}
+                  <span className="font-medium text-gray-700">Time:</span>{' '}
                   <span className="text-gray-800">
                     {new Date(order.earliest_available_time).toLocaleDateString(
                       [],
                       {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
                       }
                     ) +
-                      " " +
+                      ' ' +
                       new Date(
                         order.earliest_available_time
                       ).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
+                        hour: '2-digit',
+                        minute: '2-digit',
                       })}
                   </span>
                 </p>
               )}
               {order.invoice && (
                 <p className="mb-2">
-                  <span className="font-medium text-gray-700">Invoice:</span>{" "}
+                  <span className="font-medium text-gray-700">Invoice:</span>{' '}
                   <span className="text-green-600 font-semibold">
                     ${order.invoice}
                   </span>
@@ -73,8 +73,10 @@ export function OrderCard({ order }: OrderCardProps) {
                 <InfoIcon />
                 Vehicle Information
               </h4>
-              <p className="text-gray-800 font-medium">{order.vehicle.ymm}</p>
-              {order.vehicle.vin && (
+              {order.vehicle?.ymm && (
+                <p className="text-gray-800 font-medium">{order.vehicle.ymm}</p>
+              )}
+              {order.vehicle?.vin && (
                 <p className="mt-1">
                   <span className="font-medium">VIN:</span> {order.vehicle.vin}
                 </p>
@@ -125,36 +127,36 @@ export function OrderCard({ order }: OrderCardProps) {
                       <p className="font-medium text-gray-800">Job #{job.id}</p>
                       <span
                         className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
-                          job.status === "completed"
-                            ? "bg-green-100 text-green-800"
-                            : job.status === "in_progress"
-                            ? "bg-blue-100 text-blue-800"
-                            : job.status === "assigned"
-                            ? "bg-purple-100 text-purple-800"
-                            : job.status === "cancelled"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
+                          job.status === 'completed'
+                            ? 'bg-green-100 text-green-800'
+                            : job.status === 'in_progress'
+                            ? 'bg-blue-100 text-blue-800'
+                            : job.status === 'assigned'
+                            ? 'bg-purple-100 text-purple-800'
+                            : job.status === 'cancelled'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
                         }`}
                       >
-                        {job.status.replace("_", " ")}
+                        {job.status.replace('_', ' ')}
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm">
                       {job.requested_time && (
                         <p className="text-gray-600">
-                          <span className="font-medium">Requested:</span>{" "}
+                          <span className="font-medium">Requested:</span>{' '}
                           {new Date(job.requested_time).toLocaleString()}
                         </p>
                       )}
                       {job.estimated_sched && (
                         <p className="text-gray-600">
-                          <span className="font-medium">Scheduled:</span>{" "}
+                          <span className="font-medium">Scheduled:</span>{' '}
                           {new Date(job.estimated_sched).toLocaleString()}
                         </p>
                       )}
                       {job.job_duration && (
                         <p className="text-gray-600">
-                          <span className="font-medium">Duration:</span>{" "}
+                          <span className="font-medium">Duration:</span>{' '}
                           {job.job_duration} minutes
                         </p>
                       )}
@@ -222,5 +224,5 @@ export function OrderCard({ order }: OrderCardProps) {
         </div>
       </div>
     </Card>
-  );
+  )
 }
