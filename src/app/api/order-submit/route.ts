@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
     const userId = session.user.id
 
-    const ymm = `${vehicleYear} ${vehicleMake} ${vehicleModel}`.trim()
+    const earliestDateTime = new Date(earliestDate)
 
     // Create address record
     const { data: addressData, error: addressError } = await supabase
@@ -66,34 +66,51 @@ export async function POST(request: Request) {
 
     const addressId = addressData.id
 
-    // Create vehicle record if VIN is provided
-    let vehicleId = null
-    if (vin) {
-      const { data: existingVehicle } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('vin', vin)
-        .single()
-
-      if (existingVehicle) {
-        vehicleId = existingVehicle.id
-      } else {
-        const { data: vehicleData, error: vehicleError } = await supabase
-          .from('vehicles')
-          .insert([{ vin, ymm }])
-          .select()
-          .single()
-
-        if (vehicleError) {
-          console.error('Error creating vehicle:', vehicleError)
-        } else {
-          vehicleId = vehicleData.id
-        }
-      }
+    // Ensure year is a valid number
+    const yearNum = parseInt(vehicleYear)
+    if (
+      isNaN(yearNum) ||
+      yearNum < 1900 ||
+      yearNum > new Date().getFullYear() + 1
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid vehicle year' },
+        { status: 400 }
+      )
     }
 
-    const earliestDateTime = new Date(earliestDate)
+    // Prepare vehicle data
+    const vehicleData = {
+      vin: vin || null,
+      year: yearNum,
+      make: vehicleMake?.toUpperCase()?.trim() || 'UNKNOWN',
+      model: vehicleModel?.toUpperCase()?.trim() || 'UNKNOWN',
+    }
 
+    // Upsert vehicle record
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from('vehicles')
+      .upsert(vehicleData, {
+        onConflict: vin ? 'vin' : undefined,
+        ignoreDuplicates: !vin,
+      })
+      .select()
+      .single()
+
+    if (vehicleError) {
+      console.error('Error upserting vehicle:', vehicleError)
+      return NextResponse.json(
+        {
+          error: 'Failed to create/update vehicle record',
+          details: vehicleError.message,
+        },
+        { status: 500 }
+      )
+    }
+
+    const vehicleId = vehicle.id
+
+    // Create order with vehicle ID
     const { data: orderResult, error: orderError } = await supabase
       .from('orders')
       .insert([
@@ -102,7 +119,7 @@ export async function POST(request: Request) {
           vehicle_id: vehicleId,
           address_id: addressId,
           earliest_available_time: earliestDateTime.toISOString(),
-          notes: notes,
+          notes: notes || null,
         },
       ])
       .select()

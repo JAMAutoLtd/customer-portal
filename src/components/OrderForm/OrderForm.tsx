@@ -25,6 +25,7 @@ import { supabase } from '@/utils/supabase/client'
 import { Service } from '@/types'
 import { ServicesSection } from './ServicesSection'
 import VehicleInfoInput from './VehicleInfoInput'
+import { validateAndDecodeVin } from '@/utils/vinValidation'
 
 export const OrderForm: React.FC = () => {
   const { user, loading } = useAuth()
@@ -102,14 +103,39 @@ export const OrderForm: React.FC = () => {
     setSuccess(false)
 
     try {
+      let submissionData = { ...formData }
+
+      // Check if VIN needs validation (VIN entered but no vehicle info)
+      if (
+        formData.vin &&
+        !formData.vinUnknown &&
+        (!formData.vehicleYear ||
+          !formData.vehicleMake ||
+          !formData.vehicleModel)
+      ) {
+        try {
+          const vehicleInfo = await validateAndDecodeVin(formData.vin)
+          submissionData = {
+            ...submissionData,
+            ...vehicleInfo,
+          }
+          setFormData(submissionData)
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : 'Failed to validate VIN'
+          )
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+          return
+        }
+      }
+
       const [hours, minutes] = selectedTime.split(':')
-      const earliestDateTimeISO = `${formData.earliestDate}T${hours.padStart(
-        2,
-        '0'
-      )}:${(minutes || '00').padStart(2, '0')}:00`
+      const earliestDateTimeISO = `${
+        submissionData.earliestDate
+      }T${hours.padStart(2, '0')}:${(minutes || '00').padStart(2, '0')}:00`
 
       const requestData = {
-        ...formData,
+        ...submissionData,
         customerEmail: user?.email || '',
         earliestDate: earliestDateTimeISO,
         selectedServiceIds,

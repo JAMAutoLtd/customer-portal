@@ -3,6 +3,7 @@ import { CheckMarkIcon } from '@/components/icons/CheckMarkIcon'
 import { Button } from '@/components/ui/Button'
 import VehicleSelect from '@/components/OrderForm/VehicleSelect'
 import { VehicleInfo, VehicleInfoInputProps } from './types'
+import { validateAndDecodeVin } from '@/utils/vinValidation'
 
 const API_URL = process.env.NEXT_PUBLIC_NHTSA_API_URL
 
@@ -53,8 +54,12 @@ const VehicleInfoInput: React.FC<VehicleInfoInputProps> = ({
       }
     }
 
+    // Convert year to number for database compatibility
+    const vehicleYear = parseInt(info.vehicleYear) || 0
+
     onFormDataUpdate({
       ...info,
+      vehicleYear: vehicleYear.toString(), // Convert back to string for form state
       servicesRequired: updatedServicesRequired,
     })
   }
@@ -65,44 +70,11 @@ const VehicleInfoInput: React.FC<VehicleInfoInputProps> = ({
     setIsVinValid(false)
 
     try {
-      const response = await fetch(`${API_URL}/decodevin/${vin}?format=json`)
-      const data = await response.json()
-
-      // Check if the VIN is valid and returns a make
-      const make = data.Results.find(
-        (item: any) => item.Variable === 'Make'
-      )?.Value
-      const error = data.Results.find(
-        (item: any) => item.Variable === 'Error Code'
-      )?.Value
-
-      if (error !== '0' || !make) {
-        setVinError(
-          'Invalid VIN. Please check the number or use "VIN Unknown" option.'
-        )
-        return
-      }
-
-      // If valid, update the form with the decoded info
-      const year = data.Results.find(
-        (item: any) => item.Variable === 'Model Year'
-      )?.Value
-      const model = data.Results.find(
-        (item: any) => item.Variable === 'Model'
-      )?.Value
-
-      const vehicleInfo = {
-        vehicleYear: year || '',
-        vehicleMake: make.toUpperCase(),
-        vehicleModel: model?.toUpperCase() || '',
-      }
-
+      const vehicleInfo = await validateAndDecodeVin(vin)
       handleVehicleInfoUpdate(vehicleInfo)
       setIsVinValid(true)
     } catch (err) {
-      setVinError(
-        'Failed to validate VIN. Please try again or use "VIN Unknown" option.'
-      )
+      setVinError(err instanceof Error ? err.message : 'Failed to validate VIN')
     } finally {
       setIsCheckingVin(false)
     }
