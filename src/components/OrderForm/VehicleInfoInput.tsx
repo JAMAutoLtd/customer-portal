@@ -2,29 +2,12 @@ import React, { useState } from 'react'
 import { CheckMarkIcon } from '@/components/icons/CheckMarkIcon'
 import { Button } from '@/components/ui/Button'
 import VehicleSelect from '@/components/OrderForm/VehicleSelect'
-import { ServicesRequired } from './types'
+import { VehicleInfo, VehicleInfoInputProps } from './types'
 
-interface VehicleInfo {
-  vehicleYear: string
-  vehicleMake: string
-  vehicleModel: string
-}
+const API_URL = process.env.NEXT_PUBLIC_NHTSA_API_URL
 
-interface VehicleInfoInputProps {
-  vin: string
-  vinUnknown: boolean
-  vehicleYear: string
-  vehicleMake: string
-  vehicleModel: string
-  servicesRequired: ServicesRequired
-  onFormDataUpdate: (updates: {
-    vin?: string
-    vinUnknown?: boolean
-    vehicleYear?: string
-    vehicleMake?: string
-    vehicleModel?: string
-    servicesRequired?: ServicesRequired
-  }) => void
+if (!API_URL) {
+  throw new Error('NEXT_PUBLIC_NHTSA_API_URL is not defined')
 }
 
 const VehicleInfoInput: React.FC<VehicleInfoInputProps> = ({
@@ -82,9 +65,7 @@ const VehicleInfoInput: React.FC<VehicleInfoInputProps> = ({
     setIsVinValid(false)
 
     try {
-      const response = await fetch(
-        `https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`
-      )
+      const response = await fetch(`${API_URL}/decodevin/${vin}?format=json`)
       const data = await response.json()
 
       // Check if the VIN is valid and returns a make
