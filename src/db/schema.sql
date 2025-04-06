@@ -1,332 +1,198 @@
-                                                         create_statement                                                         
-----------------------------------------------------------------------------------------------------------------------------------
- -- Table: adas_equipment_data                                                                                                   +
- CREATE TABLE IF NOT EXISTS adas_equipment_data (                                                                                +
-     id integer NOT NULL DEFAULT nextval('adas_equipment_data_id_seq'::regclass),                                                +
-     ymm_id integer NOT NULL,                                                                                                    +
-     service_id integer NOT NULL,                                                                                                +
-     equipment_model character varying(100) NOT NULL,                                                                            +
-     has_service boolean NOT NULL DEFAULT false,                                                                                 +
-     UNIQUE (ymm_id, service_id),                                                                                                +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (service_id) REFERENCES adas_services(service_id),                                                              +
-     FOREIGN KEY (ymm_id) REFERENCES adas_ymm_ref(ymm_id)                                                                        +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX adas_equipment_data_pkey ON public.adas_equipment_data USING btree (id);                                    +
- CREATE UNIQUE INDEX adas_equipment_data_ymm_id_service_id_key ON public.adas_equipment_data USING btree (ymm_id, service_id);   +
- 
- -- Table: adas_services                                                                                                         +
- CREATE TABLE IF NOT EXISTS adas_services (                                                                                      +
-     service_id integer NOT NULL DEFAULT nextval('adas_services_service_id_seq'::regclass),                                      +
-     service_code character varying(30) NOT NULL,                                                                                +
-     service_name character varying(100) NOT NULL,                                                                               +
-     UNIQUE (service_code),                                                                                                      +
-     PRIMARY KEY (service_id)                                                                                                    +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX adas_services_pkey ON public.adas_services USING btree (service_id);                                        +
- CREATE UNIQUE INDEX adas_services_service_code_key ON public.adas_services USING btree (service_code);                          +
- 
- -- Table: adas_ymm_ref                                                                                                          +
- CREATE TABLE IF NOT EXISTS adas_ymm_ref (                                                                                       +
-     ymm_id integer NOT NULL DEFAULT nextval('adas_ymm_ref_ymm_id_seq'::regclass),                                               +
-     year smallint NOT NULL,                                                                                                     +
-     make character varying(50) NOT NULL,                                                                                        +
-     model character varying(100) NOT NULL,                                                                                      +
-     UNIQUE (year, make, model),                                                                                                 +
-     PRIMARY KEY (ymm_id)                                                                                                        +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX adas_ymm_ref_pkey ON public.adas_ymm_ref USING btree (ymm_id);                                              +
- CREATE UNIQUE INDEX adas_ymm_ref_year_make_model_key ON public.adas_ymm_ref USING btree (year, make, model);                    +
- 
- -- Table: addresses                                                                                                             +
- CREATE TABLE IF NOT EXISTS addresses (                                                                                          +
-     id integer NOT NULL DEFAULT nextval('addresses_id_seq'::regclass),                                                          +
-     street_address character varying(255) NOT NULL,                                                                             +
-     lat numeric,                                                                                                                +
-     lng numeric,                                                                                                                +
-     PRIMARY KEY (id)                                                                                                            +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX addresses_pkey ON public.addresses USING btree (id);                                                        +
- CREATE INDEX idx_addresses_coords ON public.addresses USING btree (lat, lng);                                                   +
- 
- -- Table: equipment                                                                                                             +
- CREATE TABLE IF NOT EXISTS equipment (                                                                                          +
-     id integer NOT NULL DEFAULT nextval('equipment_id_seq'::regclass),                                                          +
-     equipment_type enum('adas', 'airbag', 'immo', 'prog', 'diag') NOT NULL,                                                     +
-     model text,                                                                                                                 +
-     UNIQUE (equipment_type),                                                                                                    +
-     PRIMARY KEY (id)                                                                                                            +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX equipment_equipment_type_key ON public.equipment USING btree (equipment_type);                              +
- CREATE UNIQUE INDEX equipment_pkey ON public.equipment USING btree (id);                                                        +
- 
- -- Table: fleet_vehicle_equipment                                                                                               +
- CREATE TABLE IF NOT EXISTS fleet_vehicle_equipment (                                                                            +
-     fleet_vehicle_id integer NOT NULL,                                                                                          +
-     equipment_id integer NOT NULL,                                                                                              +
-     equipment_model text,                                                                                                       +
-     PRIMARY KEY (fleet_vehicle_id, equipment_id),                                                                               +
-     FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE,                                                      +
-     FOREIGN KEY (fleet_vehicle_id) REFERENCES fleet_vehicles(id) ON DELETE CASCADE                                              +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX fleet_vehicle_equipment_pkey ON public.fleet_vehicle_equipment USING btree (fleet_vehicle_id, equipment_id);+
- 
- -- Table: fleet_vehicles                                                                                                        +
- CREATE TABLE IF NOT EXISTS fleet_vehicles (                                                                                     +
-     id integer NOT NULL DEFAULT nextval('fleet_vehicles_id_seq'::regclass),                                                     +
-     last_service timestamp with time zone,                                                                                      +
-     next_service timestamp with time zone,                                                                                      +
-     vin character varying,                                                                                                      +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (vin) REFERENCES vehicles(vin) ON UPDATE CASCADE                                                                +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX fleet_vehicles_pkey ON public.fleet_vehicles USING btree (id);                                              +
- 
- -- Table: job_services                                                                                                          +
- CREATE TABLE IF NOT EXISTS job_services (                                                                                       +
-     job_id integer NOT NULL,                                                                                                    +
-     service_id integer NOT NULL,                                                                                                +
-     PRIMARY KEY (job_id, service_id),                                                                                           +
-     FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,                                                                 +
-     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE                                                          +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX job_services_pkey ON public.job_services USING btree (job_id, service_id);                                  +
- 
- -- Table: jobs                                                                                                                  +
- CREATE TABLE IF NOT EXISTS jobs (                                                                                               +
-     id integer NOT NULL DEFAULT nextval('jobs_id_seq'::regclass),                                                               +
-     order_id integer,                                                                                                           +
-     assigned_technician integer,                                                                                                +
-     address_id integer,                                                                                                         +
-     priority integer,                                                                                                           +
-     status USER-DEFINED NOT NULL,                                                                                               +
-     requested_time timestamp with time zone,                                                                                    +
-     estimated_sched timestamp with time zone,                                                                                   +
-     job_duration integer,                                                                                                       +
-     notes text,                                                                                                                 +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (address_id) REFERENCES addresses(id) ON DELETE RESTRICT,                                                       +
-     FOREIGN KEY (assigned_technician) REFERENCES technicians(id) ON DELETE RESTRICT,                                            +
-     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE RESTRICT,                                                            +
-     CHECK ((job_duration > 0)),                                                                                                 +
-     CHECK ((priority >= 0))                                                                                                     +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE INDEX idx_jobs_estimated_sched ON public.jobs USING btree (estimated_sched);                                             +
- CREATE INDEX idx_jobs_status ON public.jobs USING btree (status);                                                               +
- CREATE UNIQUE INDEX jobs_pkey ON public.jobs USING btree (id);                                                                  +
- 
- -- Table: keys                                                                                                                  +
- CREATE TABLE IF NOT EXISTS keys (                                                                                               +
-     sku_id character varying(50) NOT NULL,                                                                                      +
-     quantity integer NOT NULL,                                                                                                  +
-     min_quantity integer NOT NULL,                                                                                              +
-     part_number character varying(50),                                                                                          +
-     purchase_price numeric,                                                                                                     +
-     sale_price numeric,                                                                                                         +
-     supplier character varying(100),                                                                                            +
-     fcc_id character varying(50),                                                                                               +
-     PRIMARY KEY (sku_id),                                                                                                       +
-     CHECK ((min_quantity >= 0)),                                                                                                +
-     CHECK ((quantity >= 0))                                                                                                     +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX keys_pkey ON public.keys USING btree (sku_id);                                                              +
- 
- -- Table: order_services                                                                                                        +
- CREATE TABLE IF NOT EXISTS order_services (                                                                                     +
-     order_id integer NOT NULL,                                                                                                  +
-     service_id integer NOT NULL,                                                                                                +
-     PRIMARY KEY (order_id, service_id),                                                                                         +
-     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,                                                             +
-     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE                                                          +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX order_services_pkey ON public.order_services USING btree (order_id, service_id);                            +
- 
- -- Table: order_uploads                                                                                                         +
- CREATE TABLE IF NOT EXISTS order_uploads (                                                                                      +
-     id integer NOT NULL DEFAULT nextval('order_uploads_id_seq'::regclass),                                                      +
-     order_id integer,                                                                                                           +
-     file_name character varying(255) NOT NULL,                                                                                  +
-     file_type character varying(100),                                                                                           +
-     file_url text NOT NULL,                                                                                                     +
-     uploaded_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,                                                             +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE                                                              +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX order_uploads_pkey ON public.order_uploads USING btree (id);                                                +
- 
- -- Table: orders                                                                                                                +
- CREATE TABLE IF NOT EXISTS orders (                                                                                             +
-     id integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass),                                                             +
-     user_id uuid,                                                                                                               +
-     vehicle_id integer,                                                                                                         +
-     repair_order_number character varying(50),                                                                                  +
-     address_id integer,                                                                                                         +
-     earliest_available_time timestamp with time zone,                                                                           +
-     notes text,                                                                                                                 +
-     invoice integer,                                                                                                            +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (address_id) REFERENCES addresses(id) ON DELETE RESTRICT,                                                       +
-     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,                                                              +
-     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE RESTRICT                                                         +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id);                                                              +
- 
- -- Table: service_equipment                                                                                                     +
- CREATE TABLE IF NOT EXISTS service_equipment (                                                                                  +
-     service_id integer NOT NULL,                                                                                                +
-     equipment_id integer NOT NULL,                                                                                              +
-     PRIMARY KEY (service_id, equipment_id),                                                                                     +
-     FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE,                                                      +
-     FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE                                                          +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX service_equipment_pkey ON public.service_equipment USING btree (service_id, equipment_id);                  +
- 
- -- Table: services                                                                                                              +
- CREATE TABLE IF NOT EXISTS services (                                                                                           +
-     id integer NOT NULL DEFAULT nextval('services_id_seq'::regclass),                                                           +
-     service_name character varying(100) NOT NULL,                                                                               +
-     service_category enum('adas', 'airbag', 'immo', 'prog', 'diag') NOT NULL,                                                   +
-     UNIQUE (service_name),                                                                                                      +
-     PRIMARY KEY (id)                                                                                                            +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX services_pkey ON public.services USING btree (id);                                                          +
- CREATE UNIQUE INDEX services_service_name_key ON public.services USING btree (service_name);                                    +
- 
- -- Table: technicians                                                                                                           +
- CREATE TABLE IF NOT EXISTS technicians (                                                                                        +
-     id integer NOT NULL DEFAULT nextval('technicians_id_seq'::regclass),                                                        +
-     user_id uuid,                                                                                                               +
-     assigned_van_id integer,                                                                                                    +
-     workload integer,                                                                                                           +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (assigned_van_id) REFERENCES vans(id) ON DELETE SET NULL,                                                         +
-     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,                                                              +
-     CHECK ((workload >= 0))                                                                                                     +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX technicians_pkey ON public.technicians USING btree (id);                                                    +
- 
- -- Table: user_addresses                                                                                                        +
- CREATE TABLE IF NOT EXISTS user_addresses (                                                                                     +
-     user_id uuid NOT NULL,                                                                                                      +
-     address_id integer NOT NULL,                                                                                                +
-     PRIMARY KEY (user_id, address_id),                                                                                          +
-     FOREIGN KEY (address_id) REFERENCES addresses(id) ON DELETE CASCADE,                                                        +
-     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE                                                                +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX user_addresses_pkey ON public.user_addresses USING btree (user_id, address_id);                             +
- 
- -- Table: users                                                                                                                 +
- CREATE TABLE IF NOT EXISTS users (                                                                                              +
-     id uuid NOT NULL,                                                                                                           +
-     full_name character varying(100) NOT NULL,                                                                                  +
-     phone character varying(100),                                                                                               +
-     home_address_id integer,                                                                                                    +
-     is_admin boolean DEFAULT false,                                                                                             +
-     customer_type USER-DEFINED NOT NULL,                                                                                        +
-     PRIMARY KEY (id),                                                                                                           +
-     FOREIGN KEY (home_address_id) REFERENCES addresses(id) ON DELETE RESTRICT,                                                  +
-     FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE                                                                +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id);                                                                +
- 
- -- Table: vehicles                                                                                                              +
- CREATE TABLE IF NOT EXISTS vehicles (                                                                                           +
-     id integer NOT NULL DEFAULT nextval('vehicles_id_seq'::regclass),                                                           +
-     vin character varying(17),                                                                                                  +
-     make character varying(100) NOT NULL,                                                                                       +
-     year smallint,                                                                                                              +
-     model character varying,                                                                                                    +
-     UNIQUE (vin),                                                                                                               +
-     PRIMARY KEY (id)                                                                                                            +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX vehicles_pkey ON public.vehicles USING btree (id);                                                          +
- CREATE UNIQUE INDEX vehicles_vin_key ON public.vehicles USING btree (vin);                                                      +
- 
- -- Table: vans                                                                                                                  +
- CREATE TABLE IF NOT EXISTS vans (                                                                                               +
-     id integer NOT NULL DEFAULT nextval('vans_id_seq'::regclass),                                                                 +
-     last_service timestamp with time zone,                                                                                        +
-     next_service timestamp with time zone,                                                                                        +
-     vin character varying,                                                                                                        +
-     PRIMARY KEY (id),                                                                                                             +
-     FOREIGN KEY (vin) REFERENCES customer_vehicles(vin) ON UPDATE CASCADE                                                          +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX vans_pkey ON public.vans USING btree (id);                                                                      +
- 
- -- Table: customer_vehicles                                                                                                     +
- CREATE TABLE IF NOT EXISTS customer_vehicles (                                                                                   +
-     id integer NOT NULL DEFAULT nextval('customer_vehicles_id_seq'::regclass),                                                     +
-     vin character varying(17),                                                                                                     +
-     make character varying(100) NOT NULL,                                                                                           +
-     year smallint,                                                                                                                 +
-     model character varying,                                                                                                         +
-     UNIQUE (vin),                                                                                                                   +
-     PRIMARY KEY (id)                                                                                                                 +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX customer_vehicles_pkey ON public.customer_vehicles USING btree (id);                                               +
- CREATE UNIQUE INDEX customer_vehicles_vin_key ON public.customer_vehicles USING btree (vin);                                             +
- 
- -- Table: van_equipment                                                                                                         +
- CREATE TABLE IF NOT EXISTS van_equipment (                                                                                       +
-     van_id integer NOT NULL,                                                                                                     +
-     equipment_id integer NOT NULL,                                                                                                 +
-     equipment_model text,                                                                                                           +
-     PRIMARY KEY (van_id, equipment_id),                                                                                             +
-     FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE CASCADE,                                                          +
-     FOREIGN KEY (van_id) REFERENCES vans(id) ON DELETE CASCADE                                                                      +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX van_equipment_pkey ON public.van_equipment USING btree (van_id, equipment_id);                                       +
- 
- -- Table: ymm_ref                                                                                                               +
- CREATE TABLE IF NOT EXISTS ymm_ref (                                                                                               +
-     ymm_id integer NOT NULL DEFAULT nextval('ymm_ref_ymm_id_seq'::regclass),                                                           +
-     year smallint NOT NULL,                                                                                                             +
-     make character varying(50) NOT NULL,                                                                                                +
-     model character varying(100) NOT NULL,                                                                                               +
-     UNIQUE (year, make, model),                                                                                                             +
-     PRIMARY KEY (ymm_id)                                                                                                                   +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX ymm_ref_pkey ON public.ymm_ref USING btree (ymm_id);                                                                   +
- CREATE UNIQUE INDEX ymm_ref_year_make_model_key ON public.ymm_ref USING btree (year, make, model);                                         +
- 
- -- Table: equipment_requirements                                                                                                 +
- CREATE TABLE IF NOT EXISTS equipment_requirements (                                                                                   +
-     id integer NOT NULL DEFAULT nextval('equipment_requirements_id_seq'::regclass),                                                     +
-     ymm_id integer NOT NULL,                                                                                                               +
-     service_id integer NOT NULL,                                                                                                               +
-     adas_equipment_model character varying(100) NOT NULL,                                                                                   +
-     has_adas_service boolean NOT NULL DEFAULT false,                                                                                      +
-     UNIQUE (ymm_id, service_id),                                                                                                               +
-     PRIMARY KEY (id),                                                                                                                       +
-     FOREIGN KEY (service_id) REFERENCES services(id),                                                                                     +
-     FOREIGN KEY (ymm_id) REFERENCES ymm_ref(ymm_id)                                                                                       +
- );                                                                                                                              +
-                                                                                                                                 +
- CREATE UNIQUE INDEX equipment_requirements_pkey ON public.equipment_requirements USING btree (id);                                           +
- CREATE UNIQUE INDEX equipment_requirements_ymm_id_service_id_key ON public.equipment_requirements USING btree (ymm_id, service_id);             +
- 
-(19 rows)
+-- Create enum types
+CREATE TYPE customer_type_enum AS ENUM ('insurance', 'commercial', 'residential');
+CREATE TYPE job_status_enum AS ENUM ('pending_review', 'assigned', 'scheduled', 'pending_revisit', 'completed', 'cancelled');
+CREATE TYPE service_category AS ENUM ('adas', 'airbag', 'immo', 'prog', 'diag');
 
+-- Table: addresses
+CREATE TABLE addresses (
+    id SERIAL PRIMARY KEY,
+    street_address VARCHAR(255) NOT NULL,
+    lat NUMERIC,
+    lng NUMERIC
+);
+
+CREATE INDEX idx_addresses_coords ON addresses (lat, lng);
+
+-- Table: customer_vehicles
+CREATE TABLE customer_vehicles (
+    id SERIAL PRIMARY KEY,
+    vin VARCHAR(17) UNIQUE,
+    make VARCHAR(100) NOT NULL,
+    year SMALLINT,
+    model VARCHAR(100)
+);
+
+-- Table: ymm_ref
+CREATE TABLE ymm_ref (
+    ymm_id SERIAL PRIMARY KEY,
+    year SMALLINT NOT NULL,
+    make VARCHAR(50) NOT NULL,
+    model VARCHAR(100) NOT NULL,
+    UNIQUE (year, make, model)
+);
+
+-- Table: users
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    full_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(100),
+    home_address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
+    is_admin BOOLEAN DEFAULT false,
+    customer_type customer_type_enum NOT NULL,
+    FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+-- Table: user_addresses
+CREATE TABLE user_addresses (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    address_id INTEGER NOT NULL REFERENCES addresses(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, address_id)
+);
+
+-- Table: vans
+CREATE TABLE vans (
+    id SERIAL PRIMARY KEY,
+    last_service TIMESTAMPTZ,
+    next_service TIMESTAMPTZ,
+    vin VARCHAR(17) REFERENCES customer_vehicles(vin) ON UPDATE CASCADE
+);
+
+-- Table: technicians
+CREATE TABLE technicians (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    assigned_van_id INTEGER REFERENCES vans(id) ON DELETE SET NULL,
+    workload INTEGER CHECK (workload >= 0)
+);
+
+-- Table: equipment
+CREATE TABLE equipment (
+    id SERIAL PRIMARY KEY,
+    equipment_type service_category UNIQUE,
+    model TEXT
+);
+
+-- Table: van_equipment
+CREATE TABLE van_equipment (
+    van_id INTEGER NOT NULL REFERENCES vans(id) ON DELETE CASCADE,
+    equipment_id INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    equipment_model TEXT,
+    PRIMARY KEY (van_id, equipment_id)
+);
+
+-- Table: services
+CREATE TABLE services (
+    id SERIAL PRIMARY KEY,
+    service_name VARCHAR(100) UNIQUE NOT NULL,
+    service_category service_category NOT NULL
+);
+
+-- Table: service_equipment
+CREATE TABLE service_equipment (
+    service_id INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    equipment_id INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+    PRIMARY KEY (service_id, equipment_id)
+);
+
+-- Table: adas_equipment_requirements
+CREATE TABLE adas_equipment_requirements (
+    id SERIAL PRIMARY KEY,
+    ymm_id INTEGER NOT NULL REFERENCES ymm_ref(ymm_id),
+    service_id INTEGER NOT NULL REFERENCES services(id),
+    adas_equipment_model VARCHAR(100) NOT NULL,
+    has_adas_service BOOLEAN NOT NULL DEFAULT false,
+    UNIQUE (ymm_id, service_id)
+);
+
+-- Table: orders
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE RESTRICT,
+    vehicle_id INTEGER REFERENCES customer_vehicles(id) ON DELETE RESTRICT,
+    repair_order_number VARCHAR(50),
+    address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
+    earliest_available_time TIMESTAMPTZ,
+    notes TEXT,
+    invoice INTEGER
+);
+
+-- Table: order_services
+CREATE TABLE order_services (
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    service_id INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    PRIMARY KEY (order_id, service_id)
+);
+
+-- Table: order_uploads
+CREATE TABLE order_uploads (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100),
+    file_url TEXT NOT NULL,
+    uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table: jobs
+CREATE TABLE jobs (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE RESTRICT,
+    assigned_technician INTEGER REFERENCES technicians(id) ON DELETE RESTRICT,
+    address_id INTEGER REFERENCES addresses(id) ON DELETE RESTRICT,
+    priority INTEGER CHECK (priority >= 0),
+    status job_status_enum NOT NULL,
+    requested_time TIMESTAMPTZ,
+    estimated_sched TIMESTAMPTZ,
+    job_duration INTEGER CHECK (job_duration > 0),
+    notes TEXT
+);
+
+CREATE INDEX idx_jobs_estimated_sched ON jobs (estimated_sched);
+CREATE INDEX idx_jobs_status ON jobs (status);
+
+-- Table: job_services
+CREATE TABLE job_services (
+    job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    service_id INTEGER NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    PRIMARY KEY (job_id, service_id)
+);
+
+-- Table: keys
+CREATE TABLE keys (
+    sku_id VARCHAR(50) PRIMARY KEY,
+    quantity INTEGER NOT NULL CHECK (quantity >= 0),
+    min_quantity INTEGER NOT NULL CHECK (min_quantity >= 0),
+    part_number VARCHAR(50),
+    purchase_price NUMERIC,
+    sale_price NUMERIC,
+    supplier VARCHAR(100),
+    fcc_id VARCHAR(50)
+);
+
+-- Add comments to tables
+COMMENT ON TABLE users IS 'Stores all user accounts in the system, including customers, admins, and technicians';
+COMMENT ON TABLE technicians IS 'Extends the Users table for technician-specific details, including which van they drive and their current workload';
+COMMENT ON TABLE vans IS 'Represents each service van in the fleet. Basic info includes last/next service dates';
+COMMENT ON TABLE addresses IS 'Standardizes location information (street addresses plus coordinates) used by orders, users, and jobs for routing';
+COMMENT ON TABLE user_addresses IS 'A many-to-many link between Users and Addresses, so one user can have multiple addresses, and one address can belong to multiple users';
+COMMENT ON TABLE orders IS 'Records a customer''s service request (an order). An order may be split into multiple jobs if needed';
+COMMENT ON TABLE order_services IS 'A junction table listing which services the customer requested for a particular order';
+COMMENT ON TABLE order_uploads IS 'Tracks file uploads associated with an order';
+COMMENT ON TABLE jobs IS 'Represents an individual work assignment that can be scheduled and dispatched to a single technician';
+COMMENT ON TABLE job_services IS 'Links each job to the specific services it will perform';
+COMMENT ON TABLE keys IS 'Tracks inventory of car key blanks and related key parts for immobilizer jobs';
+COMMENT ON TABLE services IS 'Defines the various services offered (e.g., ADAS calibration, module programming, key programming, etc.)';
+COMMENT ON TABLE service_equipment IS 'Defines which equipment items are required for a given service';
+COMMENT ON TABLE equipment IS 'A master list of all possible equipment/tools needed to perform services';
+COMMENT ON TABLE van_equipment IS 'Indicates which equipment items are available in each service van';
+COMMENT ON TABLE customer_vehicles IS 'Stores information about customer vehicles that can be serviced';
+COMMENT ON TABLE ymm_ref IS 'Standardized reference table for year/make/model combinations used across the system';
+COMMENT ON TABLE adas_equipment_requirements IS 'Defines what equipment is required for specific vehicle models and services'; 
+
+-- job_status_enum
+-- 'pending_review' - no van is equipped with the necessary equipment model
+-- 'assigned' - a van is equipped with the necessary equipment model (for complex services) or type (for simple services) and a technician/van is assigned
+-- 'scheduled' - a technician is assigned to the job and time is scheduled
+-- 'pending_revisit' - a job wasn't completed and needs to be revisited
+-- 'completed' - the job is completed
+-- 'cancelled' - the job is cancelled
