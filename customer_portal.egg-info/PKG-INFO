@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: customer-portal
+Version: 0.1.0
+Requires-Dist: pytest>=8.3.5
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: sqlalchemy>=2.0.0
+Requires-Dist: datetime
+Requires-Dist: typing
+Dynamic: requires-dist

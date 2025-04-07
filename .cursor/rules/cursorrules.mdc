@@ -1,13 +1,15 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 ### 🔄 Project Awareness & Context
-- **Always read `PLANNING.md`** at the start of a new conversation to understand the project's architecture, goals, style, and constraints. There will often be a PLANNING.md specific to the directory we're working in as well as the main directory PLANNING.md - Read both.
-- **Check `TASK.md`** before starting a new task. If the task isn’t listed, add it with a brief description and today's date. There will often be a TASK.md specific to the directory we're working in as well as the main directory TASK.md - Read both.
+- **Always read `PLANNING.md`** at the start of a new conversation to understand the project's architecture, goals, style, and constraints.
+- **Check `TASK.md`** before starting a new task. If the task isn’t listed, add it with a brief description and today's date.
 - **Use consistent naming conventions, file structure, and architecture patterns** as described in `PLANNING.md`.
 -**Always read `DATABASE.md`** to understand the structure of our database and how we can implement it where necessary, or suggest modifications during development of features.
+-**Use the query tool** enabled by your MCP integration with our database when you need database information to make good development decisions.
+- **Add new sub-tasks or TODOs discovered during development** to `TASK.md` under a “Discovered During Work” section, especially for anything where placeholders are made that will be addressed later.
 
 ### 🧱 Code Structure & Modularity
 - **Never create a file longer than 500 lines of code.** If a file approaches this limit, refactor by splitting it into modules or helper files.
@@ -25,7 +27,7 @@ alwaysApply: false
     - 1 failure case
 
 ### ✅ Task Completion
-- **Mark completed tasks in `TASK.md`** immediately after finishing them.
+- **Mark completed tasks in `TASK.md`** immediately after finishing them, while adding new sub-tasks or TODOs discovered during development** to `TASK.md` under a “Discovered During Work” section.
 - **Add new sub-tasks or TODOs discovered during development** to `TASK.md` under a “Discovered During Work” section.
 
 ### 📎 Style & Conventions
