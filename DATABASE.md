@@ -168,6 +168,11 @@
 - **estimated_sched** (timestamp with time zone) - The dispatch-scheduled time
 - **job_duration** (int) - Estimated minutes to complete (must be > 0)
 - **notes** (text)
+- **fixed_assignment** (boolean, default: false) - Indicates if the job assignment is manually fixed and should not be changed by the dynamic scheduler. Needed to support manual overrides.
+- **fixed_schedule_time** (timestamp with time zone, nullable) - If set, specifies a mandatory start time for the job. The scheduler must plan other dynamic jobs around this constraint.
+- **estimated_sched_end** (timestamp with time zone, nullable) - Calculated end time based on schedule optimization. Complements `estimated_sched` (start time).
+- **customer_eta_start** (timestamp with time zone, nullable) - Start of the ETA window communicated to the customer.
+- **customer_eta_end** (timestamp with time zone, nullable) - End of the ETA window communicated to the customer.
 
 **Key Points**
 

@@ -132,7 +132,8 @@ class Job(BaseModel):
     estimated_sched: Optional[datetime] = None # Calculated by scheduler
     job_duration: timedelta # Estimated duration (use timedelta)
     notes: Optional[str] = None
-    fixed: bool = False # Is this assignment fixed/manual?
+    fixed_assignment: bool = False # Is this assignment fixed/manual? Renamed from 'fixed'
+    fixed_schedule_time: Optional[datetime] = None # If set, mandatory start time
     # Related objects loaded separately
     order_ref: Order # Reference back to the full order details
     address: Address
@@ -182,7 +183,8 @@ class SchedulableUnit(BaseModel):
     location: Address # The single address for all jobs in this unit/order
     duration: timedelta # Total duration for all jobs in the unit (sum of job_duration)
     assigned_technician_id: Optional[int] = None # Should be set when assigned
-    fixed: bool = False # If any job in the unit is fixed, the unit is fixed
+    fixed_assignment: bool = False # If any job in the unit has fixed_assignment=true. Renamed from 'fixed'.
+    fixed_schedule_time: Optional[datetime] = None # If any job in the unit has a fixed time, this holds that time.
 
     # Optional fields for tracking during scheduling/routing
     estimated_start_time: Optional[datetime] = None

@@ -11,5 +11,6 @@ setup(
         "sqlalchemy>=2.0.0",
         "datetime",
         "typing",
+        "ortools>=9.0",
     ],
 ) 

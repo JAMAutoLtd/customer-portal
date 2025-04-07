@@ -74,16 +74,18 @@ The scheduler is a dynamic system designed to continuously optimize job assignme
 1.  **Technician Assignment Logic**
     *   **Eligibility:** Determines technician suitability based on `van_equipment` versus job `equipment_requirements`.
     *   **Order Grouping Preference:** For multi-job orders, prioritizes assigning all jobs to a single, fully equipped technician if available. If not, jobs from the order are assigned individually based on best fit.
-    *   **ETA Optimization:** When multiple technicians are eligible, selects the one predicted to have the earliest ETA. **Note:** ETA prediction during assignment must simulate placement within the technician's multi-day schedule respecting daily constraints.
-    *   **Fixed Assignments:** Supports manual ("fixed") job assignments. Fixed jobs *cannot* be dynamically reassigned but *are* included in their assigned technician's route optimization.
+    *   **ETA Optimization:** When multiple technicians are eligible, selects the one predicted to have the earliest ETA. **Note:** ETA prediction during assignment must simulate placement within the technician's multi-day schedule respecting daily constraints and existing fixed-time appointments.
+    *   **Fixed Assignments:** Supports manual ("fixed") job assignments (`jobs.fixed_assignment` field). Jobs with `fixed_assignment=true` *cannot* be dynamically reassigned but *are* included in their assigned technician's route optimization.
+    *   **Fixed Schedule Times:** Supports optional fixed start times (`jobs.fixed_schedule_time` field). These jobs act as anchors in the daily schedule.
 
 2.  **Job Queuing & Routing Logic (Daily Planning)**
     *   **Daily Boundaries:** Routes are planned on a day-by-day basis, respecting each technician's specific working hours and availability for that day.
     *   **Starting Locations:** Route calculation starts from the technician's *current location* for the first day (today) and from their *home base* for subsequent days.
-    *   **Schedulable Units:** Jobs are grouped into units: indivisible blocks for multi-job orders assigned to the same tech, or individual units for single jobs. Block priority is determined by the highest priority job within it.
-    *   **Priority & Daily Fit:** Units are sorted by priority. The system iteratively fills each available day, selecting the highest priority units that fit within the remaining work time (considering travel + duration).
-    *   **Route Optimization (Daily TSP):** A TSP algorithm optimizes the sequence of units scheduled *within each specific day* to minimize travel time for that day.
-    *   **Multi-Day Schedule:** The result is a multi-day schedule for each technician (e.g., `tech.schedule = {day1: [unitA, unitB], day2: [unitC]}`).
+    *   **Handling Fixed Times:** Jobs with a `fixed_schedule_time` for the current planning day are scheduled first. They consume their required time slots, potentially fragmenting the remaining available time for dynamic jobs.
+    *   **Schedulable Units:** Dynamic (non-fixed-time) jobs are grouped into units: indivisible blocks for multi-job orders assigned to the same tech, or individual units for single jobs. Block priority is determined by the highest priority job within it.
+    *   **Priority & Daily Fit (Dynamic Units):** Dynamic units are sorted by priority. The system iteratively fills the *available time windows* within each day, selecting the highest priority units that fit (considering travel + duration).
+    *   **Route Optimization (Daily TSP):** A TSP algorithm optimizes the sequence of *all* units scheduled *within each specific day* (both fixed-time and dynamic) to minimize travel time. **Google OR-Tools will be used** for this task due to its robust capabilities and native support for time window constraints, which are essential for handling `fixed_schedule_time` jobs correctly.
+    *   **Multi-Day Schedule:** The result is a multi-day schedule for each technician (e.g., `tech.schedule = {day1: [unitA_fixed, unitB, unitC_fixed], day2: [unitD]}`).
     *   **Continuous ETA Updates:** ETAs for *all* jobs (across all scheduled days) are calculated and updated based on their position in the final, optimized multi-day schedule.
 
 ### Dynamic Operation & Recalculation
@@ -96,7 +98,20 @@ The system operates dynamically, constantly seeking the optimal state:
 
 This continuous re-optimization ensures the system adapts to changing conditions, always aiming for the best possible job assignments and ETAs according to defined priorities and daily operational constraints.
 
-##SCHEDULER PSEUDOCODE
+---
+## API LAYER FOR DATA ACCESS
+
+To facilitate interaction between the dynamic scheduler components and the underlying database, a dedicated API layer will be implemented (likely using FastAPI and SQLAlchemy/SQLModel). This layer serves several key purposes:
+
+1.  **Abstraction:** Decouples the scheduler logic from direct database interaction. The scheduler only needs to know how to communicate with the API endpoints.
+2.  **Encapsulation:** The API enforces how data is accessed and modified, containing the necessary database query logic, joins, and data transformations (e.g., deriving YMM IDs, fetching related user/address data).
+3.  **Scalability & Maintainability:** Allows the scheduler and the data access logic to be developed, scaled, and maintained independently.
+4.  **Production Readiness:** Replaces placeholder functions, direct database calls, or development-specific tools (like AI tool queries) with a standard, robust HTTP-based interface suitable for deployment.
+
+The scheduler's `data_interface.py` module will be responsible for making HTTP requests to this API layer to fetch data (like technicians, pending jobs, equipment requirements) and push updates (like job assignments and ETAs).
+
+---
+## SCHEDULER PSEUDOCODE
 
 # Revised assign_jobs pseudocode (Job-centric assignment)
 def assign_jobs(all_jobs, technicians):
@@ -115,6 +130,7 @@ def assign_jobs(all_jobs, technicians):
             if fully_equipped_techs:
                 eligible_techs = fully_equipped_techs
                 # Calculate ETAs for fully equipped techs based on the whole order
+                # Note: calculate_eta needs to simulate insertion considering existing fixed_schedule_time constraints
                 etas = {tech: calculate_eta(tech, order.jobs) for tech in eligible_techs}
                 best_tech_for_order = min(etas, key=etas.get)
             else:
@@ -125,6 +141,7 @@ def assign_jobs(all_jobs, technicians):
             eligible_techs = [tech for tech in technicians if tech.has_equipment(single_job.equipment_required)]
             if eligible_techs:
                  # Calculate ETAs for the single job
+                 # Note: calculate_eta needs to simulate insertion considering existing fixed_schedule_time constraints
                 etas = {tech: calculate_eta(tech, [single_job]) for tech in eligible_techs}
                 best_tech_for_order = min(etas, key=etas.get)
 
@@ -140,6 +157,7 @@ def assign_jobs(all_jobs, technicians):
                 for job in order.jobs:
                     individual_eligible = [tech for tech in technicians if tech.has_equipment(job.equipment_required)]
                     if individual_eligible:
+                        # Note: calculate_eta needs to simulate insertion considering existing fixed_schedule_time constraints
                         etas = {tech: calculate_eta(tech, [job]) for tech in individual_eligible}
                         best_tech_for_job = min(etas, key=etas.get)
                         assign_job_to_technician(job, best_tech_for_job)
@@ -148,104 +166,128 @@ def assign_jobs(all_jobs, technicians):
     # Routing update remains the same (processes all assigned jobs per tech)
     update_job_queues_and_routes(technicians)
 
-# Revised update_job_queues_and_routes with daily boundaries & availability
+# Revised update_job_queues_and_routes with fixed schedule time handling
 def update_job_queues_and_routes(technicians):
     for tech in technicians:
-        all_assigned_jobs = tech.queue # Or however all jobs for the tech are retrieved
+        all_assigned_jobs = tech.queue # Get all jobs assigned to the tech
 
-        # 1. Group jobs by order & Create schedulable units (priority based on highest in block)
+        # 1. Group jobs & Create schedulable units
         jobs_by_order = group_jobs_by_order(all_assigned_jobs)
-        schedulable_units = create_schedulable_units(jobs_by_order) # Includes priority calculation
+        all_units = create_schedulable_units(jobs_by_order) # Includes priority, fixed_assignment, fixed_schedule_time
 
-        # 2. Sort all potential units by priority
-        schedulable_units.sort(key=lambda unit: unit['priority'])
+        # 2. Separate fixed-time and dynamic units
+        fixed_time_units = [u for u in all_units if u.fixed_schedule_time is not None]
+        dynamic_units = [u for u in all_units if u.fixed_schedule_time is None]
+        
+        # 3. Sort dynamic units by priority
+        dynamic_units.sort(key=lambda unit: unit.priority)
 
-        # 3. Plan schedule day by day
-        tech_schedule = {} # Stores the plan, e.g., {1: [unit1, unit2], 2: [unit3], ...}
-        remaining_units_to_schedule = list(schedulable_units)
-        day_number = 1 # Represents the current day being planned (1 = today)
-        # last_location = tech.current_location # Initial location potentially needed for first travel time
+        # 4. Plan schedule day by day
+        tech_schedule = {} # Stores the final plan {day_num: [unit1, unit2], ...}
+        remaining_dynamic_units = list(dynamic_units)
+        pending_fixed_units = list(fixed_time_units) # Track fixed units yet to be placed
+        day_number = 1
+        max_planning_days = 14 # Or some reasonable limit
 
-        while remaining_units_to_schedule:
-            daily_units_for_optimization = []
-            # Determine start location for the day
-            start_location_for_day = tech.current_location if day_number == 1 else tech.home_location
-            
-            # Get tech availability for this specific day (needs helper function)
-            # Returns structure like {start_time, end_time, total_duration}
-            daily_availability = get_technician_availability(tech, day_number) 
-            
-            # Check if tech is available at all this day
+        while (remaining_dynamic_units or pending_fixed_units) and day_number <= max_planning_days:
+            # Get tech availability for this specific day
+            daily_availability = get_technician_availability(tech, day_number)
             if not daily_availability or daily_availability['total_duration'] <= timedelta(0):
-                 if not remaining_units_to_schedule: break # Exit if no more units
-                 day_number += 1 # Skip to planning the next day
-                 continue
+                if not remaining_dynamic_units and not pending_fixed_units: break
+                day_number += 1
+                continue
 
-            # Available time is just the total duration from availability
-            available_work_time = daily_availability['total_duration'] 
-            current_route_time_estimate = timedelta(0)
-            last_stop_location = start_location_for_day
+            day_start = daily_availability['start_time']
+            day_end = daily_availability['end_time']
+            tech_schedule[day_number] = [] # Initialize empty schedule for the day
 
-            # Attempt to fill the day from the remaining prioritized units
-            units_considered_for_day = list(remaining_units_to_schedule) # Copy to iterate safely
-            temp_units_added_today = [] # Track units tentatively added
+            # 4a. Place fixed units for *this* day & determine available windows
+            scheduled_fixed_today = []
+            available_windows = []
+            current_window_start = day_start
+            fixed_for_today_sorted = sorted(
+                [u for u in pending_fixed_units if u.fixed_schedule_time.date() == day_start.date()],
+                key=lambda u: u.fixed_schedule_time
+            )
+            units_not_scheduled_fixed = []
 
-            for unit in units_considered_for_day:
-                 # Simulate adding this unit: calculate travel time + unit duration
-                 travel_time = calculate_travel_time(last_stop_location, unit['location'])
-                 unit_total_time = travel_time + unit['duration'] # unit['duration'] includes all jobs in block
-
-                 # Check if adding this unit exceeds the day's available work time
-                 if current_route_time_estimate + unit_total_time <= available_work_time:
-                     # Tentatively add to potential day's route
-                     temp_units_added_today.append(unit)
-                     current_route_time_estimate += unit_total_time
-                     last_stop_location = unit['location'] # Update for next iteration estimate
-                 else:
-                     # Cannot fit this unit (or any lower priority ones) today based on estimate
-                     break # Stop trying to add units for this day
-
-            # Now, perform actual optimization for the selected units for the day
-            if temp_units_added_today:
-                # Optimize the route for the units tentatively selected for the day
-                # This function performs TSP and calculates the *actual* optimized time.
-                optimized_daily_units, actual_optimized_time = optimize_daily_route_and_get_time(temp_units_added_today, start_location_for_day)
-                
-                # Final check: Does the *optimized* route still fit? (Could be slightly different from estimate)
-                if actual_optimized_time <= available_work_time:
-                    tech_schedule[day_number] = optimized_daily_units
-                    # Remove scheduled units from the master remaining list
-                    for scheduled_unit in optimized_daily_units:
-                        remaining_units_to_schedule.remove(find_unit_in_list(scheduled_unit, remaining_units_to_schedule))
+            for fixed_unit in fixed_for_today_sorted:
+                fixed_start = fixed_unit.fixed_schedule_time
+                fixed_end = fixed_start + fixed_unit.duration
+                if fixed_start >= current_window_start and fixed_end <= day_end:
+                    # Add window before this fixed unit
+                    if fixed_start > current_window_start:
+                        available_windows.append((current_window_start, fixed_start))
+                    scheduled_fixed_today.append(fixed_unit)
+                    current_window_start = fixed_end # Advance start for next potential window
                 else:
-                    # Optimized route didn't fit! This indicates complexity. 
-                    # Simplest fallback: Don't schedule anything today, try again next day. Or try removing last unit.
-                    # For pseudocode simplicity, we might just log and skip day for now.
-                    print(f"Warning: Optimized route for tech {tech.id} on day {day_number} exceeded available time. Skipping day planning.")
+                    log(f"Warning: Fixed unit {fixed_unit.id} conflicts on day {day_number}")
+                    units_not_scheduled_fixed.append(fixed_unit)
             
-            # Handle case where no units were added today
-            if not temp_units_added_today and remaining_units_to_schedule:
-                 print(f"Warning: Could not schedule any units for tech {tech.id} on day {day_number}. Check availability/unit durations.")
-                 # Avoid infinite loop if stuck
-                 day_number += 1 # Move to next day even if nothing scheduled
-                 continue
-            elif not remaining_units_to_schedule:
-                 break # All units scheduled
+            # Add final window after the last fixed unit
+            if current_window_start < day_end:
+                available_windows.append((current_window_start, day_end))
 
-            # Prepare for the next day
+            # Update overall pending fixed list
+            pending_fixed_units = [u for u in pending_fixed_units if u not in fixed_for_today_sorted] + units_not_scheduled_fixed
+
+            # 4b. Fill available windows with dynamic units (prioritized)
+            scheduled_dynamic_today = []
+            temp_remaining_dynamic = list(remaining_dynamic_units) # Work on a copy
+            units_scheduled_ids = set()
+
+            for dyn_unit in temp_remaining_dynamic: # Already sorted by priority
+                fitted = False
+                # Try to fit dyn_unit into the earliest possible slot in available_windows
+                # This requires simulating travel time from the previous event (fixed or dynamic)
+                # Simplified logic: find first window where it fits sequentially after last placement
+                # (Pseudocode omits complex travel simulation within windows for brevity)
+                for i, (win_start, win_end) in enumerate(available_windows):
+                    # Simplified check: does duration fit in window?
+                    if dyn_unit.duration <= (win_end - win_start): 
+                         # Assume it fits (needs travel check in reality)
+                         scheduled_dynamic_today.append(dyn_unit)
+                         units_scheduled_ids.add(dyn_unit.id)
+                         fitted = True
+                         # TODO: Refine window logic (remove/split window after placement)
+                         break # Place in first available window for simplicity
+                # If fitted, it's removed from consideration for this day (handled later)
+            
+            # 4c. Combine and Optimize the day's schedule
+            all_units_today = scheduled_fixed_today + scheduled_dynamic_today
+            if all_units_today:
+                start_location = tech.current_location if day_number == 1 else tech.home_location
+                time_constraints = {u.id: u.fixed_schedule_time for u in scheduled_fixed_today}
+                
+                # Call optimizer with time constraints
+                optimized_units, total_time = optimize_daily_route_and_get_time(
+                    all_units_today, start_location, time_constraints
+                )
+
+                # Final check against total daily duration
+                if total_time <= daily_availability['total_duration']:
+                    tech_schedule[day_number] = optimized_units
+                    # Remove successfully scheduled dynamic units from main list
+                    remaining_dynamic_units = [u for u in remaining_dynamic_units if u.id not in units_scheduled_ids]
+                else:
+                    log(f"Warning: Optimized route for tech {tech.id} day {day_number} too long. Only scheduling fixed.")
+                    # Only keep fixed units if optimized route failed
+                    tech_schedule[day_number] = [u for u in optimized_units if u in scheduled_fixed_today]
+                    # Dynamic units remain in remaining_dynamic_units
+
+            # 4d. Prepare for next day
             day_number += 1
 
-        # 4. Store the structured schedule
-        tech.schedule = tech_schedule # e.g., {1: [jobA, jobB], 2: [jobC]}
+        # 5. Store the final multi-day schedule
+        tech.schedule = tech_schedule
 
-        # 5. Update ETAs for ALL jobs based on the multi-day schedule
-        # This function iterates through tech.schedule, calculating exact start/end times and ETAs
+        # 6. Update ETAs for ALL jobs based on the final schedule
         update_etas_for_schedule(tech)
 
 # --- Helper function signatures needed ---
-# def create_schedulable_units(jobs_by_order): -> list_of_units (with jobs, priority, location, duration)
+# def create_schedulable_units(jobs_by_order): -> list_of_units (with jobs, priority, location, duration, fixed_assignment, fixed_schedule_time)
 # def get_technician_availability(tech, day_number): -> dict (with start_time, end_time, total_duration) or None
 # def calculate_travel_time(loc1, loc2): -> timedelta
-# def optimize_daily_route_and_get_time(units_for_day, start_location): -> (list_of_units_ordered, total_timedelta) # Runs TSP
+# def optimize_daily_route_and_get_time(units_for_day, start_location, time_constraints=None): -> (list_of_units_ordered, total_timedelta) # Runs TSP using OR-Tools, respects constraints
 # def find_unit_in_list(unit_to_find, list_to_search): -> found_unit # Needs comparison logic
 # def update_etas_for_schedule(tech): # Updates Job ETAs based on tech.schedule structure
