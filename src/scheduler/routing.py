@@ -217,65 +217,63 @@ def optimize_daily_route_and_get_time(
     # --- 5. Process Solution --- 
     
     optimized_sequence = []
-    total_route_time_seconds = 0
     calculated_start_times = {} # Dict to store unit.id -> start_datetime
+    total_route_time_seconds = 0 # Initialize
 
     if solution:
-        time_dimension = routing.GetDimensionOrDie(time_dimension_name) # Ensure we have the dimension
+        time_dimension = routing.GetDimensionOrDie(time_dimension_name) 
         index = routing.Start(0) # Vehicle 0
-        route_nodes = []
+        route_nodes = [] # Store node indices in order
+        last_job_arrival_seconds = 0 # Track arrival at the last *job* node
+        last_job_node_index = -1 # Track the node index of the last job
+
+        # Iterate through the route determined by the solver
         while not routing.IsEnd(index):
             node_index = manager.IndexToNode(index)
             route_nodes.append(node_index)
-            previous_index = index
+            
+            # Calculate and store start time if it's a job (not depot)
+            if node_index != depot_index:
+                unit = index_to_unit_map[node_index]
+                or_tools_index = manager.NodeToIndex(node_index)
+                start_seconds = solution.Min(time_dimension.CumulVar(or_tools_index))
+                calculated_start_times[unit.id] = day_start_time + timedelta(seconds=start_seconds)
+                # Update the arrival time and index of the latest job visited
+                last_job_arrival_seconds = start_seconds
+                last_job_node_index = node_index
+                
+            # Move to the next node in the solution
+            # previous_index = index # Not needed anymore
             index = solution.Value(routing.NextVar(index))
-            # Accumulate route time from the solution's dimension variables
-            # total_route_time_seconds = solution.Min(time_dimension.CumulVar(index))
-        
-        # Add the final node (depot)
-        # route_nodes.append(manager.IndexToNode(index))
-        
-        # Extract total time from the end node's cumulative variable
-        total_route_time_seconds = solution.Min(time_dimension.CumulVar(previous_index)) # Time at arrival at last stop
-        # Add service time of last stop? Check definition. Usually CumulVar is arrival time.
-        last_node = manager.IndexToNode(previous_index)
-        if last_node != depot_index:
-            last_unit = index_to_unit_map.get(last_node)
-            if last_unit: 
-                 total_route_time_seconds += int(last_unit.duration.total_seconds()) # Add service time explicitly
-
-        # Convert node sequence back to SchedulableUnits (skip depot 0)
+            
+        # Build the optimized sequence of SchedulableUnits from the node list (excluding depot)
+        last_unit = None
         for node in route_nodes:
             if node != depot_index:
                 unit = index_to_unit_map[node]
                 optimized_sequence.append(unit)
-                # Calculate start time for this unit
-                or_tools_index = manager.NodeToIndex(node)
-                start_seconds = solution.Min(time_dimension.CumulVar(or_tools_index))
-                calculated_start_times[unit.id] = day_start_time + timedelta(seconds=start_seconds)
-        
-        # Optional: Print solution details for debugging
-        # print(f"Route for Vehicle 0:")
-        # plan_output = ""
-        # index = routing.Start(0)
-        # while not routing.IsEnd(index):
-        #     node = manager.IndexToNode(index)
-        #     time_var = time_dimension.CumulVar(index)
-        #     plan_output += f" {node} ({day_start_time + timedelta(seconds=solution.Min(time_var))}) ->"
-        #     index = solution.Value(routing.NextVar(index))
-        # node = manager.IndexToNode(index)
-        # time_var = time_dimension.CumulVar(index)
-        # plan_output += f" {node} ({day_start_time + timedelta(seconds=solution.Min(time_var))})\n"
-        # print(plan_output)
-        
+                last_unit = unit # The last unit added is the final one in the sequence
+                
+        # Calculate total time = arrival at last job + service duration of last job
+        if last_unit: 
+            # We already tracked the arrival time (start_seconds) of the last job node visited
+            # Get the service duration of the last unit
+            last_job_duration_seconds = int(last_unit.duration.total_seconds())
+            total_route_time_seconds = last_job_arrival_seconds + last_job_duration_seconds
+        else:
+            # If there were no units in the route (only depot start/end), time is 0
+            total_route_time_seconds = 0
+            
     else:
-        print('No solution found!')
-        # Return the original fixed units if no solution, maybe?
-        # For now, return empty.
-        # TODO: Add more robust error handling/logging if OR-Tools fails to find a solution.
+        # Handle case where OR-Tools found no solution
+        print('No solution found for route optimization!')
+        # Return empty sequence and zero time
         return [], timedelta(0), {}
 
-    return optimized_sequence, timedelta(seconds=total_route_time_seconds), calculated_start_times
+    # Convert total seconds to timedelta for the return value
+    total_time_delta = timedelta(seconds=total_route_time_seconds)
+    
+    return optimized_sequence, total_time_delta, calculated_start_times
 
 def update_etas_for_schedule(technician: Technician, daily_unit_start_times: Optional[Dict[int, Dict[str, datetime]]] = None):
     """Update ETAs for all jobs in a technician's schedule.
