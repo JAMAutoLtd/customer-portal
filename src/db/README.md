@@ -11,7 +11,7 @@
 - **phone** (varchar(100)) - Contact phone number
 - **home_address_id** (int, FK → addresses.id) - Reference to user's home address
 - **is_admin** (boolean) - Indicates if the user is an administrator (default: false)
-- **customer_type** (USER-DEFINED) - Defines the type of customer
+- **customer_type** (enum: 'residential', 'commercial', 'insurance') - Defines the type of customer
 
 **Key Points**
 
@@ -229,28 +229,13 @@
 **Key Points**
 
 - Basic service definitions.
-- Ties to `service_equipment` to define required equipment.
+- Required equipment is defined in the specialized `*_equipment_requirements` tables based on service and vehicle.
 - Ties to `order_services` and `job_services` to indicate requested and assigned services.
+- Service categories are strictly controlled via enum.
 
 ---
 
-## 13. Service Equipment (service_equipment)
-
-**Purpose:** Defines which equipment items are required for a given service.
-
-**Fields**
-
-- **service_id** (int, FK → services.id)
-- **equipment_id** (int, FK → equipment.id)
-
-**Key Points**
-
-- Has a composite primary key on (service_id, equipment_id).
-- The system checks a technician's assigned van for all required equipment items before assigning a job.
-
----
-
-## 14. Equipment (equipment)
+## 13. Equipment (equipment)
 
 **Purpose:** A master list of all possible equipment/tools needed to perform services (e.g., cones, calibration plates, doppler, etc.).
 
@@ -263,12 +248,12 @@
 **Key Points**
 
 - Used in `van_equipment` to specify which van has which gear.
-- Used in `service_equipment` to specify which gear each service requires.
+- Equipment requirements for specific services and vehicles are defined in the specialized `*_equipment_requirements` tables.
 - Equipment types align with service categories for consistency.
 
 ---
 
-## 15. Van Equipment (van_equipment)
+## 14. Van Equipment (van_equipment)
 
 **Purpose:** Indicates which equipment items are available in each service van.
 
@@ -285,7 +270,7 @@
 
 ---
 
-## 16. Customer Vehicles (customer_vehicles)
+## 15. Customer Vehicles (customer_vehicles)
 
 **Purpose:** Stores information about customer vehicles that can be serviced.
 
@@ -304,44 +289,102 @@
 
 ---
 
-## 17. YMM Reference (ymm_ref)
+## 16. YMM Reference (ymm_ref)
 
 **Purpose:** Standardized reference table for year/make/model combinations used across the system.
 
 **Fields**
 - **ymm_id** (int, PK)
-- **year** (smallint)
-- **make** (varchar(50))
-- **model** (varchar(100))
+- **year** (smallint) NOT NULL
+- **make** (varchar(50)) NOT NULL
+- **model** (varchar(100)) NOT NULL
 - Unique constraint on (year, make, model)
 
 **Key Points**
 - Used for vehicle identification across the system
 - Provides consistent vehicle information for both customer vehicles and service vans
-- Used by equipment requirements to determine required equipment for specific vehicles
+- Used by equipment requirements tables to determine required equipment for specific vehicles
 
 ---
 
-## 18. Equipment Requirements (equipment_requirements)
+## 17. Equipment Requirements Tables
 
-**Purpose:** Defines what equipment is required for specific vehicle models and services.
+The system uses separate tables for different types of equipment requirements, each following a similar structure but specialized for different service categories:
+
+### ADAS Equipment Requirements (adas_equipment_requirements)
+
+**Purpose:** Defines ADAS-specific equipment requirements for vehicle models and services.
 
 **Fields**
 - **id** (int, PK)
 - **ymm_id** (int, FK → ymm_ref.ymm_id)
 - **service_id** (int, FK → services.id)
-- **adas_equipment_model** (varchar(100))
+- **equipment_model** (varchar(100)) NOT NULL
 - **has_adas_service** (boolean) - Default: false
 - Unique constraint on (ymm_id, service_id)
 
-**Key Points**
-- Links vehicles, services, and required equipment
-- Used for scheduling and equipment allocation for all service types
+### Programming Equipment Requirements (prog_equipment_requirements)
+
+**Purpose:** Defines programming-specific equipment requirements for vehicle models and services.
+
+**Fields**
+- **id** (int, PK)
+- **ymm_id** (int, FK → ymm_ref.ymm_id)
+- **service_id** (int, FK → services.id)
+- **equipment_model** (text) NOT NULL - Default: 'prog'
+- Unique constraint on (ymm_id, service_id)
+
+### Immobilizer Equipment Requirements (immo_equipment_requirements)
+
+**Purpose:** Defines immobilizer-specific equipment requirements for vehicle models and services.
+
+**Fields**
+- Same structure as prog_equipment_requirements
+- equipment_model defaults to 'immo'
+
+### Airbag Equipment Requirements (airbag_equipment_requirements)
+
+**Purpose:** Defines airbag-specific equipment requirements for vehicle models and services.
+
+**Fields**
+- Same structure as prog_equipment_requirements
+- equipment_model defaults to 'airbag'
+
+### Diagnostic Equipment Requirements (diag_equipment_requirements)
+
+**Purpose:** Defines diagnostic-specific equipment requirements for vehicle models and services.
+
+**Fields**
+- Same structure as prog_equipment_requirements
+- equipment_model defaults to 'diag'
+
+**Key Points for All Equipment Requirement Tables**
+- Each table links vehicles and services to required equipment
+- Used for scheduling and equipment allocation
 - Helps determine if a specific van has the right equipment for a job
+- Each maintains a unique constraint on (ymm_id, service_id)
 
 ---
 
-## Schema Changes Summary
+## 18. Enums
+
+The database uses several enum types to ensure data consistency:
+
+1. **customer_type**
+   - Values: 'residential', 'commercial', 'insurance'
+   - Used in: users table
+
+2. **job_status**
+   - Values: 'pending_review', 'assigned', 'scheduled', 'pending_revisit', 'completed', 'cancelled'
+   - Used in: jobs table
+
+3. **service_category**
+   - Values: 'adas', 'airbag', 'immo', 'prog', 'diag'
+   - Used in: services table and equipment table
+
+---
+
+## 19. Schema Changes Summary
 
 The database schema has been updated with the following changes:
 
@@ -355,6 +398,7 @@ The database schema has been updated with the following changes:
    - Consolidated ADAS services information into the main services table
    - Removed the separate `adas_services` table
    - Removed `service_code` field from services table, using only id, service_name, and service_category
+   - Removed the `service_equipment` table; service-equipment requirements are now directly defined in the specialized `*_equipment_requirements` tables.
 
 3. **Vehicle Reference System**:
    - Renamed `adas_ymm_ref` to `ymm_ref` to support all vehicle types
