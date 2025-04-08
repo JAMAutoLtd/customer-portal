@@ -96,7 +96,37 @@ The system operates dynamically, constantly seeking the optimal state:
 
 This continuous re-optimization ensures the system adapts to changing conditions, always aiming for the best possible job assignments and ETAs according to defined priorities and daily operational constraints.
 
+## Testing
 
+### API Tests
+
+The API tests are located in the `tests/scheduler/api` directory. They test the functionality of the scheduler API endpoints.
+
+To run the API tests:
+
+```bash
+# Run all tests
+pytest
+
+# Run only API tests
+pytest tests/scheduler/api -v
+
+# Run with coverage report
+pytest --cov=src
+```
+
+For more details on the API tests, see the [API tests README](tests/scheduler/api/README.md).
+
+### Test Environment
+
+A test environment configuration is available in `.env.test`. This can be used to run tests with a separate configuration:
+
+```bash
+# Run tests with test environment
+ENV_FILE=.env.test pytest
+```
+
+---
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 

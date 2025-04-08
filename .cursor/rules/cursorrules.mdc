@@ -10,6 +10,7 @@ alwaysApply: true
 -**Always read `DATABASE.md`** to understand the structure of our database and how we can implement it where necessary, or suggest modifications during development of features.
 -**Use the query tool** enabled by your MCP integration with our database when you need database information to make good development decisions.
 - **Add new sub-tasks or TODOs discovered during development** to `TASK.md` under a “Discovered During Work” section, especially for anything where placeholders are made that will be addressed later.
+-**Update the `CHANGELOG.md`** when significant changes are made, including notes of why the changes were made, and their locations.
 - **Stop the conversation to have the user manually run tests** instead of trying to run them in the integrated IDE terminal.
 
 ### 🧱 Code Structure & Modularity

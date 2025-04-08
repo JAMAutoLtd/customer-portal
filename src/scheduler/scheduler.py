@@ -1,102 +1,62 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 import copy # Needed for deep copying lists
 
-# TODO: Import actual data models when available
-from .models import Technician, Job, SchedulableUnit, Address
-# HACK: Using placeholder classes until models are defined/imported correctly
-class Address:
-    pass
-class Technician:
-    id: int
-    schedule: Dict[int, List['SchedulableUnit']] = {} # {day_number: [unit1, unit2]}
-    current_location: Optional[Address] = None
-    home_location: Optional[Address] = None
-    def has_equipment(self, required_equipment) -> bool: return True # Placeholder
-    def has_all_equipment(self, order_jobs) -> bool: return True # Placeholder
+# Import actual data models
+from .models import Technician, Job, SchedulableUnit, Address, JobStatus # Added JobStatus
+# Remove placeholder classes
+# class Address:
+#     pass
+# class Technician:
+#     id: int
+#     schedule: Dict[int, List['SchedulableUnit']] = {} # {day_number: [unit1, unit2]}
+#     current_location: Optional[Address] = None
+#     home_location: Optional[Address] = None
+#     def has_equipment(self, required_equipment) -> bool: return True # Placeholder
+#     def has_all_equipment(self, order_jobs) -> bool: return True # Placeholder
+# 
+# class Job:
+#     id: int
+#     order_id: int
+#     fixed: bool = False
+#     equipment_required: List[str] = [] # Placeholder
+#     duration: timedelta = timedelta(hours=1) # Placeholder
+#     location: Optional[Address] = None # Placeholder
+#     priority: int = 1 # Placeholder
+#     assigned_technician: Optional[Technician] = None # Placeholder
+#     estimated_sched: Optional[datetime] = None # Placeholder
+#     status: str = "Pending" # Placeholder
+# 
+# class SchedulableUnit:
+#     jobs: List[Job]
+#     priority: int
+#     duration: timedelta
+#     location: Address
+#     assigned_technician_id: Optional[int] = None
+#     fixed_assignment: bool = False
+#     fixed_schedule_time: Optional[datetime] = None
 
-class Job:
-    id: int
-    order_id: int
-    fixed: bool = False
-    equipment_required: List[str] = [] # Placeholder
-    duration: timedelta = timedelta(hours=1) # Placeholder
-    location: Optional[Address] = None # Placeholder
-    priority: int = 1 # Placeholder
-    assigned_technician: Optional[Technician] = None # Placeholder
-    estimated_sched: Optional[datetime] = None # Placeholder
-    status: str = "Pending" # Placeholder
-
-class SchedulableUnit:
-    jobs: List[Job]
-    priority: int
-    duration: timedelta
-    location: Address
-    assigned_technician_id: Optional[int] = None
-    fixed_assignment: bool = False
-    fixed_schedule_time: Optional[datetime] = None
-
-# TODO: Import actual utility functions when available
-# from .utils import group_jobs_by_order, create_schedulable_units, find_unit_in_list
-# from .availability import get_technician_availability
+# Import actual utility functions
+from .utils import group_jobs_by_order, create_schedulable_units # Import real utils
+# from .availability import get_technician_availability # Keep using placeholder for now
 from .routing import calculate_travel_time, optimize_daily_route_and_get_time, update_etas_for_schedule
-from .availability import get_technician_availability
-# from .data_interface import update_job_assignment # Assuming this function exists
+from .availability import get_technician_availability # Keep using placeholder for now
+from .data_interface import update_job_assignment, fetch_assigned_jobs # Added fetch_assigned_jobs
 
-# HACK: Placeholder functions for dependencies
-def get_technician_availability(tech: Technician, day_number: int) -> Optional[Dict]:
-    """Placeholder: Fetches technician availability for a given day."""
-    # Replace with actual implementation later
-    if day_number > 5: # Example: Assume unavailable after day 5
-        return None
-    return {
-        "start_time": datetime.now().replace(hour=8, minute=0, second=0, microsecond=0) + timedelta(days=day_number-1),
-        "end_time": datetime.now().replace(hour=17, minute=0, second=0, microsecond=0) + timedelta(days=day_number-1),
-        "total_duration": timedelta(hours=8) # Assuming 8 hours working time excluding break
-    }
+# HACK: Placeholder functions for dependencies - Keep for now
+# def get_technician_availability(tech: Technician, day_number: int) -> Optional[Dict]:
+#     """Placeholder: Fetches technician availability for a given day."""
+#     # ... (implementation remains)
+# 
+# def calculate_travel_time(loc1: Optional[Address], loc2: Optional[Address]) -> timedelta:
+#     """Placeholder: Calculates travel time between two locations."""
+#     # ... (implementation remains)
 
-def calculate_travel_time(loc1: Optional[Address], loc2: Optional[Address]) -> timedelta:
-    """Placeholder: Calculates travel time between two locations."""
-    # Replace with actual routing API call
-    return timedelta(minutes=30) # Fixed estimate for now
-
-def update_job_assignment(job: Job, technician: Technician):
-    """Placeholder: Updates job assignment in the data store."""
-    # Replace with actual database update call
-    print(f"Assigning job {job.id} to technician {technician.id}")
-    job.assigned_technician = technician
-    job.status = "Assigned" # Or appropriate status
-
-def create_schedulable_units(jobs_by_order: Dict[int, List[Job]]) -> List[SchedulableUnit]:
-    """Placeholder: Creates SchedulableUnit objects from grouped jobs."""
-    units = []
-    for order_id, jobs in jobs_by_order.items():
-        if not jobs: continue
-        # Simplified: Assume location is the first job's location
-        # Assume duration is sum of job durations
-        # Assume priority is highest of jobs
-        unit = SchedulableUnit()
-        unit.jobs = jobs
-        unit.location = jobs[0].location
-        unit.duration = sum((j.job_duration for j in jobs), timedelta())
-        unit.priority = max(j.priority for j in jobs) if jobs else 0
-        unit.assigned_technician_id = jobs[0].assigned_technician_id # Assume all jobs in unit have same tech
-        unit.fixed_assignment = any(j.fixed_assignment for j in jobs)
-        
-        # Determine fixed schedule time for the unit
-        fixed_times = [j.fixed_schedule_time for j in jobs if j.fixed_schedule_time]
-        if fixed_times:
-            # If multiple fixed times exist in a unit, use the earliest. Log a warning.
-            unit.fixed_schedule_time = min(fixed_times)
-            if len(fixed_times) > 1:
-                # Consider adding proper logging here
-                print(f"Warning: Multiple fixed schedule times found for jobs in order {order_id}. Using the earliest: {unit.fixed_schedule_time}")
-        else:
-            unit.fixed_schedule_time = None
-
-        units.append(unit)
-    return units
+# Remove placeholder create_schedulable_units as we import the real one
+# def create_schedulable_units(jobs_by_order: Dict[int, List[Job]]) -> List[SchedulableUnit]:
+#     """Placeholder: Creates SchedulableUnit objects from grouped jobs."""
+#     # ... (implementation removed)
 
 
 # --- Phase 3 Implementation Starts Here ---
@@ -106,116 +66,149 @@ def calculate_eta(technician: Technician, jobs_to_consider: List[Job]) -> Option
     Calculates the predicted ETA for the first job in a potential unit.
 
     Simulates adding the jobs (as a unit) into the technician's existing
-    multi-day schedule to find the earliest possible start time.
+    multi-day schedule to find the earliest possible start time, respecting
+    fixed-time job constraints by identifying and checking available windows.
 
     Args:
         technician: The technician whose schedule is being considered.
         jobs_to_consider: A list of jobs representing a potential SchedulableUnit.
 
     Returns:
-        The predicted ETA (datetime) for the first job, or None if it cannot be scheduled.
+        The predicted ETA (datetime) for the first job, or None if it cannot be scheduled
+        within the simulation timeframe (e.g., 14 days).
     """
     if not jobs_to_consider:
+        print("Warning: calculate_eta called with empty jobs_to_consider list.")
         return None
 
-    # Create a temporary unit representation for calculation
-    temp_unit_location = jobs_to_consider[0].location
-    temp_unit_duration = sum((getattr(job, 'job_duration', timedelta(hours=1)) for job in jobs_to_consider), timedelta())
+    # --- 1. Create a temporary unit representation for calculation ---
+    # Use first job's location (assuming jobs in unit are typically co-located or logic groups them appropriately)
+    # HACK: Use getattr for location in case job object doesn't have it yet (during testing/dev)
+    temp_unit_location = getattr(jobs_to_consider[0], 'location', None)
+    if not temp_unit_location:
+         print(f"Warning: Job {jobs_to_consider[0].id} missing location for ETA calculation.")
+         return None # Cannot calculate without location
 
-    # Check if total duration exceeds max daily capacity
-    max_daily_capacity = timedelta(hours=8)  # Assuming 8-hour workday
-    if temp_unit_duration > max_daily_capacity:
-        return None  # Cannot schedule if unit is longer than a workday
+    # Ensure job_duration exists and is timedelta
+    temp_unit_duration = sum((
+        getattr(job, 'job_duration', timedelta(hours=1)) for job in jobs_to_consider
+        ), timedelta())
+    
+    if temp_unit_duration <= timedelta(0):
+        print(f"Warning: Job unit duration is zero or negative ({temp_unit_duration}). Cannot calculate ETA.")
+        return None
 
+    # --- 2. Iterate through days to find the earliest fit --- 
     current_day = 1
     max_days_to_check = 14  # Limit how far ahead we look
 
     while current_day <= max_days_to_check:
+        # --- 2a. Get Daily Availability --- 
         availability = get_technician_availability(technician, current_day)
-        if not availability:
+        if not availability or availability.get('total_duration', timedelta(0)) <= timedelta(0):
             current_day += 1
-            continue  # Skip days with no availability
+            continue  # Skip days with no availability or zero duration
 
-        day_start = availability.start_time if hasattr(availability, 'start_time') else availability['start_time']
-        day_end = availability.end_time if hasattr(availability, 'end_time') else availability['end_time']
+        day_start = availability['start_time']
+        day_end = availability['end_time']
+        # Determine start location for the day based on whether it's the first day or subsequent
+        start_location_today = technician.current_location if current_day == 1 else technician.home_location
+        if not start_location_today:
+             print(f"Warning: Technician {technician.id} missing start location for day {current_day}. Cannot calculate ETA for this day.")
+             current_day += 1
+             continue # Cannot calculate without a starting point for the day
+
+        # --- 2b. Identify Fixed Units and Calculate Available Windows --- 
+        # Use the technician's actual schedule structure
+        scheduled_units_today = technician.schedule.get(current_day, []) 
+        fixed_units_today = sorted(
+            [u for u in scheduled_units_today if getattr(u, 'fixed_schedule_time', None) is not None],
+            key=lambda u: u.fixed_schedule_time
+        )
         
-        # --- Identify Fixed Time Slots for the Day ---
-        fixed_slots: List[Tuple[datetime, datetime]] = []
-        if current_day in technician.schedule:
-            for unit in technician.schedule[current_day]:
-                if unit.fixed_schedule_time:
-                    fixed_start = unit.fixed_schedule_time
-                    fixed_end = fixed_start + unit.duration
-                    fixed_slots.append((fixed_start, fixed_end))
-            # Sort fixed slots for easier checking later if needed (though overlap check doesn't require sorting)
-            # fixed_slots.sort()
+        available_windows: List[Tuple[datetime, datetime, Address]] = [] # (window_start, window_end, location_before_window)
+        last_event_end_time = day_start
+        last_event_location = start_location_today
 
-        # --- Find Last Event Time (Simplified) ---
-        # TODO: This calculation needs refinement to match the complexity of update_job_queues_and_routes
-        # It should ideally consider the actual optimized sequence, not just append.
-        last_scheduled_event_end_time = day_start
-        last_location = technician.home_location if current_day > 1 else technician.current_location
-        if current_day in technician.schedule and technician.schedule[current_day]:
-            # Simple approximation: find the end time of the latest finishing job (fixed or dynamic)
-            latest_end = day_start
-            for unit in technician.schedule[current_day]:
-                # This is approximate, actual end time depends on optimized route
-                # Use fixed end time if available, otherwise estimate based on duration
-                unit_end_estimate = unit.fixed_schedule_time + unit.duration if unit.fixed_schedule_time else day_start # Needs better estimate
-                latest_end = max(latest_end, unit_end_estimate)
-            last_scheduled_event_end_time = latest_end # Very rough estimate
-            # last_location also needs to be the location of this last unit
+        for fixed_unit in fixed_units_today:
+            # Ensure fixed_unit has necessary attributes
+            fixed_start = getattr(fixed_unit, 'fixed_schedule_time', None)
+            fixed_duration = getattr(fixed_unit, 'duration', timedelta(0))
+            fixed_location = getattr(fixed_unit, 'location', None)
 
-        # --- Find Earliest Valid Slot for New Unit ---
-        current_potential_start = day_start # Start checking from beginning of day initially? No, after last event.
-        # Calculate the earliest theoretical start based on travel from last known location/time
-        travel_to_new_unit = calculate_travel_time(last_location, temp_unit_location)
-        earliest_theoretical_start = max(day_start, last_scheduled_event_end_time) + travel_to_new_unit
-        current_potential_start = earliest_theoretical_start
+            if not fixed_start or fixed_duration <= timedelta(0) or not fixed_location:
+                 print(f"Warning: Skipping invalid fixed unit data during ETA calculation for tech {technician.id}, day {current_day}.")
+                 continue
 
-        while True: # Loop to find a non-overlapping slot
-            potential_end_time = current_potential_start + temp_unit_duration
+            fixed_end = fixed_start + fixed_duration
 
-            # Check 1: Does it fit within the workday?
-            if potential_end_time > day_end:
-                break # Cannot fit today, try next day
-
-            # Check 2: Does it overlap with any fixed slots?
-            overlaps = False
-            overlapping_fixed_end = None
-            for fixed_start, fixed_end in fixed_slots:
-                # Overlap condition: (StartA < EndB) and (StartB < EndA)
-                if current_potential_start < fixed_end and fixed_start < potential_end_time:
-                    overlaps = True
-                    overlapping_fixed_end = fixed_end
-                    break
-            
-            if overlaps:
-                # Move potential start time to *after* the overlapping fixed slot
-                current_potential_start = overlapping_fixed_end
-                # Optional: Add a small buffer? timedelta(minutes=1)
-                continue # Re-check with the new potential start time
+            # Check basic validity (fixed unit is within work hours and starts after last event)
+            if fixed_start >= last_event_end_time and fixed_end <= day_end:
+                 # Add the window BEFORE this fixed unit
+                if fixed_start > last_event_end_time:
+                    available_windows.append((last_event_end_time, fixed_start, last_event_location))
+                
+                # Update for the next potential window
+                last_event_end_time = fixed_end
+                last_event_location = fixed_location # Location after this fixed job
             else:
-                # Found a valid slot!
-                return current_potential_start 
+                # This fixed job is invalidly scheduled (overlaps or outside hours) - skip it for window calculation
+                # Log this potential issue
+                print(f"Warning: Fixed unit {getattr(fixed_unit, 'id', 'unknown')} on day {current_day} for tech {technician.id} has scheduling conflict ({fixed_start} vs {last_event_end_time}) or is outside working hours ({fixed_end} vs {day_end}). Ignoring for ETA calculation window.")
+                # Do not update last_event_end_time or last_event_location based on this invalid unit
+        
+        # Add the final window AFTER the last valid fixed unit (or the whole day if no fixed units)
+        if last_event_end_time < day_end:
+            available_windows.append((last_event_end_time, day_end, last_event_location))
 
-        # If the inner loop broke (didn't fit), try the next day
+        # --- 2c. Simulate Fitting the New Unit into Windows --- 
+        for window_start, window_end, location_before_window in available_windows:
+
+            if not location_before_window:
+                print(f"Warning: Missing location_before_window for window {window_start}-{window_end} on day {current_day} for tech {technician.id}. Skipping window.")
+                continue
+            
+            # Calculate travel from the event location immediately preceding this window
+            travel_to_new_unit = calculate_travel_time(location_before_window, temp_unit_location)
+            
+            # Potential start is the later of window start or arrival time after travel
+            # Arrival time is the time the previous event ended (window_start) + travel time
+            arrival_time = window_start + travel_to_new_unit 
+            potential_start = max(window_start, arrival_time)
+
+            potential_end = potential_start + temp_unit_duration
+
+            # Check if the unit fits within this window
+            if potential_end <= window_end:
+                # Found the earliest possible slot!
+                return potential_start 
+
+        # If no fit found in any window on this day, try the next day
         current_day += 1
 
     # If no slot found within max_days_to_check
+    job_ids = [getattr(j, 'id', 'unknown') for j in jobs_to_consider]
+    print(f"Could not find suitable ETA slot for jobs {job_ids} within {max_days_to_check} days for tech {technician.id}.")
     return None
 
 
 def assign_job_to_technician(job: Job, technician: Technician):
     """
-    Assigns a job to a technician and updates its status.
+    Assigns a job to a technician by calling the data interface.
 
     Args:
         job: The Job to be assigned.
         technician: The Technician to assign the job to.
     """
-    job.assigned_technician_id = technician.id
-    job.status = 'assigned'
+    # Call the data interface function to update the assignment via API
+    # Status should likely be ASSIGNED when assigning
+    success = update_job_assignment(job_id=job.id, technician_id=technician.id, status=JobStatus.ASSIGNED)
+    
+    if not success:
+        # Consider adding proper logging here
+        print(f"Error: Failed to assign job {job.id} to technician {technician.id} via API.")
+    # Note: We don't update the job object directly here anymore.
+    # The source of truth is the database, accessed via the API.
 
 
 def assign_jobs(all_eligible_jobs: List[Job], technicians: List[Technician]):
@@ -230,7 +223,8 @@ def assign_jobs(all_eligible_jobs: List[Job], technicians: List[Technician]):
         technicians: List of available technicians.
     """
     # Filter out jobs that are already assigned and marked as fixed
-    dynamic_jobs_to_consider = [job for job in all_eligible_jobs if not job.fixed]
+    # Using .fixed_assignment based on updated DATABASE.md
+    dynamic_jobs_to_consider = [job for job in all_eligible_jobs if not job.fixed_assignment]
 
     # Group jobs by order ID
     jobs_by_order_id: Dict[int, List[Job]] = defaultdict(list)
@@ -245,62 +239,48 @@ def assign_jobs(all_eligible_jobs: List[Job], technicians: List[Technician]):
 
         # Try to find a technician who can handle all jobs in the order
         if len(order_jobs) > 1:
-            for tech in technicians:
-                if tech.has_all_equipment(order_jobs):
+            fully_equipped_techs = [tech for tech in technicians if tech.has_all_equipment(order_jobs)]
+            if fully_equipped_techs:
+                etas = {}
+                for tech in fully_equipped_techs:
                     eta = calculate_eta(tech, order_jobs)
-                    if eta and (best_eta_for_order is None or eta < best_eta_for_order):
-                        best_tech_for_order = tech
-                        best_eta_for_order = eta
+                    if eta:
+                        etas[tech] = eta
+                
+                if etas: # If any eligible tech has a valid ETA
+                    best_tech_for_order = min(etas, key=etas.get)
+                    best_eta_for_order = etas[best_tech_for_order]
+            # If no single tech is fully equipped, best_tech_for_order remains None, jobs are handled individually later
 
-            # If found a tech who can handle all jobs with a good ETA, assign them
-            if best_tech_for_order and best_eta_for_order:
-                # Check if individual assignments might be better
-                individual_assignments_better = False
-                individual_etas = {}
-                for job in order_jobs:
-                    best_individual_tech = None
-                    best_individual_eta = None
-                    for tech in technicians:
-                        if tech.has_equipment(job.equipment_required):
-                            eta = calculate_eta(tech, [job])
-                            if eta and (best_individual_eta is None or eta < best_individual_eta):
-                                best_individual_tech = tech
-                                best_individual_eta = eta
-                    if best_individual_eta:
-                        individual_etas[job.id] = (best_individual_tech, best_individual_eta)
-
-                # Compare best individual ETAs with combined ETA
-                if all(eta for _, eta in individual_etas.values()):
-                    max_individual_eta = max(eta for _, eta in individual_etas.values())
-                    if max_individual_eta < best_eta_for_order:
-                        individual_assignments_better = True
-
-                if not individual_assignments_better:
-                    # Assign all jobs to the best technician
-                    for job in order_jobs:
-                        assign_job_to_technician(job, best_tech_for_order)
-                    continue
-
-        # If we couldn't assign all jobs to one tech (or individual assignments are better),
-        # add them to unassigned list for individual assignment
-        unassigned_jobs_after_grouping.extend(order_jobs)
-
-    # Now assign remaining jobs individually
-    for job in unassigned_jobs_after_grouping:
-        best_tech: Optional[Technician] = None
-        best_eta: Optional[datetime] = None
-
-        # Find the best technician for this job
-        for tech in technicians:
-            if tech.has_equipment(job.equipment_required):
-                eta = calculate_eta(tech, [job])
-                if eta and (best_eta is None or eta < best_eta):
-                    best_tech = tech
-                    best_eta = eta
-
-        # Assign to best technician if found
-        if best_tech:
-            assign_job_to_technician(job, best_tech)
+        # --- Assignment Phase for Order (if single tech found) or Individual Jobs ---
+        if best_tech_for_order and best_eta_for_order:
+            # Assign ALL jobs in this order to the determined best technician
+            for job in order_jobs:
+                # Call the updated function that uses data_interface
+                assign_job_to_technician(job, best_tech_for_order)
+        else:
+            # Handle single-job orders or multi-job orders where no single tech was fully equipped
+            # Process each job individually to find the best available tech for THAT job
+            for job in order_jobs:
+                best_individual_tech: Optional[Technician] = None
+                best_individual_eta: Optional[datetime] = None
+                individual_eligible = [tech for tech in technicians if tech.has_equipment(job.equipment_required)]
+                
+                if individual_eligible:
+                    etas = {}
+                    for tech in individual_eligible:
+                        eta = calculate_eta(tech, [job])
+                        if eta:
+                           etas[tech] = eta
+                    
+                    if etas: # If any eligible tech has a valid ETA for the individual job
+                        best_individual_tech = min(etas, key=etas.get)
+                        best_individual_eta = etas[best_individual_tech]
+                
+                if best_individual_tech: 
+                    assign_job_to_technician(job, best_individual_tech)
+                # Else: Handle case where no tech can do this specific job (optional logging/error handling)
+                # Currently, job remains unassigned implicitly
 
 
 def update_job_queues_and_routes(technicians: List[Technician]):
@@ -308,219 +288,225 @@ def update_job_queues_and_routes(technicians: List[Technician]):
     Updates the multi-day schedule for each technician, optimizing daily routes
     and updating ETAs for all assigned jobs.
 
-    This function:
-    1. Groups assigned jobs into schedulable units
-    2. Prioritizes units based on job priority
-    3. Plans each technician's schedule day by day
-    4. Optimizes the route for each day
-    5. Updates ETAs for all jobs
-
     Args:
         technicians: List of technicians whose schedules need updating.
     """
     for tech in technicians:
-        # Clear existing schedule
-        tech.schedule.clear()
-        
-        # Get all assigned jobs for this technician
-        assigned_jobs = [job for job in tech.assigned_jobs if not job.fixed]
-        if not assigned_jobs:
-            # Still call update_etas to clear any old ETAs
-            update_etas_for_schedule(tech)
+        tech.schedule = {} # Clear existing schedule
+        all_daily_start_times: Dict[int, Dict[str, datetime]] = {} # Use unit.id as key
+
+        # 1. Fetch Assigned Jobs for the Technician via API
+        try:
+            # Replace placeholder fetch with actual data interface call
+            tech_assigned_jobs = fetch_assigned_jobs(tech.id)
+        except Exception as e:
+            # Log error fetching jobs for this tech
+            print(f"Error fetching jobs for technician {tech.id}: {e}. Skipping schedule update for this tech.")
+            continue # Move to the next technician
+
+        if not tech_assigned_jobs:
+            print(f"No assigned jobs found for technician {tech.id}. Clearing schedule and skipping.")
+            # Ensure ETAs are cleared/updated if necessary for an empty schedule
+            update_etas_for_schedule(tech, {}) 
             continue
 
-        # Group jobs by order
-        jobs_by_order = defaultdict(list)
-        for job in assigned_jobs:
-            jobs_by_order[job.order_id].append(job)
+        # 2. Create Schedulable Units
+        jobs_by_order = group_jobs_by_order(tech_assigned_jobs)
+        all_units = create_schedulable_units(jobs_by_order)
 
-        # Create schedulable units
-        units = create_schedulable_units(jobs_by_order)
-        
-        # Separate units into fixed time and dynamic
-        fixed_time_units = [u for u in units if u.fixed_schedule_time]
-        dynamic_units = [u for u in units if not u.fixed_schedule_time]
+        # Assume SchedulableUnit now has a unique `id` attribute (e.g., UUID or derived ID)
+        # Ensure all units have a valid ID
+        if not all(hasattr(u, 'id') and u.id is not None for u in all_units):
+            print(f"Error: Not all schedulable units have a valid 'id' attribute for tech {tech.id}. Skipping schedule update.")
+            continue
 
-        # Sort dynamic units by priority (lower number = higher priority)
-        dynamic_units.sort(key=lambda u: u.priority)
+        # 3. Separate Units and Sort Dynamic by Priority
+        fixed_time_units = [u for u in all_units if u.fixed_schedule_time is not None]
+        # All other units are considered dynamic in terms of timing
+        dynamic_units = [u for u in all_units if u.fixed_schedule_time is None]
+        dynamic_units.sort(key=lambda u: u.priority) # Sort high to low prio
 
+        # 4. Plan Schedule Day by Day
         current_day = 1
+        max_planning_days = 14
         remaining_dynamic_units = dynamic_units.copy()
-        # Store all fixed units to potentially schedule later if they don't fit today
-        pending_fixed_units = fixed_time_units.copy()
+        pending_fixed_time_units = fixed_time_units.copy()
 
-        while (remaining_dynamic_units or pending_fixed_units) and current_day <= 14:  # Look up to 14 days ahead
-            # Get availability for the day
+        while (remaining_dynamic_units or pending_fixed_time_units) and current_day <= max_planning_days:
+            # Get daily availability
             availability = get_technician_availability(tech, current_day)
-            if not availability:
+            if not availability or availability.get('total_duration', timedelta(0)) <= timedelta(0):
                 current_day += 1
                 continue
 
-            # Initialize the day's schedule and time tracking
             tech.schedule[current_day] = []
             day_start = availability['start_time']
             day_end = availability['end_time']
-            scheduled_fixed_units_today: List[SchedulableUnit] = [] # Track fixed units placed today
-            available_windows: List[Tuple[datetime, datetime]] = [] # List of (start, end) available slots
-            
-            # --- 1. Place Fixed Units for Today ---            
-            fixed_units_for_this_day = sorted(
-                [u for u in pending_fixed_units if u.fixed_schedule_time.date() == day_start.date()],
+            start_location_today = tech.current_location if current_day == 1 else tech.home_location
+            if not start_location_today:
+                print(f"Warning: Tech {tech.id} missing start location for day {current_day}. Cannot schedule.")
+                current_day += 1
+                continue
+
+            # 4a. Place Fixed-Time Units for Today
+            scheduled_fixed_today: List[SchedulableUnit] = []
+            units_for_today_fixed = sorted(
+                [u for u in pending_fixed_time_units if u.fixed_schedule_time and u.fixed_schedule_time.date() == day_start.date()],
                 key=lambda u: u.fixed_schedule_time
             )
+            units_not_scheduled_fixed = []
+            valid_fixed_schedule_today = True
+            for unit in units_for_today_fixed:
+                # Basic validation
+                if not (unit.fixed_schedule_time and unit.duration and unit.location):
+                    print(f"Warning: Invalid data for fixed unit {unit.id}. Adding to unscheduled.")
+                    units_not_scheduled_fixed.append(unit)
+                    continue
+                unit_end = unit.fixed_schedule_time + unit.duration
+                if not (unit.fixed_schedule_time >= day_start and unit_end <= day_end):
+                    print(f"Warning: Fixed unit {unit.id} time {unit.fixed_schedule_time} - {unit_end} outside availability {day_start} - {day_end}. Adding to unscheduled.")
+                    units_not_scheduled_fixed.append(unit)
+                    valid_fixed_schedule_today = False # Mark potential overlap issue
+                    continue
+                scheduled_fixed_today.append(unit)
             
-            units_not_scheduled_fixed = [] # Keep track of fixed units that couldn't fit
-            current_time = day_start
+            # Check for overlaps among the *validly placed* fixed units for today
+            scheduled_fixed_today.sort(key=lambda u: u.fixed_schedule_time)
+            last_fixed_end = day_start
+            for i, unit in enumerate(scheduled_fixed_today):
+                 if unit.fixed_schedule_time < last_fixed_end:
+                     print(f"Error: Overlap detected between fixed unit {scheduled_fixed_today[i-1].id} and {unit.id} on day {current_day} for tech {tech.id}. Handling overlap requires specific business logic (e.g., prioritize, error out). Skipping dynamic placement for this day.")
+                     valid_fixed_schedule_today = False
+                     break # Stop checking overlaps
+                 last_fixed_end = unit.fixed_schedule_time + unit.duration
 
-            for fixed_unit in fixed_units_for_this_day:
-                start_time = fixed_unit.fixed_schedule_time
-                end_time = start_time + fixed_unit.duration
-                
-                # Check basic validity: within work hours and doesn't overlap PREVIOUS fixed unit
-                if start_time >= current_time and end_time <= day_end:
-                    # Add the window BEFORE this fixed unit
-                    if start_time > current_time:
-                        available_windows.append((current_time, start_time))
-                    
-                    scheduled_fixed_units_today.append(fixed_unit)
-                    current_time = end_time # Advance time past this fixed unit
-                else:
-                    # Cannot schedule this fixed unit today (conflict or outside hours)
-                    print(f"Warning: Fixed unit {fixed_unit.id} for order {fixed_unit.order_id} cannot be scheduled on day {current_day} due to time conflict or availability.")
-                    units_not_scheduled_fixed.append(fixed_unit) 
-            
-            # Add the final window AFTER the last fixed unit (or the whole day if no fixed units)
-            if current_time < day_end:
-                available_windows.append((current_time, day_end))
-                
-            # Update the list of pending fixed units (remove ones scheduled, keep ones that failed)
-            pending_fixed_units = [u for u in pending_fixed_units if u not in fixed_units_for_this_day] + units_not_scheduled_fixed
+            # Update overall pending list
+            pending_fixed_time_units = [u for u in pending_fixed_time_units if u not in units_for_today_fixed] + units_not_scheduled_fixed
 
-            # --- 2. Fill Available Windows with Dynamic Units --- 
+            # 4b. Fit Dynamic Units into Gaps (if fixed schedule is valid)
             scheduled_dynamic_today: List[SchedulableUnit] = []
-            temp_remaining_dynamic = remaining_dynamic_units.copy() # Work with a copy
-            units_scheduled_this_pass = set() # Track IDs scheduled in this iteration
+            units_scheduled_dynamically_ids = set()
 
-            # Determine the effective start location for dynamic jobs today
-            # If there are fixed jobs, it's the start location of the first one, otherwise tech's start location
-            last_event_location = tech.current_location if current_day == 1 else tech.home_location 
-            last_event_end_time = day_start # Initialize to the start of the day
+            if valid_fixed_schedule_today:
+                # Combine fixed units with day boundaries to define events and gaps
+                events: List[Tuple[datetime, datetime, Address]] = [] # (start_time, end_time, end_location)
+                events.append((day_start, day_start, start_location_today)) # Start of day
+                for unit in scheduled_fixed_today:
+                    events.append((unit.fixed_schedule_time, unit.fixed_schedule_time + unit.duration, unit.location))
+                events.append((day_end, day_end, None)) # End of day marker, location irrelevant
+                events.sort(key=lambda x: x[0]) # Sort events by start time
 
-            # Use scheduled_fixed_units_today which is sorted by time
-            if scheduled_fixed_units_today:
-                last_event_location = scheduled_fixed_units_today[0].location
-                last_event_end_time = scheduled_fixed_units_today[0].fixed_schedule_time
-            
-            # Create a combined list of events (start, fixed units, end) to define windows accurately
-            events = [(day_start, tech.home_location)] # Start of day event
-            events.extend([(u.fixed_schedule_time, u.location) for u in scheduled_fixed_units_today])
-            # Note: We don't explicitly need day_end as an event, windows handle it
-            events.sort() # Sort by time
-
-            idx_dynamic_unit = 0
-            while idx_dynamic_unit < len(temp_remaining_dynamic):
-                dynamic_unit = temp_remaining_dynamic[idx_dynamic_unit]
-                fitted_in_window = False
-
-                # Find the best window to fit this unit
-                best_fit_window_idx = -1
-                earliest_start_time = None
-                required_travel_time = timedelta.max # Keep track of travel for the best fit
-
-                for i in range(len(available_windows)):
-                    window_start, window_end = available_windows[i]
+                # Iterate through dynamic units (prioritized) and try to fit them
+                temp_remaining_dynamic = remaining_dynamic_units.copy()
+                for dyn_unit in temp_remaining_dynamic:
+                    if not dyn_unit.duration or not dyn_unit.location:
+                        print(f"Warning: Skipping dynamic unit {dyn_unit.id} due to missing duration or location.")
+                        continue
                     
-                    # Find the end time & location of the event *immediately before* this window starts
-                    # This determines the travel origin for the first job in the window
-                    previous_event_end_for_window = day_start
-                    previous_event_loc_for_window = tech.home_location
-                    if i > 0:
-                        # Find the fixed unit ending just before this window
-                        # This assumes available_windows maps directly to gaps between fixed units or start/end
-                        # A safer way might be to iterate through sorted fixed units
-                         # Find the fixed unit that defines the start of this window
-                         # This logic needs refinement - let's simplify for now
-                         # Assume travel is from the end of the PREVIOUS window/fixed job
-                         # HACK: Simplified travel calculation - Needs accurate previous location!
-                         pass # Placeholder for better previous event finding
+                    best_fit_start_time = None
+                    best_fit_event_index = -1 # Index *before* which to insert
 
-                    # Tentative: Calculate travel from the start_location assumed for the day for simplicity for now
-                    # TODO: Refine travel calculation based on actual previous event location in sequence
-                    current_start_location_for_travel = tech.current_location if current_day == 1 else tech.home_location
-                    # More accurate would be to track the end location of the last fitted unit within this window
-
-                    travel = calculate_travel_time(current_start_location_for_travel, dynamic_unit.location)
-                    potential_start = max(window_start, last_event_end_time + travel) # Consider last fitted dynamic job end time
-                    potential_end = potential_start + dynamic_unit.duration
-
-                    if potential_end <= window_end:
-                        # This unit *could* fit in this window
-                        if earliest_start_time is None or potential_start < earliest_start_time:
-                            earliest_start_time = potential_start
-                            best_fit_window_idx = i
-                            required_travel_time = travel
-                        fitted_in_window = True # Mark that it can fit somewhere
-                        # Don't break, check other windows for potentially earlier fit
-                
-                if fitted_in_window and best_fit_window_idx != -1:
-                    # Fit the unit into the best window found
-                    scheduled_dynamic_today.append(dynamic_unit)
-                    units_scheduled_this_pass.add(dynamic_unit.id)
-                    temp_remaining_dynamic.pop(idx_dynamic_unit) # Remove from temp list
+                    # Check gaps between consecutive events
+                    for i in range(len(events) - 1):
+                        event_A_start, event_A_end, loc_A = events[i]
+                        event_B_start, event_B_end, loc_B = events[i+1]
+                        
+                        if loc_A is None: # Should only happen if event A is the day_start 'event' - location is start_location_today
+                             loc_A = start_location_today
+                             if loc_A is None: continue # Cannot calculate travel from unknown start
+                        
+                        # Calculate earliest possible start time for dyn_unit in this gap
+                        travel_A_dyn = calculate_travel_time(loc_A, dyn_unit.location)
+                        earliest_start = event_A_end + travel_A_dyn
+                        
+                        # Calculate latest possible end time for dyn_unit in this gap
+                        # Need location of B to calculate travel *to* B. If B is end-of-day, no travel needed.
+                        latest_end = event_B_start
+                        if loc_B: # If B is not the end-of-day marker
+                             travel_dyn_B = calculate_travel_time(dyn_unit.location, loc_B)
+                             # We must END BY (event_B_start - travel_dyn_B)
+                             latest_end = event_B_start - travel_dyn_B
+                        
+                        # Calculate actual end time if starting at earliest_start
+                        actual_end = earliest_start + dyn_unit.duration
+                        
+                        # Check if it fits
+                        if earliest_start >= event_A_end and actual_end <= latest_end:
+                            # Found a valid fit in this gap
+                            if best_fit_start_time is None or earliest_start < best_fit_start_time:
+                                best_fit_start_time = earliest_start
+                                best_fit_event_index = i # Insert *after* event i
                     
-                    # Update the last event end time for subsequent calculations *within this window*?
-                    # This part is complex - simple approach for now: assume optimizer handles exact times
-                    # last_event_end_time = earliest_start_time + dynamic_unit.duration 
-                    # last_event_location = dynamic_unit.location # Update for next travel calc in this window?
-                else:
-                    # Could not fit this unit, move to the next dynamic unit
-                    idx_dynamic_unit += 1
+                    # If a best fit was found for this dynamic unit
+                    if best_fit_start_time is not None:
+                        # Insert the dynamic unit into the schedule for today
+                        scheduled_dynamic_today.append(dyn_unit)
+                        units_scheduled_dynamically_ids.add(dyn_unit.id)
+                        
+                        # Update the 'events' list to include this newly scheduled unit for subsequent gap checks
+                        dyn_end_time = best_fit_start_time + dyn_unit.duration
+                        new_event = (best_fit_start_time, dyn_end_time, dyn_unit.location)
+                        events.insert(best_fit_event_index + 1, new_event) # Insert after the event it follows
+                        # events.sort(key=lambda x: x[0]) # Re-sort events (optional, depends on insertion logic)
             
-            # Sort the dynamic units scheduled today for potential insertion order (optional)
-            scheduled_dynamic_today.sort(key=lambda u: u.priority) # Or maybe by estimated start?
+                # Update remaining dynamic units list
+                remaining_dynamic_units = [u for u in remaining_dynamic_units if u.id not in units_scheduled_dynamically_ids]
 
-            # --- 3. Combine and Optimize for the Day --- 
-            all_units_today = scheduled_fixed_units_today + scheduled_dynamic_today
-            calculated_start_times_today: Dict[str, datetime] = {} # Store start times from optimizer
-            all_daily_start_times: Dict[int, Dict[str, datetime]] = {} # Store results for all days
-
+            # 4c. Combine and Optimize the Day's Schedule
+            all_units_today = scheduled_fixed_today + scheduled_dynamic_today
+            calculated_start_times_today: Dict[str, datetime] = {} # Use unit.id as key
+            
             if all_units_today:
-                start_location = tech.current_location if current_day == 1 else tech.home_location
-                time_constraints = {u.id: u.fixed_schedule_time for u in scheduled_fixed_units_today}
+                # Prepare constraints for the optimizer using stable unit IDs
+                time_constraints = {u.id: u.fixed_schedule_time for u in scheduled_fixed_today if u.fixed_schedule_time}
                 
-                # Call optimizer with time constraints
                 try:
-                    optimized_units, total_time, calculated_start_times_today = optimize_daily_route_and_get_time(
-                        all_units_today, 
-                        start_location, 
+                    # Call optimizer - assuming it takes List[SchedulableUnit]
+                    # and returns (ordered_list_of_units, total_time, dict_of_start_times_utc)
+                    optimized_units, total_time, calculated_start_times_by_id = optimize_daily_route_and_get_time(
+                        all_units_today,
+                        start_location_today,
                         time_constraints=time_constraints,
-                        day_start_time=day_start # Pass the day's start time
+                        day_start_time=day_start
+                        # Removed unit_details, assuming optimizer handles units directly
                     )
-                except Exception as e:
-                    print(f"Error during route optimization for tech {tech.id} day {current_day}: {e}")
-                    optimized_units = scheduled_fixed_units_today # Fallback to only fixed
-                    total_time = timedelta(days=99) # Indicate failure
-                    calculated_start_times_today = {} # No valid start times
 
-                # Final check against total daily duration
-                if total_time <= availability['total_duration']:
-                    tech.schedule[current_day] = optimized_units
-                    all_daily_start_times[current_day] = calculated_start_times_today # Store successful results
-                    # Remove successfully scheduled dynamic units from main list
-                    # Need to use the IDs from the *optimized_units* list that are dynamic
-                    scheduled_dynamic_ids_in_route = {u.id for u in optimized_units if not u.fixed_schedule_time}
-                    remaining_dynamic_units = [u for u in remaining_dynamic_units if u.id not in scheduled_dynamic_ids_in_route]
-                else:
-                    log(f"Warning: Optimized route for tech {tech.id} day {current_day} too long ({total_time} > {availability['total_duration']}). Only scheduling fixed.")
-                    # Only keep fixed units if optimized route failed capacity check
-                    fixed_in_optimized = [u for u in optimized_units if u.fixed_schedule_time]
-                    tech.schedule[current_day] = fixed_in_optimized
-                    # Store start times only for the fixed units that were kept
-                    all_daily_start_times[current_day] = {u.id: calculated_start_times_today[u.id] for u in fixed_in_optimized if u.id in calculated_start_times_today}
-                    # Dynamic units remain in remaining_dynamic_units
-            
-            # --- 4. Prepare for Next Day --- 
+                    # Check if total time fits within availability
+                    if total_time <= availability['total_duration']:
+                        tech.schedule[current_day] = optimized_units
+                        # Ensure keys in calculated_start_times_by_id match unit.id format
+                        all_daily_start_times[current_day] = calculated_start_times_by_id 
+                    else:
+                        print(f"Warning: Optimized route for tech {tech.id} day {current_day} ({total_time}) exceeds available duration ({availability['total_duration']}). Reverting to fixed units only.")
+                        # Only schedule fixed units if optimization fails duration check
+                        fixed_in_optimized = [u for u in optimized_units if u in scheduled_fixed_today]
+                        tech.schedule[current_day] = fixed_in_optimized
+                        all_daily_start_times[current_day] = {u.id: t for u_id, t in calculated_start_times_by_id.items() if (u := next((unit for unit in fixed_in_optimized if unit.id == u_id), None))}
+                        # Add back the dynamic units that were attempted today to the remaining list
+                        failed_dynamic_units = [u for u in all_units_today if u.id in units_scheduled_dynamically_ids]
+                        remaining_dynamic_units.extend(failed_dynamic_units)
+                        remaining_dynamic_units.sort(key=lambda u: u.priority) # Re-sort
+                        
+                except Exception as e:
+                    print(f"Error during route optimization call for tech {tech.id}, day {current_day}: {e}. Scheduling fixed units only.")
+                    tech.schedule[current_day] = scheduled_fixed_today # Schedule only fixed if optimizer crashes
+                    all_daily_start_times[current_day] = {u.id: u.fixed_schedule_time for u in scheduled_fixed_today if u.fixed_schedule_time} # Use fixed times
+                    # Add back dynamic units attempted today
+                    failed_dynamic_units = [u for u in all_units_today if u.id in units_scheduled_dynamically_ids]
+                    remaining_dynamic_units.extend(failed_dynamic_units)
+                    remaining_dynamic_units.sort(key=lambda u: u.priority)
+
+            # 4d. Prepare for Next Day
             current_day += 1
 
-        # Update ETAs for all jobs in the schedule
+        # 5. Store the final multi-day schedule (already done in tech.schedule)
+
+        # 6. Update ETAs for ALL jobs based on the final schedule
+        # Ensure update_etas_for_schedule uses unit.id keys from all_daily_start_times
         update_etas_for_schedule(tech, all_daily_start_times)
+
+        # Log unscheduled units
+        if remaining_dynamic_units or pending_fixed_time_units:
+            unsched_dyn_ids = [u.id for u in remaining_dynamic_units]
+            unsched_fixed_ids = [u.id for u in pending_fixed_time_units]
+            print(f"Warning: Tech {tech.id} finished planning with unscheduled units. Dynamic: {unsched_dyn_ids}, Fixed: {unsched_fixed_ids}")

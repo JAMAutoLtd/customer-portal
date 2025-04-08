@@ -1,417 +1,390 @@
-from typing import List, Optional, Dict, Any
+import httpx
+import os
+from dotenv import load_dotenv
+from typing import List, Optional, Dict, Any, Tuple
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# Assuming a database session/connection object `db_session` is available globally or passed in.
-# For now, these functions will just have placeholders and return types.
-from .models import Technician, Job, Order, Service, Equipment, Address, CustomerVehicle, CustomerType, JobStatus, Van
+# Load environment variables for API configuration
+load_dotenv()
+API_BASE_URL = os.getenv("SCHEDULER_API_BASE_URL", "http://localhost:8000/api/v1") # Default to local if not set
+API_KEY = os.getenv("SCHEDULER_API_KEY") 
 
+# Import internal models
+from .models import (
+    Technician, Job, Order, Service, Equipment, Address, CustomerVehicle, 
+    CustomerType, JobStatus, Van, ServiceCategory
+)
+# Import API response models for conversion
+from .api.models import (
+    AddressResponse, EquipmentResponse, VanResponse, TechnicianResponse, 
+    ServiceResponse, CustomerVehicleResponse, OrderResponse, JobResponse,
+    EquipmentRequirementResponse, JobAssignmentRequest, JobScheduleRequest, 
+    JobETAUpdate, JobETABulkRequest
+)
+
+# --- HTTP Client Setup ---
+# Consider making this async if the scheduler is async
+# Set timeout to avoid hanging indefinitely
+TIMEOUT = httpx.Timeout(10.0, connect=5.0) 
+_client = httpx.Client(base_url=API_BASE_URL, timeout=TIMEOUT)
+
+def _get_auth_headers() -> Dict[str, str]:
+    """Returns authentication headers for API requests."""
+    if not API_KEY:
+        # In a real application, you might raise an error or handle this differently
+        print("Warning: SCHEDULER_API_KEY environment variable not set.")
+        return {} 
+    # Correct header name to match server expectation ('api-key' lowercase)
+    return {"api-key": API_KEY}
+
+def _make_request(method: str, endpoint: str, **kwargs) -> httpx.Response:
+    """Helper function to make API requests with error handling."""
+    try:
+        response = _client.request(method, endpoint, headers=_get_auth_headers(), **kwargs)
+        response.raise_for_status()  # Raise exception for 4xx/5xx errors
+        return response
+    except httpx.RequestError as exc:
+        print(f"An error occurred while requesting {exc.request.url!r}: {exc}")
+        # Consider more specific error handling or re-raising
+        raise ConnectionError(f"API request failed: {exc}") from exc
+    except httpx.HTTPStatusError as exc:
+        print(f"Error response {exc.response.status_code} while requesting {exc.request.url!r}: {exc.response.text}")
+        # Re-raise or handle specific status codes
+        raise ValueError(f"API returned an error: {exc.response.status_code} - {exc.response.text}") from exc
+
+
+# --- Conversion Functions (API Response -> Internal Model) ---
+
+def _api_address_to_internal(api_addr: AddressResponse) -> Address:
+    """Converts AddressResponse (API) to Address (Internal)."""
+    return Address(
+        id=api_addr.id,
+        street_address=api_addr.street_address,
+        lat=api_addr.lat,
+        lng=api_addr.lng
+    )
+
+def _api_equipment_to_internal(api_equip: EquipmentResponse) -> Equipment:
+    """Converts EquipmentResponse (API) to Equipment (Internal)."""
+    # Map API EquipmentType enum to internal ServiceCategory enum
+    category_map = {
+        "adas": ServiceCategory.ADAS,
+        "airbag": ServiceCategory.AIRBAG,
+        "immo": ServiceCategory.IMMO,
+        "prog": ServiceCategory.PROG,
+        "diag": ServiceCategory.DIAG,
+    }
+    internal_category = category_map.get(api_equip.equipment_type.value)
+    if internal_category is None:
+        raise ValueError(f"Unknown API equipment type: {api_equip.equipment_type}")
+        
+    return Equipment(
+        id=api_equip.id,
+        equipment_type=internal_category,
+        model=api_equip.model
+    )
+
+def _api_van_to_internal(api_van: VanResponse) -> Van:
+    """Converts VanResponse (API) to Van (Internal)."""
+    return Van(
+        id=api_van.id,
+        last_service=api_van.last_service,
+        next_service=api_van.next_service,
+        vin=api_van.vin,
+        equipment=[_api_equipment_to_internal(eq) for eq in api_van.equipment]
+    )
+
+def _api_service_to_internal(api_svc: ServiceResponse) -> Service:
+    """Converts ServiceResponse (API) to Service (Internal)."""
+    # Map API ServiceCategory enum to internal ServiceCategory enum
+    category_map = {
+        "adas": ServiceCategory.ADAS,
+        "airbag": ServiceCategory.AIRBAG,
+        "immo": ServiceCategory.IMMO,
+        "prog": ServiceCategory.PROG,
+        "diag": ServiceCategory.DIAG,
+    }
+    internal_category = category_map.get(api_svc.service_category.value)
+    if internal_category is None:
+        raise ValueError(f"Unknown API service category: {api_svc.service_category}")
+        
+    return Service(
+        id=api_svc.id,
+        service_name=api_svc.service_name,
+        service_category=internal_category
+    )
+
+def _api_vehicle_to_internal(api_vehicle: CustomerVehicleResponse) -> CustomerVehicle:
+    """Converts CustomerVehicleResponse (API) to CustomerVehicle (Internal)."""
+    return CustomerVehicle(
+        id=api_vehicle.id,
+        vin=api_vehicle.vin,
+        make=api_vehicle.make,
+        year=api_vehicle.year,
+        model=api_vehicle.model,
+        ymm_id=api_vehicle.ymm_id
+    )
+
+def _api_order_to_internal(api_order: OrderResponse) -> Order:
+    """Converts OrderResponse (API) to Order (Internal)."""
+    # Map API CustomerType enum to internal CustomerType enum
+    customer_type_map = {
+        "residential": CustomerType.RESIDENTIAL,
+        "commercial": CustomerType.COMMERCIAL,
+        "insurance": CustomerType.INSURANCE,
+    }
+    internal_customer_type = customer_type_map.get(api_order.customer_type.value)
+    if internal_customer_type is None:
+        raise ValueError(f"Unknown API customer type: {api_order.customer_type}")
+
+    return Order(
+        id=api_order.id,
+        user_id=api_order.user_id,
+        vehicle_id=api_order.vehicle_id,
+        repair_order_number=api_order.repair_order_number,
+        address_id=api_order.address_id,
+        earliest_available_time=api_order.earliest_available_time,
+        notes=api_order.notes,
+        invoice=api_order.invoice,
+        customer_type=internal_customer_type,
+        address=_api_address_to_internal(api_order.address),
+        vehicle=_api_vehicle_to_internal(api_order.vehicle),
+        services=[_api_service_to_internal(svc) for svc in api_order.services]
+    )
+
+def _api_job_to_internal(api_job: JobResponse) -> Job:
+    """Converts JobResponse (API) to Job (Internal)."""
+    # Map API JobStatus enum to internal JobStatus enum
+    status_map = {
+        "pending_review": JobStatus.PENDING_REVIEW,
+        "assigned": JobStatus.ASSIGNED,
+        "scheduled": JobStatus.SCHEDULED,
+        "pending_revisit": JobStatus.PENDING_REVISIT,
+        "completed": JobStatus.COMPLETED,
+        "cancelled": JobStatus.CANCELLED,
+    }
+    internal_status = status_map.get(api_job.status.value)
+    if internal_status is None:
+        raise ValueError(f"Unknown API job status: {api_job.status}")
+
+    # Convert job_duration (minutes in API) to timedelta (internal)
+    job_duration_timedelta = timedelta(minutes=api_job.job_duration)
+
+    return Job(
+        id=api_job.id,
+        order_id=api_job.order_id,
+        service_id=api_job.service_id,
+        assigned_technician=api_job.assigned_technician,
+        address_id=api_job.address_id,
+        priority=api_job.priority,
+        status=internal_status,
+        requested_time=api_job.requested_time,
+        estimated_sched=api_job.estimated_sched,
+        estimated_sched_end=api_job.estimated_sched_end,
+        customer_eta_start=api_job.customer_eta_start,
+        customer_eta_end=api_job.customer_eta_end,
+        job_duration=job_duration_timedelta, 
+        notes=api_job.notes,
+        fixed_assignment=api_job.fixed_assignment,
+        fixed_schedule_time=api_job.fixed_schedule_time,
+        order_ref=_api_order_to_internal(api_job.order_ref),
+        address=_api_address_to_internal(api_job.address),
+        equipment_requirements=api_job.equipment_requirements # Already list[str]
+    )
+
+def _api_technician_to_internal(api_tech: TechnicianResponse) -> Technician:
+    """Converts TechnicianResponse (API) to Technician (Internal)."""
+    return Technician(
+        id=api_tech.id,
+        user_id=api_tech.user_id,
+        assigned_van_id=api_tech.assigned_van_id,
+        workload=api_tech.workload,
+        home_address=_api_address_to_internal(api_tech.home_address),
+        current_location=_api_address_to_internal(api_tech.current_location) if api_tech.current_location else None,
+        assigned_van=_api_van_to_internal(api_tech.assigned_van) if api_tech.assigned_van else None
+    )
+
+
+# --- Data Interface Functions (Using API) ---
 
 def fetch_address_by_id(address_id: int) -> Optional[Address]:
-    """Fetches an address by its ID."""
-    result = mcp_supabase_query("""
-        SELECT id, street_address, lat, lng
-        FROM addresses
-        WHERE id = %s
-        LIMIT 1
-    """, [address_id])
-    
-    if not result or not result[0]:
+    """Fetches an address by its ID via the API."""
+    try:
+        response = _make_request("GET", f"/addresses/{address_id}")
+        api_addr = AddressResponse(**response.json())
+        return _api_address_to_internal(api_addr)
+    except ValueError as e: # Handle API 404s gracefully
+        if "404" in str(e):
+            return None
+        raise # Re-raise other errors
+    except ConnectionError:
+        # Handle connection errors if needed, maybe return None or raise specific exception
         return None
-    
-    addr = result[0]
-    return Address(
-        id=addr['id'],
-        street_address=addr['street_address'],
-        lat=addr['lat'],
-        lng=addr['lng']
-    )
-
-def fetch_vehicle_by_id(vehicle_id: int) -> Optional[CustomerVehicle]:
-    """Fetches a customer vehicle by its ID, potentially including ymm_id."""
-    result = mcp_supabase_query("""
-        SELECT cv.id, cv.vin, cv.make, cv.year, cv.model,
-               ymm.ymm_id
-        FROM customer_vehicles cv
-        LEFT JOIN ymm_ref ymm ON 
-            ymm.year = cv.year AND 
-            ymm.make = cv.make AND 
-            ymm.model = cv.model
-        WHERE cv.id = %s
-        LIMIT 1
-    """, [vehicle_id])
-    
-    if not result or not result[0]:
-        return None
-    
-    vehicle = result[0]
-    return CustomerVehicle(
-        id=vehicle['id'],
-        vin=vehicle['vin'],
-        make=vehicle['make'],
-        year=vehicle['year'],
-        model=vehicle['model'],
-        ymm_id=vehicle['ymm_id']
-    )
-
-def fetch_user_customer_type(user_id: uuid.UUID) -> Optional[CustomerType]:
-    """Fetches the customer type for a given user ID."""
-    result = mcp_supabase_query("""
-        SELECT customer_type
-        FROM users
-        WHERE id = %s
-        LIMIT 1
-    """, [str(user_id)])
-    
-    if not result or not result[0]:
-        return None
-    
-    return CustomerType(result[0]['customer_type'])
-
-def fetch_services_by_ids(service_ids: List[int]) -> List[Service]:
-    """Fetches service details for a list of service IDs."""
-    if not service_ids:
-        return []
-        
-    # Convert list of IDs to string for IN clause
-    ids_str = ','.join(str(id) for id in service_ids)
-    
-    result = mcp_supabase_query(f"""
-        SELECT id, service_name, service_category
-        FROM services
-        WHERE id IN ({ids_str})
-    """)
-    
-    if not result:
-        return []
-    
-    return [
-        Service(
-            id=svc['id'],
-            service_name=svc['service_name'],
-            service_category=svc['service_category']
-        )
-        for svc in result
-    ]
-
-def fetch_van_with_equipment(van_id: int) -> Optional[Van]:
-    """Fetches van details including its equipment list."""
-    # First fetch the van details
-    van_result = mcp_supabase_query("""
-        SELECT id, last_service, next_service, vin
-        FROM vans
-        WHERE id = %s
-        LIMIT 1
-    """, [van_id])
-    
-    if not van_result or not van_result[0]:
-        return None
-    
-    van_data = van_result[0]
-    
-    # Then fetch all equipment for this van
-    equipment_result = mcp_supabase_query("""
-        SELECT e.id, e.equipment_type, ve.equipment_model as model
-        FROM van_equipment ve
-        JOIN equipment e ON e.id = ve.equipment_id
-        WHERE ve.van_id = %s
-    """, [van_id])
-    
-    equipment_list = [
-        Equipment(
-            id=eq['id'],
-            equipment_type=eq['equipment_type'],
-            model=eq['model']
-        )
-        for eq in (equipment_result or [])
-    ]
-    
-    return Van(
-        id=van_data['id'],
-        last_service=van_data['last_service'],
-        next_service=van_data['next_service'],
-        vin=van_data['vin'],
-        equipment=equipment_list
-    )
 
 def fetch_all_active_technicians() -> List[Technician]:
     """
-    Fetches all active technicians, populating their associated van,
-    equipment, home address, and potentially current location.
+    Fetches all active technicians via the API, populating their associated van,
+    equipment, home address, and current location.
     """
-    result = mcp_supabase_query("""
-        SELECT 
-            t.id,
-            t.user_id,
-            t.assigned_van_id,
-            t.workload,
-            u.home_address_id,
-            a.id as addr_id,
-            a.street_address,
-            a.lat,
-            a.lng
-        FROM technicians t
-        JOIN users u ON u.id = t.user_id
-        JOIN addresses a ON a.id = u.home_address_id
-        -- Could add WHERE clause here if we need to filter active/inactive techs
-    """)
-    
-    if not result:
+    try:
+        response = _make_request("GET", "/technicians")
+        api_technicians = [TechnicianResponse(**tech_data) for tech_data in response.json()]
+        return [_api_technician_to_internal(api_tech) for api_tech in api_technicians]
+    except (ValueError, ConnectionError):
+        # Handle errors - returning empty list might be appropriate
         return []
-    
-    technicians = []
-    for tech_data in result:
-        # Create Address object for home location
-        home_addr = Address(
-            id=tech_data['addr_id'],
-            street_address=tech_data['street_address'],
-            lat=tech_data['lat'],
-            lng=tech_data['lng']
-        )
-        
-        # Fetch van and equipment if assigned
-        assigned_van = None
-        if tech_data['assigned_van_id']:
-            assigned_van = fetch_van_with_equipment(tech_data['assigned_van_id'])
-        
-        tech = Technician(
-            id=tech_data['id'],
-            user_id=tech_data['user_id'],
-            assigned_van_id=tech_data['assigned_van_id'],
-            workload=tech_data['workload'],
-            home_address=home_addr,
-            current_location=home_addr,  # Default to home address if no current location tracked
-            assigned_van=assigned_van
-        )
-        technicians.append(tech)
-    
-    return technicians
+
 
 def fetch_pending_jobs() -> List[Job]:
     """
-    Fetches all jobs eligible for scheduling (e.g., status='pending_review',
-    not fixed if we only schedule dynamic ones initially).
+    Fetches all jobs eligible for scheduling via the API.
     Populates related Order, Address, Vehicle, Services, and CustomerType.
-    Also fetches equipment requirements for each job.
+    Also includes equipment requirements for each job.
     """
-    # First fetch the jobs with their basic related data
-    result = mcp_supabase_query("""
-        SELECT 
-            j.id,
-            j.order_id,
-            j.assigned_technician_id,
-            j.address_id,
-            j.priority,
-            j.status,
-            j.requested_time,
-            j.estimated_sched,
-            j.job_duration,
-            j.notes,
-            -- Order fields
-            o.user_id,
-            o.vehicle_id,
-            o.repair_order_number,
-            o.earliest_available_time,
-            o.notes as order_notes,
-            o.invoice,
-            -- Address fields
-            a.street_address,
-            a.lat,
-            a.lng,
-            -- User fields
-            u.customer_type,
-            -- Vehicle fields
-            cv.vin,
-            cv.make,
-            cv.year,
-            cv.model,
-            ymm.ymm_id
-        FROM jobs j
-        JOIN orders o ON o.id = j.order_id
-        JOIN addresses a ON a.id = j.address_id
-        JOIN users u ON u.id = o.user_id
-        JOIN customer_vehicles cv ON cv.id = o.vehicle_id
-        LEFT JOIN ymm_ref ymm ON 
-            ymm.year = cv.year AND 
-            ymm.make = cv.make AND 
-            ymm.model = cv.model
-        WHERE j.status = 'pending_review'
-        AND j.fixed = false
-    """)
-    
-    if not result:
+    try:
+        response = _make_request("GET", "/jobs/schedulable")
+        api_jobs = [JobResponse(**job_data) for job_data in response.json()]
+        return [_api_job_to_internal(api_job) for api_job in api_jobs]
+    except (ValueError, ConnectionError):
+         # Handle errors - returning empty list might be appropriate
         return []
+
+
+def fetch_jobs(technician_id: Optional[int] = None, status: Optional[JobStatus] = None) -> List[Job]:
+    """
+    Fetches jobs via the API, optionally filtering by technician_id and/or status.
+    Populates related Order, Address, Vehicle, Services, and other relationships.
     
-    # For each job, we need to:
-    # 1. Create the Address object
-    # 2. Create the CustomerVehicle object
-    # 3. Fetch the services for the job
-    # 4. Fetch equipment requirements based on services and vehicle
-    # 5. Create the Order object
-    # 6. Finally create the Job object with all related data
-    
-    jobs = []
-    for job_data in result:
-        # 1. Create Address
-        address = Address(
-            id=job_data['address_id'],
-            street_address=job_data['street_address'],
-            lat=job_data['lat'],
-            lng=job_data['lng']
-        )
+    Args:
+        technician_id: Optional ID of the technician to filter jobs by
+        status: Optional JobStatus to filter jobs by
         
-        # 2. Create CustomerVehicle
-        vehicle = CustomerVehicle(
-            id=job_data['vehicle_id'],
-            vin=job_data['vin'],
-            make=job_data['make'],
-            year=job_data['year'],
-            model=job_data['model'],
-            ymm_id=job_data['ymm_id']
-        )
+    Returns:
+        List of Job objects matching the criteria
+    """
+    try:
+        # Build query parameters
+        params = {}
+        if technician_id is not None:
+            params["technician_id"] = technician_id
+        if status is not None:
+            params["status"] = status.value  # API expects string value from enum
+            
+        # Make request with query parameters
+        response = _make_request("GET", "/jobs", params=params)
         
-        # 3. Fetch services for this job
-        services_result = mcp_supabase_query("""
-            SELECT s.id, s.service_name, s.service_category
-            FROM job_services js
-            JOIN services s ON s.id = js.service_id
-            WHERE js.job_id = %s
-        """, [job_data['id']])
-        
-        services = [
-            Service(
-                id=svc['id'],
-                service_name=svc['service_name'],
-                service_category=svc['service_category']
-            )
-            for svc in (services_result or [])
-        ]
-        
-        # 4. Fetch equipment requirements
-        equipment_requirements = []
-        if job_data['ymm_id'] and services:
-            equipment_requirements = fetch_equipment_requirements(
-                job_data['ymm_id'],
-                [s.id for s in services]
-            )
-        
-        # 5. Create Order
-        order = Order(
-            id=job_data['order_id'],
-            user_id=job_data['user_id'],
-            vehicle_id=job_data['vehicle_id'],
-            repair_order_number=job_data['repair_order_number'],
-            address_id=job_data['address_id'],
-            earliest_available_time=job_data['earliest_available_time'],
-            notes=job_data['order_notes'],
-            invoice=job_data['invoice'],
-            customer_type=CustomerType(job_data['customer_type']),
-            address=address,
-            vehicle=vehicle,
-            services=services
-        )
-        
-        # 6. Create Job
-        job = Job(
-            id=job_data['id'],
-            order_id=job_data['order_id'],
-            assigned_technician_id=job_data['assigned_technician_id'],
-            address_id=job_data['address_id'],
-            priority=job_data['priority'],
-            status=JobStatus(job_data['status']),
-            requested_time=job_data['requested_time'],
-            estimated_sched=job_data['estimated_sched'],
-            job_duration=job_data['job_duration'],  # Will be converted by validator
-            notes=job_data['notes'],
-            fixed=False,  # We filtered for non-fixed jobs
-            order_ref=order,
-            address=address,
-            services=services,
-            equipment_requirements=equipment_requirements
-        )
-        
-        jobs.append(job)
-    
-    return jobs
+        # Convert API response to internal models
+        api_jobs = [JobResponse(**job_data) for job_data in response.json()]
+        return [_api_job_to_internal(api_job) for api_job in api_jobs]
+    except (ValueError, ConnectionError) as e:
+        # Log the error
+        print(f"Error fetching jobs: {str(e)}")
+        # Return empty list for graceful handling
+        return []
 
 
 def fetch_equipment_requirements(ymm_id: int, service_ids: List[int]) -> List[str]:
     """
-    Fetches the required equipment models for a given vehicle YMM ID and list of service IDs.
-    Queries the relevant specialized equipment requirement tables.
+    Fetches the required equipment models via the API for a given vehicle 
+    YMM ID and list of service IDs.
+    
+    Note: The current API endpoint only supports one service_id at a time.
+          This function will make multiple API calls if multiple service_ids are provided.
+          Consider enhancing the API if batch fetching is needed frequently.
     """
     if not service_ids or not ymm_id:
         return []
-    
-    # First get the service categories for these service IDs
-    service_cats = mcp_supabase_query(f"""
-        SELECT DISTINCT service_category
-        FROM services
-        WHERE id IN ({','.join(str(id) for id in service_ids)})
-    """)
-    
-    if not service_cats:
-        return []
-    
-    # Build a UNION query for each relevant equipment requirements table
-    queries = []
-    for cat in service_cats:
-        category = cat['service_category']
-        table_name = f"{category}_equipment_requirements"
-        queries.append(f"""
-            SELECT equipment_model
-            FROM {table_name}
-            WHERE ymm_id = {ymm_id}
-            AND service_id IN ({','.join(str(id) for id in service_ids)})
-        """)
-    
-    if not queries:
-        return []
-    
-    # Execute the combined query
-    result = mcp_supabase_query(" UNION ".join(queries))
-    
-    # Return unique equipment models
-    return list(set(row['equipment_model'] for row in (result or [])))
+
+    all_requirements = set()
+    for service_id in service_ids:
+        try:
+            params = {"service_id": service_id, "ymm_id": ymm_id}
+            response = _make_request("GET", "/equipment/requirements", params=params)
+            api_response = EquipmentRequirementResponse(**response.json())
+            all_requirements.update(api_response.equipment_models)
+        except (ValueError, ConnectionError) as e:
+            print(f"Warning: Failed to fetch equipment requirements for service {service_id}, ymm {ymm_id}: {e}")
+            # Continue fetching for other services if one fails
+            continue
+            
+    return list(all_requirements)
 
 def update_job_assignment(job_id: int, technician_id: Optional[int], status: JobStatus) -> bool:
-    """Updates the assigned technician and status for a job."""
-    try:
-        mcp_supabase_query("""
-            UPDATE jobs
-            SET assigned_technician_id = %s,
-                status = %s
-            WHERE id = %s
-        """, [technician_id, status.value, job_id])
-        return True
-    except Exception as e:
-        print(f"Error updating job assignment: {e}")
+    """Updates the assigned technician and status for a job via the API."""
+    # Map internal JobStatus enum back to API JobStatus enum string value
+    status_map = {
+        JobStatus.PENDING_REVIEW: "pending_review",
+        JobStatus.ASSIGNED: "assigned",
+        JobStatus.SCHEDULED: "scheduled",
+        JobStatus.PENDING_REVISIT: "pending_revisit",
+        JobStatus.COMPLETED: "completed",
+        JobStatus.CANCELLED: "cancelled",
+    }
+    api_status_value = status_map.get(status)
+    if api_status_value is None:
+        print(f"Error: Unknown internal job status for API conversion: {status}")
         return False
 
-def update_job_etas(job_etas: Dict[int, Optional[datetime]]) -> bool:
-    """Updates the estimated schedule time (ETA) for multiple jobs."""
-    if not job_etas:
-        return True
+    request_data = JobAssignmentRequest(
+        assigned_technician=technician_id,
+        status=api_status_value 
+    )
     
     try:
-        # Build a VALUES clause for multiple rows
-        values = []
-        params = []
-        for job_id, eta in job_etas.items():
-            values.append(f"(%s, %s)")
-            params.extend([job_id, eta])
-        
-        # Use a temporary table approach for the update
-        mcp_supabase_query(f"""
-            WITH updates(job_id, new_eta) AS (
-                VALUES {','.join(values)}
-            )
-            UPDATE jobs
-            SET estimated_sched = u.new_eta
-            FROM updates u
-            WHERE jobs.id = u.job_id::integer
-        """, params)
+        _make_request("PATCH", f"/jobs/{job_id}/assignment", json=request_data.dict(exclude_unset=True))
         return True
-    except Exception as e:
-        print(f"Error updating job ETAs: {e}")
+    except (ValueError, ConnectionError) as e:
+        print(f"Error updating job assignment via API for job {job_id}: {e}")
+        return False
+
+def update_job_etas(job_etas: Dict[int, Dict[str, Optional[datetime]]]) -> bool:
+    """
+    Updates the ETA fields for multiple jobs via the API.
+    
+    The job_etas parameter should be a dictionary mapping job IDs to a dictionary
+    of ETA field updates (using internal field names), e.g.:
+    {
+        1: {
+            'estimated_sched': datetime(...), 
+            'estimated_sched_end': datetime(...),
+            'customer_eta_start': datetime(...),
+            'customer_eta_end': datetime(...)
+        },
+        2: { ... }
+    }
+    """
+    if not job_etas:
+        return True
+        
+    # Convert internal ETA dictionary format to API's JobETABulkRequest format
+    api_eta_updates: List[JobETAUpdate] = []
+    for job_id, eta_fields in job_etas.items():
+        # Filter out None values and convert field names if necessary 
+        # (API and Internal seem aligned here)
+        update_data = {k: v for k, v in eta_fields.items() if v is not None}
+        if update_data: # Only add if there are actual updates
+            api_eta_updates.append(JobETAUpdate(job_id=job_id, **update_data))
+
+    if not api_eta_updates:
+        return True # Nothing to update
+
+    request_data = JobETABulkRequest(jobs=api_eta_updates)
+    
+    try:
+        _make_request("PATCH", "/jobs/etas", json=request_data.dict())
+        return True
+    except (ValueError, ConnectionError) as e:
+        print(f"Error updating job ETAs via API: {e}")
+        return False
+
+def update_job_fixed_schedule(job_id: int, fixed_schedule_time: Optional[datetime]) -> bool:
+    """Updates the fixed schedule time for a job via the API."""
+    request_data = JobScheduleRequest(fixed_schedule_time=fixed_schedule_time)
+    
+    try:
+        _make_request("PATCH", f"/jobs/{job_id}/schedule", json=request_data.dict(exclude_none=True))
+        return True
+    except (ValueError, ConnectionError) as e:
+        print(f"Error updating job fixed schedule time via API for job {job_id}: {e}")
         return False 

@@ -124,20 +124,23 @@ class Job(BaseModel):
     """Represents a single schedulable job, potentially part of an Order."""
     id: int
     order_id: int
-    assigned_technician_id: Optional[int] = None
+    service_id: int # Foreign key to the specific service this job performs
+    assigned_technician: Optional[int] = None  # Changed from assigned_technician_id to match DB schema
     address_id: int
     priority: int = Field(ge=0)
     status: JobStatus
-    requested_time: Optional[datetime] = None # From order? or separate?
+    requested_time: Optional[datetime] = None 
     estimated_sched: Optional[datetime] = None # Calculated by scheduler
+    estimated_sched_end: Optional[datetime] = None # End time of scheduled job
+    customer_eta_start: Optional[datetime] = None # Start of customer-facing ETA window
+    customer_eta_end: Optional[datetime] = None # End of customer-facing ETA window
     job_duration: timedelta # Estimated duration (use timedelta)
     notes: Optional[str] = None
-    fixed_assignment: bool = False # Is this assignment fixed/manual? Renamed from 'fixed'
+    fixed_assignment: bool = False # Is this assignment fixed/manual?
     fixed_schedule_time: Optional[datetime] = None # If set, mandatory start time
     # Related objects loaded separately
     order_ref: Order # Reference back to the full order details
     address: Address
-    services: List[Service] = Field(default_factory=list) # Populated from job_services
     equipment_requirements: List[str] = Field(default_factory=list) # List of required equipment models
 
     def __hash__(self):
@@ -182,8 +185,8 @@ class SchedulableUnit(BaseModel):
     priority: int # Highest priority of jobs within the unit
     location: Address # The single address for all jobs in this unit/order
     duration: timedelta # Total duration for all jobs in the unit (sum of job_duration)
-    assigned_technician_id: Optional[int] = None # Should be set when assigned
-    fixed_assignment: bool = False # If any job in the unit has fixed_assignment=true. Renamed from 'fixed'.
+    assigned_technician: Optional[int] = None # Changed from assigned_technician_id to match DB schema
+    fixed_assignment: bool = False # If any job in the unit has fixed_assignment=true
     fixed_schedule_time: Optional[datetime] = None # If any job in the unit has a fixed time, this holds that time.
 
     # Optional fields for tracking during scheduling/routing

@@ -8,6 +8,7 @@ This directory contains tests for the scheduler components.
 *   `test_routing.py`: Tests for routing utilities (`optimize_daily_route_and_get_time`, `update_etas_for_schedule`).
 *   `test_availability.py`: Tests for availability calculations.
 *   `test_utils.py`: Tests for general utility functions.
+*   `api/`: Tests for the scheduler API endpoints. See [API README](scheduler/api/README.md) for details.
 
 ## Strategy
 
@@ -18,13 +19,29 @@ This directory contains tests for the scheduler components.
     *   `get_technician_availability`
     *   OR-Tools solver (`pywrapcp`) for routing tests.
 *   **Integration Tests:** (Potentially in separate files or marked) to test the interaction between different scheduler components (e.g., how `assign_jobs` calls `calculate_eta` and influences `update_job_queues_and_routes`).
+*   **API Tests:** Tests for the API endpoints, verifying authentication, request/response formats, and error handling.
 
 ## Running Tests
 
 Use `pytest` from the root directory:
 
 ```bash
+# Run all tests
 pytest tests/
+
+# Run only API tests
+pytest tests/scheduler/api/
+
+# Use the run_tests.py script (from project root)
+python run_tests.py --api --verbose
+```
+
+## Test Environment
+
+A test environment configuration is available in `.env.test`. This can be used to run tests with a separate configuration:
+
+```bash
+ENV_FILE=.env.test pytest
 ```
 
 ## Specifics for `test_routing.py`

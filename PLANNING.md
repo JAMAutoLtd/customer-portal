@@ -101,14 +101,23 @@ This continuous re-optimization ensures the system adapts to changing conditions
 ---
 ## API LAYER FOR DATA ACCESS
 
-To facilitate interaction between the dynamic scheduler components and the underlying database, a dedicated API layer will be implemented (likely using FastAPI and SQLAlchemy/SQLModel). This layer serves several key purposes:
+To facilitate interaction between the dynamic scheduler components and the underlying database, a dedicated API layer is implemented using FastAPI. This layer serves several key purposes:
 
 1.  **Abstraction:** Decouples the scheduler logic from direct database interaction. The scheduler only needs to know how to communicate with the API endpoints.
-2.  **Encapsulation:** The API enforces how data is accessed and modified, containing the necessary database query logic, joins, and data transformations (e.g., deriving YMM IDs, fetching related user/address data).
+2.  **Encapsulation:** The API enforces how data is accessed and modified. It should contain the necessary database query logic (using SQLAlchemy/SQLModel), joins, and data transformations.
 3.  **Scalability & Maintainability:** Allows the scheduler and the data access logic to be developed, scaled, and maintained independently.
-4.  **Production Readiness:** Replaces placeholder functions, direct database calls, or development-specific tools (like AI tool queries) with a standard, robust HTTP-based interface suitable for deployment.
+4.  **Production Readiness:** Provides a standard, robust HTTP-based interface suitable for deployment, replacing placeholders or direct database calls within the scheduler.
 
-The scheduler's `data_interface.py` module will be responsible for making HTTP requests to this API layer to fetch data (like technicians, pending jobs, equipment requirements) and push updates (like job assignments and ETAs).
+**Intended Architecture:**
+
+*   The `scheduler` (`src/scheduler/scheduler.py`, `src/scheduler/routing.py`) interacts with the API via the `data_interface.py` module.
+*   `src/scheduler/data_interface.py` acts purely as an **HTTP client**, making requests to the API endpoints and converting data between API models and internal scheduler models.
+*   `src/scheduler/api/routes.py` defines the API endpoints and contains the core application logic, including interaction with the database (potentially via a dedicated database access layer/module).
+
+**Current State & Required Refactoring:**
+
+*   Currently, a **circular dependency** exists: `api/routes.py` incorrectly calls functions within `data_interface.py`, which in turn makes HTTP calls back to the API defined in `routes.py`.
+*   **Refactoring Needed:** The logic for database interaction currently present within `data_interface.py` needs to be moved into the `api/routes.py` handlers (or a new dedicated database access module used by the API). `data_interface.py` must be simplified to only handle making HTTP requests and performing data model conversions.
 
 ---
 ## SCHEDULER PSEUDOCODE
@@ -286,8 +295,8 @@ def update_job_queues_and_routes(technicians):
 
 # --- Helper function signatures needed ---
 # def create_schedulable_units(jobs_by_order): -> list_of_units (with jobs, priority, location, duration, fixed_assignment, fixed_schedule_time)
-# def get_technician_availability(tech, day_number): -> dict (with start_time, end_time, total_duration) or None
+# def get_technician_availability(tech, day_number): -> dict (with start_time, end_time, total_duration) or None # Should return tz-aware datetimes
 # def calculate_travel_time(loc1, loc2): -> timedelta
-# def optimize_daily_route_and_get_time(units_for_day, start_location, time_constraints=None): -> (list_of_units_ordered, total_timedelta) # Runs TSP using OR-Tools, respects constraints
+# def optimize_daily_route_and_get_time(units_for_day, start_location, time_constraints=None, day_start_time=None): -> (list_of_units_ordered, total_timedelta, dict_of_start_times_utc) # Requires tz-aware day_start_time and time_constraints, returns UTC start times
 # def find_unit_in_list(unit_to_find, list_to_search): -> found_unit # Needs comparison logic
-# def update_etas_for_schedule(tech): # Updates Job ETAs based on tech.schedule structure
+# def update_etas_for_schedule(tech, daily_start_times_utc=None): # Updates Job ETAs (as UTC) based on tech.schedule structure and optional UTC start times
