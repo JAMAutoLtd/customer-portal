@@ -44,3 +44,13 @@ export type Order = {
 export interface OrderCardProps {
   order: Order
 }
+
+export type UserProfile = {
+  id: string
+  full_name: string
+  phone?: string
+  home_address_id?: number
+  is_admin: boolean
+  customer_type: 'residential' | 'commercial' | 'insurance'
+  email?: string
+}

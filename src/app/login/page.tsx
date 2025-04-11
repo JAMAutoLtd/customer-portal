@@ -34,7 +34,7 @@ function LoginContent() {
         throw new Error(result.error || 'Login failed')
       }
 
-      router.push('/dashboard')
+      router.push('/orders')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

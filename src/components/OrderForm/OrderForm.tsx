@@ -364,7 +364,7 @@ export const OrderForm: React.FC = () => {
           <Button
             variant="secondary"
             type="button"
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/orders')}
           >
             Cancel
           </Button>
