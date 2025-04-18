@@ -6,12 +6,12 @@ const nextConfig = {
   async redirects() {
     return [
       {
-        source: "/",
-        destination: "/dashboard",
+        source: '/',
+        destination: '/orders',
         permanent: true, // ✅ Use `true` if this redirect is permanent
       },
-    ];
+    ]
   },
-};
+}
 
-export default nextConfig;
+export default nextConfig
