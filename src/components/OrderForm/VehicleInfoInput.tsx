@@ -33,7 +33,11 @@ const VehicleInfoInput: React.FC<VehicleInfoInputProps> = ({
   }
 
   const handleVinUnknownChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onFormDataUpdate({ vinUnknown: e.target.checked })
+    const isChecked = e.target.checked
+    onFormDataUpdate({
+      vinUnknown: isChecked,
+      vin: isChecked ? '' : vin,
+    })
   }
 
   const handleVehicleInfoUpdate = (info: VehicleInfo) => {
