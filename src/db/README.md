@@ -378,6 +378,13 @@ The database uses several enum types to ensure data consistency:
    - Values: 'pending_review', 'assigned', 'scheduled', 'pending_revisit', 'completed', 'cancelled'
    - Used in: jobs table
 
+   - 'pending_review' - no van is equipped with the necessary equipment model
+   - 'assigned' - a van is equipped with the necessary equipment model (for complex services) or type (for simple services) and a technician/van is assigned
+   - 'scheduled' - a technician is assigned to the job and time is scheduled
+   - 'pending_revisit' - a job wasn't completed and needs to be revisited
+   - 'completed' - the job is completed
+   - 'cancelled' - the job is cancelled
+
 3. **service_category**
    - Values: 'adas', 'airbag', 'immo', 'prog', 'diag'
    - Used in: services table and equipment table
