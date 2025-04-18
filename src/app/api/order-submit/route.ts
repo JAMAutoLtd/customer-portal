@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { determineJobPriority } from '@/utils/jobs'
+
+const JOB_DURATION = 60
 
 export async function POST(request: Request) {
   try {
@@ -47,6 +50,23 @@ export async function POST(request: Request) {
 
     const userId = session.user.id
 
+    // Get user profile to determine customer type
+    const { data: userProfile, error: userProfileError } = await supabase
+      .from('users')
+      .select('customer_type')
+      .eq('id', userId)
+      .single()
+
+    if (userProfileError) {
+      console.error('Error getting user profile:', userProfileError)
+      return NextResponse.json(
+        { error: 'Failed to retrieve user profile' },
+        { status: 500 }
+      )
+    }
+
+    const customerType = userProfile.customer_type
+
     const earliestDateTime = new Date(earliestDate)
 
     // Create address record
@@ -87,9 +107,10 @@ export async function POST(request: Request) {
       model: vehicleModel?.toUpperCase()?.trim() || 'UNKNOWN',
     }
 
+    console.log('🌟 vehicleData', vehicleData)
     // Upsert vehicle record
     const { data: vehicle, error: vehicleError } = await supabase
-      .from('vehicles')
+      .from('customer_vehicles')
       .upsert(vehicleData, {
         onConflict: vin ? 'vin' : undefined,
         ignoreDuplicates: !vin,
@@ -136,6 +157,7 @@ export async function POST(request: Request) {
     const orderId = orderResult.id
 
     if (selectedServiceIds && selectedServiceIds.length > 0) {
+      // Create order_services entries
       const { error: orderServicesError } = await supabase
         .from('order_services')
         .insert(
@@ -149,6 +171,56 @@ export async function POST(request: Request) {
         console.error('Error creating order services:', orderServicesError)
         return NextResponse.json(
           { error: 'Failed to create order services' },
+          { status: 500 }
+        )
+      }
+
+      // Get service details for each selected service
+      const { data: services, error: servicesError } = await supabase
+        .from('services')
+        .select('id, service_name, service_category')
+        .in(
+          'id',
+          selectedServiceIds.map((id: string) => parseInt(id))
+        )
+
+      if (servicesError) {
+        console.error('Error fetching services:', servicesError)
+        return NextResponse.json(
+          { error: 'Failed to fetch service details' },
+          { status: 500 }
+        )
+      }
+
+      // Create jobs with appropriate priorities
+      const jobPromises = services.map(async (service) => {
+        // Get priority using the extracted function
+        const priority = determineJobPriority(
+          customerType,
+          service.service_category
+        )
+
+        // Create job record
+        return supabase.from('jobs').insert([
+          {
+            order_id: orderId,
+            address_id: addressId,
+            priority: priority,
+            status: 'queued',
+            requested_time: earliestDateTime.toISOString(),
+            service_id: service.id,
+            notes: notes || null,
+            job_duration: JOB_DURATION,
+          },
+        ])
+      })
+
+      try {
+        await Promise.all(jobPromises)
+      } catch (jobError) {
+        console.error('Error creating jobs:', jobError)
+        return NextResponse.json(
+          { error: 'Failed to create jobs' },
           { status: 500 }
         )
       }

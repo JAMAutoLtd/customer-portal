@@ -51,6 +51,20 @@ export type UserProfile = {
   phone?: string
   home_address_id?: number
   is_admin: boolean
-  customer_type: 'residential' | 'commercial' | 'insurance'
+  customer_type: CustomerType
   email?: string
+}
+
+export enum CustomerType {
+  INSURANCE = 'insurance',
+  COMMERCIAL = 'commercial',
+  RESIDENTIAL = 'residential',
+}
+
+export enum ServiceCategory {
+  ADAS = 'adas',
+  AIRBAG = 'airbag',
+  IMMO = 'immo',
+  PROG = 'prog',
+  DIAG = 'diag',
 }

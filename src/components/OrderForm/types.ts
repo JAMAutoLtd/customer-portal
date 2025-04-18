@@ -1,11 +1,5 @@
 import { Service } from '@/types'
 
-// OLD FORM TYPES
-export type ServiceCategory =
-  | 'Insurance Claim'
-  | 'Salvage Repair or Commercial'
-  | 'Residential or Personal'
-
 export type ADASService =
   | 'Front Radar'
   | 'Windshield Camera'
