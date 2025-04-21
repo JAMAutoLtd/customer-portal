@@ -31,7 +31,11 @@ export const OrderForm: React.FC = () => {
   const { user, loading } = useAuth()
   const router = useRouter()
   const nextAvailableDate = getNextAvailableDate()
-  const [formData, setFormData] = useState<OrderFormData>(initialFormData)
+  const [formData, setFormData] = useState({
+    ...initialFormData,
+    lat: undefined as number | undefined,
+    lng: undefined as number | undefined,
+  })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -136,9 +140,11 @@ export const OrderForm: React.FC = () => {
 
       const requestData = {
         ...submissionData,
-        customerEmail: user?.email || '',
+        lat: formData.lat,
+        lng: formData.lng,
         earliestDate: earliestDateTimeISO,
         selectedServiceIds,
+        customerEmail: user?.email || '',
       }
 
       const response = await fetch('/api/order-submit', {
@@ -167,6 +173,8 @@ export const OrderForm: React.FC = () => {
         vehicleMake: '',
         vehicleModel: '',
         servicesRequired: {},
+        lat: undefined,
+        lng: undefined,
       })
       setSelectedTime(getNextAvailableTime())
     } catch (err) {
@@ -277,10 +285,17 @@ export const OrderForm: React.FC = () => {
             Address
           </label>
           <AddressInput
-            onAddressSelect={(address: string, isValid: boolean) => {
+            onAddressSelect={(
+              address: string,
+              isValid: boolean,
+              lat?: number,
+              lng?: number
+            ) => {
               setFormData((prev) => ({
                 ...prev,
                 address,
+                lat,
+                lng,
               }))
               setIsAddressValid(isValid)
             }}

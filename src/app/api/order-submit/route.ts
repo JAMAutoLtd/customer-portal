@@ -12,6 +12,8 @@ export async function POST(request: Request) {
     const {
       vin,
       address,
+      lat,
+      lng,
       earliestDate,
       notes,
       vehicleYear,
@@ -69,10 +71,20 @@ export async function POST(request: Request) {
 
     const earliestDateTime = new Date(earliestDate)
 
-    // Create address record
-    const { data: addressData, error: addressError } = await supabase
+    // Create address record with lat/lng if provided
+    const addressData: { street_address: string; lat?: number; lng?: number } =
+      {
+        street_address: address,
+      }
+
+    if (lat !== undefined && lng !== undefined) {
+      addressData.lat = lat
+      addressData.lng = lng
+    }
+
+    const { data: addressResult, error: addressError } = await supabase
       .from('addresses')
-      .insert([{ street_address: address }])
+      .insert([addressData])
       .select()
       .single()
 
@@ -84,7 +96,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const addressId = addressData.id
+    const addressId = addressResult.id
 
     // Ensure year is a valid number
     const yearNum = parseInt(vehicleYear)

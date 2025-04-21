@@ -5,8 +5,16 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const body = await request.json()
-    const { email, password, fullName, phone, streetAddress, customerType } =
-      body
+    const {
+      email,
+      password,
+      fullName,
+      phone,
+      streetAddress,
+      lat,
+      lng,
+      customerType,
+    } = body
 
     if (
       !email ||
@@ -57,10 +65,32 @@ export async function POST(request: Request) {
 
     if (existingAddress) {
       addressId = existingAddress.id
+
+      // Update coordinates if provided and address exists
+      if (lat !== undefined && lng !== undefined) {
+        await supabase
+          .from('addresses')
+          .update({ lat, lng })
+          .eq('id', addressId)
+      }
     } else {
+      // Prepare address data with coordinates if provided
+      const addressData: {
+        street_address: string
+        lat?: number
+        lng?: number
+      } = {
+        street_address: streetAddress,
+      }
+
+      if (lat !== undefined && lng !== undefined) {
+        addressData.lat = lat
+        addressData.lng = lng
+      }
+
       const { data: newAddress, error: addressError } = await supabase
         .from('addresses')
-        .insert([{ street_address: streetAddress }])
+        .insert([addressData])
         .select()
         .single()
 

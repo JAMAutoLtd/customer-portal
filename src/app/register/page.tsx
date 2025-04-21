@@ -16,15 +16,24 @@ export default function RegisterPage() {
     fullName: '',
     phone: '',
     streetAddress: '',
+    lat: undefined as number | undefined,
+    lng: undefined as number | undefined,
     customerType: 'residential' as CustomerType,
   })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleAddressSelect = (address: string) => {
+  const handleAddressSelect = (
+    address: string,
+    isValid: boolean,
+    lat?: number,
+    lng?: number
+  ) => {
     setFormData((prev) => ({
       ...prev,
       streetAddress: address,
+      lat,
+      lng,
     }))
   }
 
@@ -51,6 +60,8 @@ export default function RegisterPage() {
           fullName: formData.fullName,
           phone: formData.phone,
           streetAddress: formData.streetAddress,
+          lat: formData.lat,
+          lng: formData.lng,
           customerType: formData.customerType,
         }),
       })
