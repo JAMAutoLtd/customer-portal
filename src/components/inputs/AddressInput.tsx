@@ -6,7 +6,12 @@ import { CheckMarkIcon } from '../icons/CheckMarkIcon'
 import { Input } from '../ui/Input'
 
 interface AddressAutocompleteProps {
-  onAddressSelect: (address: string, isValid: boolean) => void
+  onAddressSelect: (
+    address: string,
+    isValid: boolean,
+    lat?: number,
+    lng?: number
+  ) => void
 }
 
 declare global {
@@ -45,7 +50,13 @@ const AddressInput: React.FC<AddressAutocompleteProps> = ({
 
         const autocomplete = new window.google.maps.places.Autocomplete(input, {
           componentRestrictions: { country: 'ca' },
-          fields: ['name', 'formatted_address', 'place_id', 'types'],
+          fields: [
+            'name',
+            'formatted_address',
+            'place_id',
+            'types',
+            'geometry',
+          ],
           types: ['geocode', 'establishment'],
         })
 
@@ -61,9 +72,17 @@ const AddressInput: React.FC<AddressAutocompleteProps> = ({
             fullAddress = `${place.name}, ${fullAddress}`
           }
 
+          // Get latitude and longitude
+          const lat = place.geometry?.location?.lat
+            ? place.geometry.location.lat()
+            : undefined
+          const lng = place.geometry?.location?.lng
+            ? place.geometry.location.lng()
+            : undefined
+
           setInputValue(fullAddress)
           setIsAddressValid(!!place.place_id)
-          onAddressSelect(fullAddress, !!place.place_id)
+          onAddressSelect(fullAddress, !!place.place_id, lat, lng)
         })
 
         setIsLoading(false)
