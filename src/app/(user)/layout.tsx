@@ -8,7 +8,12 @@ import { useEffect } from 'react'
 
 const navigation = [
   { name: 'Orders', href: '/orders', adminOnly: false },
-  { name: 'Availability', href: '/availability', adminOnly: true },
+  { name: 'Jobs', href: '/jobs', adminOnly: true },
+  {
+    name: 'Availability',
+    href: '/availability',
+    adminOnly: true,
+  },
 ]
 
 export default function UserLayout({

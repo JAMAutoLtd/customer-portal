@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { determineJobPriority } from '@/utils/jobs'
 
-const JOB_DURATION = 60
+const JOB_DURATION = 90
 
 export async function POST(request: Request) {
   try {
