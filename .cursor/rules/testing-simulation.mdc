@@ -1,0 +1,43 @@
+---
+description: 
+globs: SIMULATION/**,tests/**,package.json
+alwaysApply: false
+---
+---
+description: Explains the testing and simulation environment setup.
+globs: ["SIMULATION/**", "tests/**", "package.json"]
+tags: ["testing", "simulation", "e2e", "unit", "docker", "jest", "pytest"]
+---
+
+# Testing & Simulation Environment
+
+The project includes both unit tests and an end-to-end (E2E) simulation environment.
+
+**Unit Tests (`tests/`)**
+
+*   Located in the `tests/` directory, mirroring the `src/` structure (e.g., [tests/scheduler/orchestrator.test.ts](mdc:tests/scheduler/orchestrator.test.ts)).
+*   Uses Jest as the test runner (`npm run test`).
+*   External dependencies (Supabase client, Google Maps API, Optimization Service) are typically mocked.
+*   Python unit tests for the optimization service are in `optimize-service/tests/` ([optimize-service/tests/test_main.py](mdc:optimize-service/tests/test_main.py)) and use `pytest`.
+
+**E2E Simulation (`SIMULATION/`)**
+
+*   Provides a Docker-based environment to test the entire system flow.
+*   **Components ([SIMULATION/docker-compose.yml](mdc:SIMULATION/docker-compose.yml))**:
+    *   `postgres`: The database.
+    *   `postgrest`: API layer mimicking Supabase.
+    *   `nginx`: Proxy for PostgREST.
+    *   `optimize-service`: The Python optimization service container.
+*   **Database Setup (`SIMULATION/init-scripts/`)**:
+    *   SQL scripts define the schema ([SIMULATION/init-scripts/01-schema.sql](mdc:SIMULATION/init-scripts/01-schema.sql)), static test data ([SIMULATION/init-scripts/05-merged-custom-test-data.sql](mdc:SIMULATION/init-scripts/05-merged-custom-test-data.sql)), and permissions.
+*   **Dynamic Seeding ([SIMULATION/generate-dynamic-seed.js](mdc:SIMULATION/generate-dynamic-seed.js))**:
+    *   A Node.js script using Faker.js to generate realistic, relationally valid test data (orders, jobs, equipment) based on static data.
+    *   Can generate specific scenarios (e.g., missing equipment) via the `--scenario` argument.
+    *   Outputs an SQL script ([SIMULATION/init-scripts/07-generated-seed-data.sql](mdc:SIMULATION/init-scripts/07-generated-seed-data.sql)) and metadata ([SIMULATION/seed-metadata.json](mdc:SIMULATION/seed-metadata.json)).
+*   **E2E Tests ([tests/e2e/e2e.test.ts](mdc:tests/e2e/e2e.test.ts))**:
+    *   Jest tests that interact with the live Docker environment.
+    *   Read [SIMULATION/seed-metadata.json](mdc:SIMULATION/seed-metadata.json) to make assertions based on the dynamically generated scenario.
+*   **Orchestration Script ([SIMULATION/run-e2e-tests.js](mdc:SIMULATION/run-e2e-tests.js))**:
+    *   Manages the E2E test lifecycle: cleanup, optional seeding (with scenario), starting Docker Compose, waiting for services, running Jest E2E tests (`npm run test:e2e`), and tearing down.
+    *   Specific scenarios can be run using scripts defined in [package.json](mdc:package.json) (e.g., `npm run test:e2e:scenario -- --scenario=no-eligible-techs`).
+
