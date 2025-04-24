@@ -19,11 +19,11 @@
     "clean": "rm -fo package-lock.json -ErrorAction SilentlyContinue; rm -fo pnpm-lock.yaml -ErrorAction SilentlyContinue; rm -r -fo node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/web/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/dist -ErrorAction SilentlyContinue; rm -r -fo apps/web/.next -ErrorAction SilentlyContinue"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@typescript-eslint/eslint-plugin": "^8.29.1",
-    "@typescript-eslint/parser": "^8.29.1",
+    "@types/node": "^18.19.3",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "dotenv": "^16.4.7",
-    "eslint": "^9.24.0",
+    "eslint": "^8.57.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
     "jest": "^29.7.0",
