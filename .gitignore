@@ -38,6 +38,9 @@ Thumbs.db
 coverage/
 .coverage
 
+# Downloaded Logs (Ignore all)
+downloaded-logs-*.json
+
 # Sensitive configuration / documentation
 .cursor/mcp.json
 # docs/developer-info.md # Removed, should likely be tracked
