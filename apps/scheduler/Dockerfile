@@ -6,23 +6,23 @@ WORKDIR /usr/src/app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy root workspace files first for cache efficiency
-COPY ../../pnpm-lock.yaml ./pnpm-lock.yaml
-COPY ../../pnpm-workspace.yaml ./pnpm-workspace.yaml
-COPY ../../package.json ./package.json
+# Copy root workspace files from the root of the build context (/workspace)
+COPY pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
 
-# Copy the scheduler package.json
-# Needs to be placed relative to the workspace root for pnpm install
-COPY package.json ./apps/scheduler/package.json
+# Copy the scheduler package.json from the build context
+# Place it where pnpm expects it within the WORKDIR structure for workspace install
+COPY apps/scheduler/package.json ./apps/scheduler/package.json
 
 # Install ALL dependencies (including dev) needed for the build
 # We will copy only prod dependencies to the final stage
 RUN pnpm install --frozen-lockfile 
 
-# Copy scheduler source code and tsconfig files
-COPY src ./apps/scheduler/src
-COPY tsconfig.json ./apps/scheduler/tsconfig.json
-COPY ../../tsconfig.base.json ./tsconfig.base.json
+# Copy scheduler source code and tsconfig files from the build context
+COPY apps/scheduler/src ./apps/scheduler/src
+COPY apps/scheduler/tsconfig.json ./apps/scheduler/tsconfig.json
+COPY tsconfig.base.json ./
 
 # Build the application (runs tsc)
 # Use the pnpm filter command, assuming the context is the root (/usr/src/app)
