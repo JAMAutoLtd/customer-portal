@@ -1,32 +1,5 @@
 steps:
-  # Install pnpm globally and run install from the workspace root (/workspace)
-  - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
-    entrypoint: 'bash'
-    # Cloud Build steps run in /workspace by default, which contains the repo checkout
-    args:
-      - '-c'
-      - |
-        npm install -g pnpm
-        echo "Running pnpm install in /workspace (allowing lockfile update)..."
-        # TEMPORARY DEBUGGING: Remove --frozen-lockfile to bypass outdated check
-        pnpm install --no-frozen-lockfile
-
-  # Build the Node.js application using pnpm workspace filter
-  - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
-    entrypoint: 'bash'
-    # Run from /workspace
-    args:
-      - '-c'
-      - |
-        # pnpm should already be installed globally from the previous step
-        # Install pnpm globally in *this* step's container as well
-        npm install -g pnpm
-        echo "Running pnpm build for scheduler using filter..."
-        # Filter the build command to target only the scheduler package
-        # Verify package name in apps/scheduler/package.json is @jamauto/scheduler
-        pnpm --filter @jamauto/scheduler run build
-
-  # Build the Docker image
+  # Build the Docker image using the multi-stage Dockerfile
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
@@ -35,8 +8,8 @@ steps:
         'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
         '-t',
         'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest', # Also tag latest
-        # Build context is the scheduler app directory within the workspace
-        '/workspace/apps/scheduler',
+        # Build context is the *root* of the repo checkout, as Dockerfile copies from ../..
+        '/workspace', 
         '-f',
         # Dockerfile path within the workspace
         '/workspace/apps/scheduler/Dockerfile'

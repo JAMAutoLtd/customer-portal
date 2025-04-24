@@ -1,24 +1,54 @@
-# Use an official Node.js runtime as a parent image
-# Choose a version compatible with your project (e.g., Node 18 or 20 LTS)
-FROM node:18-slim
+# Stage 1: Build Environment
+FROM node:18-slim AS builder
 
-# Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Install dependencies using package-lock.json for reproducible builds
-# Copy only necessary files first to leverage Docker cache
-COPY package*.json ./
-RUN npm ci --only=production --ignore-scripts
+# Install pnpm
+RUN npm install -g pnpm
 
-# Copy the rest of the application code (pre-built JS from 'dist')
-# This assumes `npm run build` was run *before* building the image
-COPY dist ./dist
+# Copy root workspace files first for cache efficiency
+COPY ../../pnpm-lock.yaml ./pnpm-lock.yaml
+COPY ../../pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY ../../package.json ./package.json
+
+# Copy the scheduler package.json
+# Needs to be placed relative to the workspace root for pnpm install
+COPY package.json ./apps/scheduler/package.json
+
+# Install ALL dependencies (including dev) needed for the build
+# We will copy only prod dependencies to the final stage
+RUN pnpm install --frozen-lockfile 
+
+# Copy scheduler source code and tsconfig files
+COPY src ./apps/scheduler/src
+COPY tsconfig.json ./apps/scheduler/tsconfig.json
+COPY ../../tsconfig.base.json ./tsconfig.base.json
+
+# Build the application (runs tsc)
+# Use the pnpm filter command, assuming the context is the root (/usr/src/app)
+RUN pnpm --filter @jamauto/scheduler run build
+
+# Optional: Prune dev dependencies if needed before copying to final stage
+# RUN pnpm prune --prod # Let's skip this for now, copy approach might be simpler
+
+# Stage 2: Runtime Environment
+FROM node:18-slim
+
+WORKDIR /usr/src/app
+
+# Copy package.json from scheduler (might only be needed for metadata)
 COPY package.json ./
 
-# Make port 8080 available to the world outside this container
-# Cloud Run uses the PORT env var, but EXPOSE is good practice
-EXPOSE 8080
+# Copy ONLY production node_modules from the builder stage
+# This assumes pnpm layout puts the relevant modules in node_modules
+# Check pnpm workspace layout if this doesn't work as expected
+# A potentially more robust way is `pnpm deploy` in the build stage
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+# If using pnpm deploy, the target dir might be different
 
-# Define the command to run the app
-# Assumes your compiled server entry point is dist/server.js
+# Copy the built application code from the builder stage
+COPY --from=builder /usr/src/app/apps/scheduler/dist ./dist
+
+# Expose port and define command
+EXPOSE 8080
 CMD [ "node", "dist/server.js" ] 
