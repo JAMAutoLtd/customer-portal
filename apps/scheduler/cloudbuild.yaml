@@ -1,51 +1,53 @@
 steps:
-  # Copy necessary root files for pnpm workspace install
+  # Copy necessary root files from the checked-out repo (/workspace) to the current directory
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        echo "Copying root files..."
-        # Copy files relative to the workspace root (..) from the scheduler context (.)
-        cp ../../pnpm-lock.yaml pnpm-lock.yaml || echo "pnpm-lock.yaml not found" # Be robust if files aren't present
-        cp ../../package.json root-package.json || echo "root package.json not found"
-        cp ../../pnpm-workspace.yaml pnpm-workspace.yaml || echo "pnpm-workspace.yaml not found"
-        cp ../../tsconfig.base.json tsconfig.base.json || echo "tsconfig.base.json not found"
-        # Copy the app's own package.json to where pnpm expects it relative to workspace root
-        mkdir -p apps/scheduler
-        cp package.json apps/scheduler/package.json
+        echo "Copying root files from /workspace..."
+        # Check if /workspace exists and copy from there
+        if [ -d "/workspace" ]; then
+          cp /workspace/pnpm-lock.yaml . || echo "pnpm-lock.yaml not found in /workspace"
+          cp /workspace/package.json ./root-package.json || echo "root package.json not found in /workspace"
+          cp /workspace/pnpm-workspace.yaml . || echo "pnpm-workspace.yaml not found in /workspace"
+          cp /workspace/tsconfig.base.json . || echo "tsconfig.base.json not found in /workspace"
+        else
+          echo "Error: /workspace directory not found." 
+          exit 1
+        fi
+        # Create the expected directory structure for pnpm install relative to /workspace
+        # Ensure the target apps/scheduler directory exists in /workspace
+        mkdir -p /workspace/apps/scheduler
+        # Copy the specific package.json from the original context (apps/scheduler) into the workspace structure
+        cp package.json /workspace/apps/scheduler/package.json
+        
 
-  # Install pnpm if not available and install dependencies
+  # Install pnpm globally and run install from the workspace root
   - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
     entrypoint: 'bash'
+    # Cloud Build steps run in /workspace by default
     args:
       - '-c'
       - |
-        # Install pnpm globally within the build step container
         npm install -g pnpm
-        # Run install from the *copied* root context perspective to respect workspace structure
-        # Need to ensure we are in a directory containing the copied root files
-        # (We might need to adjust the working directory logic here)
-        # Simpler: Run install directly in the scheduler dir, relying on copied lockfile?
-        # Let's try running install within the app dir directly, it *might* pick up the root lockfile
-        # Assuming pnpm is smart enough or the structure allows it.
-        # If fails, might need to reconstruct a mini-root structure in the build dir.
-        echo "Running pnpm install..."
-        cd /workspace # Cloud Build default workspace root
-        pnpm install --frozen-lockfile
+        echo "Running pnpm install in /workspace..."
+        pnpm install --frozen-lockfile # Run install from /workspace 
 
-  # Build the Node.js application (using pnpm script from package.json)
+  # Build the Node.js application using pnpm workspace filter
   - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
     entrypoint: 'bash'
+    # Run from /workspace
     args:
       - '-c'
       - |
         npm install -g pnpm # Ensure pnpm is available
-        echo "Running pnpm build for scheduler..."
-        cd /workspace/apps/scheduler # Change to the app directory
-        pnpm run build
+        echo "Running pnpm build for scheduler using filter..."
+        # Filter the build command to target only the scheduler package
+        # Ensure the package name in apps/scheduler/package.json is correct (e.g., "@jamauto/scheduler")
+        pnpm --filter @jamauto/scheduler run build 
 
-  # Build the Docker image
+  # Build the Docker image (Context remains apps/scheduler)
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
@@ -54,11 +56,12 @@ steps:
         'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
         '-t',
         'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest', # Also tag latest
-        '.', # Build context is the current directory (apps/scheduler)
+        # Build context needs to be the original scheduler directory where Dockerfile resides
+        '/workspace/apps/scheduler', 
         '-f',
-        'Dockerfile' # Explicitly state Dockerfile name
+        '/workspace/apps/scheduler/Dockerfile' # Explicitly state Dockerfile path
       ]
-    dir: 'apps/scheduler' # Specify the directory containing the Dockerfile
+    # dir: 'apps/scheduler' # dir is relative to /workspace, so this is redundant if context is absolute
 
   # Push the Docker image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
