@@ -29,7 +29,8 @@ RUN pnpm --filter @jamauto/scheduler run build
 
 # Prune dev dependencies and prepare for deployment
 # This creates a deployable node_modules structure within the specified target directory
-RUN pnpm --filter @jamauto/scheduler deploy --prod apps/scheduler/deploy
+# Adding --legacy flag due to pnpm v10+ default behavior (ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE)
+RUN pnpm --filter @jamauto/scheduler deploy --prod --legacy apps/scheduler/deploy
 
 
 # Stage 2: Production image
