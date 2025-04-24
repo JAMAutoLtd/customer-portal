@@ -56,3 +56,5 @@ pytest
 *   **Route Calculation**:
     *   Correct calculation of arrival, start, and end times for each stop.
     *   Correct calculation of `totalTravelTimeSeconds`, including the final leg from the last stop to the technician's designated `endLocationIndex`.
+
+Trigger
