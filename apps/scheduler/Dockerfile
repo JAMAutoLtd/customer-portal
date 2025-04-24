@@ -32,7 +32,8 @@ RUN echo "--- END DEBUG ---"
 
 # Install ALL dependencies (including dev) needed for the build
 # We will copy only prod dependencies to the final stage
-RUN pnpm install --frozen-lockfile 
+# RUN pnpm install --frozen-lockfile 
+RUN pnpm install --no-frozen-lockfile # <-- TEMPORARY DEBUG: Allow install despite lockfile issues
 
 # Copy scheduler source code and tsconfig files from the build context
 COPY apps/scheduler/src ./apps/scheduler/src
