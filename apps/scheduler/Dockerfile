@@ -1,73 +1,52 @@
-# Stage 1: Build Environment
+# Stage 1: Build the application
 FROM node:22-slim AS builder
-
 WORKDIR /usr/src/app
-# Install pnpm - Pin to the version used locally
+
+# Install pnpm
 RUN npm install -g pnpm@10.9.0
 
-# Copy root workspace files from the root of the build context (/workspace)
+# Copy dependency definition files
 COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
 COPY package.json ./
-
-# Copy the package.json files for ALL workspace members
-# Ensure these paths match your pnpm-workspace.yaml definition and actual structure
-# Note: If optimiser had a package.json relevant to pnpm, copy it too.
 COPY apps/scheduler/package.json ./apps/scheduler/package.json
-COPY apps/web/package.json ./apps/web/package.json
-# Add other COPY lines here if you have more pnpm workspace packages
-
-# Debug: Show files and locations before install
-RUN echo "--- DEBUG: Listing files before pnpm install ---"
-RUN pwd
-RUN ls -la
-RUN ls -la apps/
-RUN ls -la apps/scheduler/
-RUN ls -la apps/web/
-RUN echo "--- Root package.json ---"; cat package.json || echo "Root package.json not found"
-RUN echo "--- Scheduler package.json ---"; cat apps/scheduler/package.json || echo "Scheduler package.json not found"
-RUN echo "--- Web package.json ---"; cat apps/web/package.json || echo "Web package.json not found"
-RUN echo "--- pnpm-lock.yaml head ---"; head -n 30 pnpm-lock.yaml || echo "pnpm-lock.yaml not found"
-RUN echo "--- END DEBUG ---"
+# Add other workspace package.json files if scheduler depends on them directly
+# e.g., COPY apps/common-types/package.json ./apps/common-types/package.json
 
 # Install ALL dependencies (including dev) needed for the build
-# We will copy only prod dependencies to the final stage
-# RUN pnpm install --frozen-lockfile 
-# RUN pnpm install --no-frozen-lockfile # <-- TEMPORARY DEBUG: Allow install despite lockfile issues
-RUN pnpm install # <-- Use default (frozen lockfile in CI)
+# Using --frozen-lockfile is recommended in CI/CD
+RUN pnpm install --frozen-lockfile
 
-# Copy scheduler source code and tsconfig files from the build context
-COPY apps/scheduler/src ./apps/scheduler/src
-COPY apps/scheduler/tsconfig.json ./apps/scheduler/tsconfig.json
+# Copy necessary source code
 COPY tsconfig.base.json ./
-# Also copy tsconfig from web if scheduler depends on types/build output from it
-# COPY apps/web/tsconfig.json ./apps/web/tsconfig.json
+COPY apps/scheduler/tsconfig.json ./apps/scheduler/tsconfig.json
+COPY apps/scheduler/src ./apps/scheduler/src
+# Add other workspace source code if scheduler depends on them directly
+# e.g., COPY apps/common-types/src ./apps/common-types/src
 
-# Build the application (runs tsc)
-# Use the pnpm filter command, assuming the context is the root (/usr/src/app)
+# Build the scheduler application
 RUN pnpm --filter @jamauto/scheduler run build
 
-# Optional: Prune dev dependencies if needed before copying to final stage
-# RUN pnpm prune --prod # Let's skip this for now, copy approach might be simpler
+# Prune dev dependencies and prepare for deployment
+# This creates a deployable node_modules structure within the specified target directory
+RUN pnpm --filter @jamauto/scheduler deploy --prod apps/scheduler/deploy
 
-# Stage 2: Runtime Environment
-FROM node:22-slim
 
+# Stage 2: Production image
+FROM node:22-slim AS final
 WORKDIR /usr/src/app
 
-# Copy package.json from scheduler (might only be needed for metadata)
-COPY package.json ./
+# Set NODE_ENV to production
+ENV NODE_ENV=production
 
-# Copy ONLY production node_modules from the builder stage
-# This assumes pnpm layout puts the relevant modules in node_modules
-# Check pnpm workspace layout if this doesn't work as expected
-# A potentially more robust way is `pnpm deploy` in the build stage
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-# If using pnpm deploy, the target dir might be different
-
-# Copy the built application code from the builder stage
+# Copy ONLY the necessary production assets from the builder stage
+COPY --from=builder /usr/src/app/apps/scheduler/deploy/package.json ./package.json
+COPY --from=builder /usr/src/app/apps/scheduler/deploy/node_modules ./node_modules
 COPY --from=builder /usr/src/app/apps/scheduler/dist ./dist
 
-# Expose port and define command
+# Expose the port the app runs on
+# Cloud Run uses the PORT environment variable automatically
 EXPOSE 8080
+
+# Start the server using the compiled JavaScript entry point
 CMD [ "node", "dist/server.js" ] 
