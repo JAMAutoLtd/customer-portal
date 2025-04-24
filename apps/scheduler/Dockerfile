@@ -10,9 +10,12 @@ COPY pnpm-lock.yaml ./
 COPY pnpm-workspace.yaml ./
 COPY package.json ./
 
-# Copy the scheduler package.json from the build context
-# Place it where pnpm expects it within the WORKDIR structure for workspace install
+# Copy the package.json files for ALL workspace members
+# Ensure these paths match your pnpm-workspace.yaml definition and actual structure
+# Note: If optimiser had a package.json relevant to pnpm, copy it too.
 COPY apps/scheduler/package.json ./apps/scheduler/package.json
+COPY apps/web/package.json ./apps/web/package.json
+# Add other COPY lines here if you have more pnpm workspace packages
 
 # Install ALL dependencies (including dev) needed for the build
 # We will copy only prod dependencies to the final stage
@@ -22,6 +25,8 @@ RUN pnpm install --frozen-lockfile
 COPY apps/scheduler/src ./apps/scheduler/src
 COPY apps/scheduler/tsconfig.json ./apps/scheduler/tsconfig.json
 COPY tsconfig.base.json ./
+# Also copy tsconfig from web if scheduler depends on types/build output from it
+# COPY apps/web/tsconfig.json ./apps/web/tsconfig.json
 
 # Build the application (runs tsc)
 # Use the pnpm filter command, assuming the context is the root (/usr/src/app)
