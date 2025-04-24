@@ -25,14 +25,14 @@ This document outlines the steps to configure Google Cloud Build triggers for au
     *   `roles/run.admin` (on the project or specific services - simpler for admin) - Granted
     *   `roles/secretmanager.secretAccessor` (on the project or specific secrets) - Granted
     *   `roles/iam.serviceAccountUser` (potentially needed for Cloud Run deployment if using a custom runtime service account, but likely covered by `run.admin` if deploying *as* the Cloud Build SA).
-4.  [x] Create Cloud Build Trigger for `scheduler` in GCP:
+4.  [ ] Create Cloud Build Trigger for `scheduler` in GCP:
     *   Name: e.g., `deploy-scheduler-node`
     *   Event: Push to branch (e.g., `main`)
     *   Source Repository: `JAMAutoLtd/customer-portal`
     *   Included Files Filter: `apps/scheduler/**`
     *   Configuration: Cloud Build configuration file (`apps/scheduler/cloudbuild.yaml`)
     *   Substitution Variables: Define `_OPTIMIZATION_SERVICE_URL` and `_SUPABASE_URL` (or ensure defaults in YAML are correct).
-5.  [x] Create Cloud Build Trigger for `optimiser` in GCP:
+5.  [ ] Create Cloud Build Trigger for `optimiser` in GCP:
     *   Name: e.g., `deploy-optimiser-python`
     *   Event: Push to branch (e.g., `main`)
     *   Source Repository: `JAMAutoLtd/customer-portal`
