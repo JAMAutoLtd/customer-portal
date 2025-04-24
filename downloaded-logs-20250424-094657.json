@@ -1,0 +1,2562 @@
+[
+  {
+    "textPayload": "starting build \"c63d6cff-dbd2-41f7-8462-6622b5181ff8\"\n",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-0",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.077366614Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "MAIN",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "FETCHSOURCE",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-1",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.077391656Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "MAIN",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: Using 'master' as the name for the initial branch. This default branch name",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-2",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589261228Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: is subject to change. To configure the initial branch name to use in all",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-3",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589277788Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDERR"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: of your new repositories, which will suppress this warning, call:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-4",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589280211Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-5",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589282291Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDERR"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: \tgit config --global init.defaultBranch <name>",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-6",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589284279Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDERR"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-7",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589286548Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDERR"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-8",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589288131Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: 'development'. The just-created branch can be renamed via this command:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-9",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589289377Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-10",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589290719Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "hint: \tgit branch -m <name>",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-11",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.589292063Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "Initialized empty Git repository in /workspace/.git/",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-12",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:26.592975187Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDOUT"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:27.137439226Z"
+  },
+  {
+    "textPayload": "From https://github.com/JAMAutoLtd/customer-portal",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-13",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:27.319106200Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDERR",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:28.097599755Z"
+  },
+  {
+    "textPayload": " * branch            e41f47ef03f146d41dfe0a29b788ddb57438564f -> FETCH_HEAD",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-14",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:27.319147649Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDERR"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:28.097599755Z"
+  },
+  {
+    "textPayload": "HEAD is now at e41f47e tsconfig",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-15",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:27.345568795Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDOUT"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:28.097599755Z"
+  },
+  {
+    "textPayload": "GitCommit:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-16",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:27.345954935Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "gsutil:STDOUT",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:28.097599755Z"
+  },
+  {
+    "textPayload": "e41f47ef03f146d41dfe0a29b788ddb57438564f",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-17",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:27.348173652Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "gsutil:STDOUT"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:28.097599755Z"
+  },
+  {
+    "textPayload": "BUILD",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-18",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:27.540723588Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "MAIN"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:28.097599755Z"
+  },
+  {
+    "textPayload": "Starting Step #0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-19",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:28.163697579Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "MAIN",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:29.090885802Z"
+  },
+  {
+    "textPayload": "Step #0: Already have image (with digest): gcr.io/cloud-builders/npm",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-20",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:28.172734063Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:29.090885802Z"
+  },
+  {
+    "textPayload": "Step #0: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-21",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.734646481Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: added 1 package, and audited 2 packages in 2s",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-22",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.734658048Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-23",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.734909193Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: 1 package is looking for funding",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-24",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.734916487Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0:   run `npm fund` for details",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-25",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.735120215Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-26",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.736196537Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: found 0 vulnerabilities",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-27",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.736215225Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: Running pnpm install in /workspace (allowing lockfile update)...",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-28",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:31.747813947Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:32.095604261Z"
+  },
+  {
+    "textPayload": "Step #0: Scope: all 3 workspace projects",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-29",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:32.393580874Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:33.095530100Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 1, reused 0, downloaded 0, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-30",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:32.873135048Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:33.095530100Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 32, reused 0, downloaded 10, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-31",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:33.875100418Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:34.088607460Z"
+  },
+  {
+    "textPayload": "Step #0: apps/web                                 |  WARN  deprecated @supabase/auth-helpers-nextjs@0.10.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-32",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:33.891254571Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:34.088607460Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 42, reused 0, downloaded 16, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-33",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:35.401948293Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:36.096873291Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 63, reused 0, downloaded 36, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-34",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:36.434006704Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:37.092506011Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 64, reused 0, downloaded 39, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-35",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:37.434878984Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:38.094714339Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 74, reused 0, downloaded 51, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-36",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:38.435442573Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:39.079283815Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 76, reused 0, downloaded 54, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-37",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:39.435836241Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:40.104479935Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 199, reused 0, downloaded 183, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-38",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:40.445949061Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:41.079740970Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 252, reused 0, downloaded 225, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-39",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:41.448571973Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:42.079569905Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 297, reused 0, downloaded 245, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-40",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:42.520597145Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:43.079656657Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 301, reused 0, downloaded 258, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-41",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:43.521457543Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:44.080042777Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 332, reused 0, downloaded 268, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-42",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:44.521676461Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:45.091339894Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 393, reused 0, downloaded 269, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-43",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:45.522113904Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:46.080386230Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 449, reused 0, downloaded 269, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-44",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:46.524410966Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:47.096244001Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 475, reused 0, downloaded 302, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-45",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:47.525377287Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:48.080682405Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 482, reused 0, downloaded 435, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-46",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:48.526373935Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:49.081370779Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 559, reused 0, downloaded 476, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-47",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:49.527460587Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:50.080343959Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 628, reused 0, downloaded 553, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-48",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:50.532058870Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:51.088234756Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 747, reused 0, downloaded 676, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-49",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:51.534385262Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:52.081275754Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 871, reused 0, downloaded 830, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-50",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:52.534470621Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:53.080231292Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  4 deprecated subdependencies found: @supabase/auth-helpers-shared@0.7.0, glob@7.2.3, inflight@1.0.6, node-domexception@1.0.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-51",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:53.487843890Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:54.080521934Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 894, reused 0, downloaded 854, added 0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-52",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:53.535069889Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:54.080521934Z"
+  },
+  {
+    "textPayload": "Step #0: Packages: +842",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-53",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:53.553199695Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:54.080521934Z"
+  },
+  {
+    "textPayload": "Step #0: ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-54",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:53.553221815Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:54.080521934Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 894, reused 0, downloaded 854, added 678",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-55",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:54.536161338Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:55.081607331Z"
+  },
+  {
+    "textPayload": "Step #0: Progress: resolved 894, reused 0, downloaded 854, added 842, done",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-56",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:55.172409652Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:56.080116321Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  Failed to create bin at /workspace/node_modules/.pnpm/node_modules/.bin/supabase. ENOENT: no such file or directory, open '/workspace/node_modules/.pnpm/node_modules/supabase/bin/supabase'",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-57",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:55.394416821Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:56.080116321Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  Failed to create bin at /workspace/node_modules/.pnpm/supabase@2.22.4/node_modules/supabase/node_modules/.bin/supabase. ENOENT: no such file or directory, open '/workspace/node_modules/.pnpm/supabase@2.22.4/node_modules/supabase/bin/supabase'",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-58",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:55.452680378Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:56.080116321Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  Failed to create bin at /workspace/node_modules/.pnpm/supabase@2.22.4/node_modules/supabase/node_modules/.bin/supabase. ENOENT: no such file or directory, open '/workspace/node_modules/.pnpm/supabase@2.22.4/node_modules/supabase/bin/supabase'",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-59",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:56.151060437Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  Failed to create bin at /workspace/apps/scheduler/node_modules/.bin/supabase. ENOENT: no such file or directory, open '/workspace/node_modules/.pnpm/supabase@2.22.4/node_modules/supabase/bin/supabase'",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-60",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:56.504175882Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  Failed to create bin at /workspace/apps/scheduler/node_modules/.bin/supabase. ENOENT: no such file or directory, open '/workspace/apps/scheduler/node_modules/supabase/bin/supabase'",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-61",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.058810987Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:  WARN  Issues with peer dependencies found",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-62",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073481251Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0: apps/web",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-63",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073496091Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0: └─┬ eslint-config-next 14.1.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-64",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073496883Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:   ├── ✕ unmet peer eslint@\"^7.23.0 || ^8.0.0\": found 9.25.1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-65",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073498116Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:   ├─┬ @typescript-eslint/parser 6.21.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-66",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073498660Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:   │ └── ✕ unmet peer eslint@\"^7.0.0 || ^8.0.0\": found 9.25.1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-67",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073503682Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:   └─┬ eslint-plugin-react-hooks 5.0.0-canary-7118f5dd7-20230705",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-68",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073504267Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0:     └── ✕ unmet peer eslint@\"^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0\": found 9.25.1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-69",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.073505952Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:57.081008650Z"
+  },
+  {
+    "textPayload": "Step #0: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-70",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081237318Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: devDependencies:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-71",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081247006Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + @faker-js/faker 9.7.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-72",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081248001Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + @types/node 22.14.1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-73",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081248563Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + @typescript-eslint/eslint-plugin 8.31.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-74",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081249450Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + @typescript-eslint/parser 8.31.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-75",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081249977Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + axios 1.8.4",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-76",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081250625Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + dotenv 16.5.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-77",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081251047Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + eslint 9.25.1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-78",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081251355Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + eslint-config-prettier 10.1.2",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-79",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081252262Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + eslint-plugin-prettier 5.2.6",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-80",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081252612Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + jest 29.7.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-81",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081253263Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + prettier 3.5.3",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-82",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081254065Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + ts-jest 29.3.2",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-83",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081254365Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + ts-node 10.9.2",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-84",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081254761Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: + typescript 5.8.3",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-85",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081255155Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-86",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081255543Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: ╭ Warning ─────────────────────────────────────────────────────────────────────╮",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-87",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081267988Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: │                                                                              │",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-88",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081268871Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: │   Ignored build scripts: msw, supabase, unrs-resolver.                       │",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-89",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081269538Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: │   Run \"pnpm approve-builds\" to pick which dependencies should be allowed     │",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-90",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081275584Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: │   to run scripts.                                                            │",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-91",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081276463Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: │                                                                              │",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-92",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081276995Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: ╰──────────────────────────────────────────────────────────────────────────────╯",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-93",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081278376Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-94",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.081278774Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #0"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Step #0: Done in 25.2s using pnpm v10.9.0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-95",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:57.094135159Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #0",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:58.083505887Z"
+  },
+  {
+    "textPayload": "Finished Step #0",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-96",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:58.168379751Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "MAIN",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:59.080719437Z"
+  },
+  {
+    "textPayload": "Starting Step #1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-97",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:58.168500127Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "MAIN",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:59.080719437Z"
+  },
+  {
+    "textPayload": "Step #1: Already have image (with digest): gcr.io/cloud-builders/npm",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-98",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:45:58.170158535Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:45:59.080719437Z"
+  },
+  {
+    "textPayload": "Step #1: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-99",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.231504257Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: added 1 package, and audited 2 packages in 1s",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-100",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.231516339Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-101",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.231767537Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: 1 package is looking for funding",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-102",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.231887023Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1:   run `npm fund` for details",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-103",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.231888764Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-104",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.233167637Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: found 0 vulnerabilities",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-105",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.233175513Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: Running pnpm build for scheduler using filter...",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-106",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.243504188Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-107",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.902096296Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: > @jamauto/scheduler@1.0.0 build /workspace/apps/scheduler",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-108",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.902108947Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: > tsc",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-109",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.902109760Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: ",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-110",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:00.902110128Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:01.080993150Z"
+  },
+  {
+    "textPayload": "Step #1: src/db/update.ts(5,15): error TS6133: 'JobStatus' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-111",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.710011459Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/scheduler/eligibility.ts(1,22): error TS6133: 'Job' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-112",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.710763694Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/scheduler/orchestrator.ts(3,27): error TS6133: 'getJobsByStatus' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-113",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.710779554Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/scheduler/orchestrator.ts(4,38): error TS6133: 'JobBundle' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-114",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.710780325Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/scheduler/orchestrator.ts(4,90): error TS6133: 'Address' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-115",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711032457Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/scheduler/orchestrator.ts(4,99): error TS6133: 'SchedulableJob' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-116",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711038969Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/scheduler/payload.ts(5,5): error TS6133: 'Address' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-117",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711040174Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/server.ts(14,21): error TS6133: 'req' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-118",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711040801Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/server.ts(20,32): error TS6133: 'req' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-119",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711249509Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/supabase/equipment.ts(2,57): error TS6133: 'EquipmentRequirement' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-120",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711255290Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: src/supabase/orders.ts(2,1): error TS6133: 'YmmRef' is declared but its value is never read.",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-121",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.711256187Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: /workspace/apps/scheduler:",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-122",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.753658428Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "Step #1"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1:  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @jamauto/scheduler@1.0.0 build: `tsc`",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-123",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.753668314Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Step #1: Exit status 2",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-124",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:06.753669472Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "Step #1",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.081523878Z"
+  },
+  {
+    "textPayload": "Finished Step #1",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-125",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "project_id": "optimize-service",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:07.171003245Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "MAIN"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.291833Z"
+  },
+  {
+    "textPayload": "ERROR",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-126",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "project_id": "optimize-service",
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:07.171087447Z",
+    "severity": "INFO",
+    "labels": {
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+      "build_step": "MAIN"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.291833Z"
+  },
+  {
+    "textPayload": "ERROR: build step 1 \"gcr.io/cloud-builders/npm\" failed: step exited with non-zero status: 2",
+    "insertId": "c63d6cff-dbd2-41f7-8462-6622b5181ff8-127",
+    "resource": {
+      "type": "build",
+      "labels": {
+        "build_id": "c63d6cff-dbd2-41f7-8462-6622b5181ff8",
+        "build_trigger_id": "6d8d1250-531a-4491-94dd-dd6941d2fc6e",
+        "project_id": "optimize-service"
+      }
+    },
+    "timestamp": "2025-04-24T15:46:07.171111986Z",
+    "severity": "INFO",
+    "labels": {
+      "build_step": "MAIN",
+      "build_tags": "trigger-6d8d1250-531a-4491-94dd-dd6941d2fc6e"
+    },
+    "logName": "projects/optimize-service/logs/cloudbuild",
+    "receiveTimestamp": "2025-04-24T15:46:07.291833Z"
+  }
+]
