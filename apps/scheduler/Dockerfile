@@ -17,10 +17,22 @@ COPY apps/scheduler/package.json ./apps/scheduler/package.json
 COPY apps/web/package.json ./apps/web/package.json
 # Add other COPY lines here if you have more pnpm workspace packages
 
+# Debug: Show files and locations before install
+RUN echo "--- DEBUG: Listing files before pnpm install ---"
+RUN pwd
+RUN ls -la
+RUN ls -la apps/
+RUN ls -la apps/scheduler/
+RUN ls -la apps/web/
+RUN echo "--- Root package.json ---"; cat package.json || echo "Root package.json not found"
+RUN echo "--- Scheduler package.json ---"; cat apps/scheduler/package.json || echo "Scheduler package.json not found"
+RUN echo "--- Web package.json ---"; cat apps/web/package.json || echo "Web package.json not found"
+RUN echo "--- pnpm-lock.yaml head ---"; head -n 30 pnpm-lock.yaml || echo "pnpm-lock.yaml not found"
+RUN echo "--- END DEBUG ---"
+
 # Install ALL dependencies (including dev) needed for the build
 # We will copy only prod dependencies to the final stage
-# RUN pnpm install --frozen-lockfile 
-RUN pnpm install --no-frozen-lockfile # <-- TEMPORARY DEBUG: Allow install despite lockfile issues
+RUN pnpm install --frozen-lockfile 
 
 # Copy scheduler source code and tsconfig files from the build context
 COPY apps/scheduler/src ./apps/scheduler/src
