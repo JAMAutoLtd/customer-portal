@@ -1,0 +1,104 @@
+steps:
+  # Copy necessary root files for pnpm workspace install
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "Copying root files..."
+        # Copy files relative to the workspace root (..) from the scheduler context (.)
+        cp ../../pnpm-lock.yaml pnpm-lock.yaml || echo "pnpm-lock.yaml not found" # Be robust if files aren't present
+        cp ../../package.json root-package.json || echo "root package.json not found"
+        cp ../../pnpm-workspace.yaml pnpm-workspace.yaml || echo "pnpm-workspace.yaml not found"
+        cp ../../tsconfig.base.json tsconfig.base.json || echo "tsconfig.base.json not found"
+        # Copy the app's own package.json to where pnpm expects it relative to workspace root
+        mkdir -p apps/scheduler
+        cp package.json apps/scheduler/package.json
+
+  # Install pnpm if not available and install dependencies
+  - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Install pnpm globally within the build step container
+        npm install -g pnpm
+        # Run install from the *copied* root context perspective to respect workspace structure
+        # Need to ensure we are in a directory containing the copied root files
+        # (We might need to adjust the working directory logic here)
+        # Simpler: Run install directly in the scheduler dir, relying on copied lockfile?
+        # Let's try running install within the app dir directly, it *might* pick up the root lockfile
+        # Assuming pnpm is smart enough or the structure allows it.
+        # If fails, might need to reconstruct a mini-root structure in the build dir.
+        echo "Running pnpm install..."
+        cd /workspace # Cloud Build default workspace root
+        pnpm install --frozen-lockfile
+
+  # Build the Node.js application (using pnpm script from package.json)
+  - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        npm install -g pnpm # Ensure pnpm is available
+        echo "Running pnpm build for scheduler..."
+        cd /workspace/apps/scheduler # Change to the app directory
+        pnpm run build
+
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
+        '-t',
+        'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest', # Also tag latest
+        '.', # Build context is the current directory (apps/scheduler)
+        '-f',
+        'Dockerfile' # Explicitly state Dockerfile name
+      ]
+    dir: 'apps/scheduler' # Specify the directory containing the Dockerfile
+
+  # Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest'] # Also push latest
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'scheduler-node', # Service name
+        '--project=$PROJECT_ID',
+        '--region=us-west1',
+        '--image=us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
+        '--platform=managed',
+        '--port=8080',
+        '--no-allow-unauthenticated', # Require authentication
+        '--min-instances=0',
+        '--max-instances=2',
+        '--cpu=1',
+        '--memory=512Mi',
+        # Secrets (adjust versions if needed)
+        '--update-secrets=SUPABASE_ANON_KEY=supabase-anon-key:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest',
+        # Environment variables - Use substitutions or fetch dynamically if possible
+        # Using _VARIABLE_NAME for user-defined substitutions expected in trigger setup
+        '--set-env-vars=OPTIMIZATION_SERVICE_URL=$_OPTIMIZATION_SERVICE_URL,SUPABASE_URL=$_SUPABASE_URL'
+      ]
+
+images:
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA'
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest'
+
+# Define substitutions expected from the trigger (or provide defaults)
+substitutions:
+  _OPTIMIZATION_SERVICE_URL: 'https://scheduler-optimize-service-vyo5f2aa2a-uw.a.run.app' # Default or placeholder
+  _SUPABASE_URL: 'https://rpwazhpyylwqfbxcwtsy.supabase.co/' # Default or placeholder
+
+options:
+  logging: CLOUD_LOGGING_ONLY 
