@@ -1,38 +1,14 @@
 steps:
-  # Copy necessary root files from the checked-out repo (/workspace) to the current directory
-  - name: 'gcr.io/cloud-builders/gcloud'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        echo "Copying root files from /workspace..."
-        # Check if /workspace exists and copy from there
-        if [ -d "/workspace" ]; then
-          cp /workspace/pnpm-lock.yaml . || echo "pnpm-lock.yaml not found in /workspace"
-          cp /workspace/package.json ./root-package.json || echo "root package.json not found in /workspace"
-          cp /workspace/pnpm-workspace.yaml . || echo "pnpm-workspace.yaml not found in /workspace"
-          cp /workspace/tsconfig.base.json . || echo "tsconfig.base.json not found in /workspace"
-        else
-          echo "Error: /workspace directory not found." 
-          exit 1
-        fi
-        # Create the expected directory structure for pnpm install relative to /workspace
-        # Ensure the target apps/scheduler directory exists in /workspace
-        mkdir -p /workspace/apps/scheduler
-        # Copy the specific package.json from the original context (apps/scheduler) into the workspace structure
-        cp package.json /workspace/apps/scheduler/package.json
-        
-
-  # Install pnpm globally and run install from the workspace root
+  # Install pnpm globally and run install from the workspace root (/workspace)
   - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
     entrypoint: 'bash'
-    # Cloud Build steps run in /workspace by default
+    # Cloud Build steps run in /workspace by default, which contains the repo checkout
     args:
       - '-c'
       - |
         npm install -g pnpm
         echo "Running pnpm install in /workspace..."
-        pnpm install --frozen-lockfile # Run install from /workspace 
+        pnpm install --frozen-lockfile
 
   # Build the Node.js application using pnpm workspace filter
   - name: 'gcr.io/cloud-builders/npm' # Use npm image which includes node
@@ -41,13 +17,13 @@ steps:
     args:
       - '-c'
       - |
-        npm install -g pnpm # Ensure pnpm is available
+        # pnpm should already be installed globally from the previous step
         echo "Running pnpm build for scheduler using filter..."
         # Filter the build command to target only the scheduler package
-        # Ensure the package name in apps/scheduler/package.json is correct (e.g., "@jamauto/scheduler")
-        pnpm --filter @jamauto/scheduler run build 
+        # Verify package name in apps/scheduler/package.json is @jamauto/scheduler
+        pnpm --filter @jamauto/scheduler run build
 
-  # Build the Docker image (Context remains apps/scheduler)
+  # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
@@ -56,12 +32,12 @@ steps:
         'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
         '-t',
         'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest', # Also tag latest
-        # Build context needs to be the original scheduler directory where Dockerfile resides
-        '/workspace/apps/scheduler', 
+        # Build context is the scheduler app directory within the workspace
+        '/workspace/apps/scheduler',
         '-f',
-        '/workspace/apps/scheduler/Dockerfile' # Explicitly state Dockerfile path
+        # Dockerfile path within the workspace
+        '/workspace/apps/scheduler/Dockerfile'
       ]
-    # dir: 'apps/scheduler' # dir is relative to /workspace, so this is redundant if context is absolute
 
   # Push the Docker image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -89,8 +65,7 @@ steps:
         '--memory=512Mi',
         # Secrets (adjust versions if needed)
         '--update-secrets=SUPABASE_ANON_KEY=supabase-anon-key:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest',
-        # Environment variables - Use substitutions or fetch dynamically if possible
-        # Using _VARIABLE_NAME for user-defined substitutions expected in trigger setup
+        # Environment variables - Use substitutions from trigger
         '--set-env-vars=OPTIMIZATION_SERVICE_URL=$_OPTIMIZATION_SERVICE_URL,SUPABASE_URL=$_SUPABASE_URL'
       ]
 
