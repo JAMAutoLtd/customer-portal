@@ -1,5 +1,5 @@
 # Stage 1: Build Environment
-FROM node:18-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /usr/src/app
 # Install pnpm - Pin to the version used locally
@@ -51,7 +51,7 @@ RUN pnpm --filter @jamauto/scheduler run build
 # RUN pnpm prune --prod # Let's skip this for now, copy approach might be simpler
 
 # Stage 2: Runtime Environment
-FROM node:18-slim
+FROM node:22-slim
 
 WORKDIR /usr/src/app
 
