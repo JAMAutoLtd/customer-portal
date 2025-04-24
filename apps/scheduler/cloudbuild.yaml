@@ -19,6 +19,8 @@ steps:
       - '-c'
       - |
         # pnpm should already be installed globally from the previous step
+        # Install pnpm globally in *this* step's container as well
+        npm install -g pnpm
         echo "Running pnpm build for scheduler using filter..."
         # Filter the build command to target only the scheduler package
         # Verify package name in apps/scheduler/package.json is @jamauto/scheduler
