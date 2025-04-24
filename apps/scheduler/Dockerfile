@@ -2,8 +2,8 @@
 FROM node:18-slim AS builder
 
 WORKDIR /usr/src/app
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm - Pin to the version used locally
+RUN npm install -g pnpm@10.9.0
 
 # Copy root workspace files from the root of the build context (/workspace)
 COPY pnpm-lock.yaml ./
