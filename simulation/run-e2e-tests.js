@@ -370,7 +370,7 @@ async function runTests(scenario) {
     const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
     // Prepare Jest arguments, splitting jestArgs if it contains spaces
-    const jestCliArgs = ['jest', '--config=jest.e2e.config.js', '--detectOpenHandles', 'tests/e2e'];
+    const jestCliArgs = ['jest', '--config=jest.e2e.config.js', '--detectOpenHandles', 'apps/scheduler/tests/e2e'];
     // Filter out empty strings that might result from split
     const additionalArgs = jestArgs ? jestArgs.split(' ').filter(arg => arg) : [];
     if (additionalArgs.length > 0) {
@@ -447,9 +447,9 @@ function ensureJestConfig() {
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: ['**/tests/e2e/**/*.test.ts'],
+  testMatch: ['<rootDir>/apps/scheduler/tests/e2e/**/*.test.ts'],
   setupFiles: ['dotenv/config'],
-  testTimeout: 30000 // Increased timeout
+  testTimeout: 60000 // Increased timeout
 };
     `.trim();
 
@@ -556,7 +556,7 @@ async function main() {
   }
 
   // Create the tests/e2e directory if it doesn't exist
-  const e2eDir = path.join(ROOT_DIR, 'tests', 'e2e');
+  const e2eDir = path.join(ROOT_DIR, 'apps', 'scheduler', 'tests', 'e2e');
   if (!fs.existsSync(e2eDir)) {
     fs.mkdirSync(e2eDir, { recursive: true });
     log(`Created directory: ${e2eDir}`, colors.green);

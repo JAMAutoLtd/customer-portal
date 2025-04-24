@@ -1,37 +1,33 @@
 {
-  "name": "jam-auto",
-  "version": "1.0.0",
+  "name": "@jamauto/web",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cd apps/web; pnpm run dev; cd ../..",
-    "dev:scheduler": "cd apps/scheduler; pnpm run dev; cd ../..",
-    "dev:optimiser": "cd apps/optimiser && uvicorn main:app --reload --port 8080",
-    "build:web": "cd apps/web; pnpm run build; cd ../..",
-    "build:scheduler": "cd apps/scheduler; pnpm run build; cd ../..",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
-    "format": "prettier --write \"apps/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\"",
-    "test": "pnpm test --recursive --if-present",
-    "test:web": "cd apps/web; pnpm run test; cd ../..",
-    "test:scheduler": "cd apps/scheduler; pnpm run test; cd ../..",
-    "test:optimiser": "cd apps/optimiser && pytest",
-    "test:e2e": "cd apps/scheduler; pnpm run test:e2e; cd ../..",
-    "db:generate-types": "cd apps/scheduler; pnpm run db:generate-types; cd ../..",
-    "clean": "rm -fo package-lock.json -ErrorAction SilentlyContinue; rm -fo pnpm-lock.yaml -ErrorAction SilentlyContinue; rm -r -fo node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/web/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/dist -ErrorAction SilentlyContinue; rm -r -fo apps/web/.next -ErrorAction SilentlyContinue"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@react-google-maps/api": "^2.20.6",
+    "@shadcn/ui": "^0.0.4",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/ssr": "^0.1.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "@tailwindcss/forms": "^0.5.7",
+    "autoprefixer": "^10.4.18",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.503.0",
+    "next": "15.2.0",
+    "postcss": "^8.4.35",
+    "react": "^18",
+    "react-day-picker": "^9.6.2",
+    "react-dom": "^18",
+    "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "dotenv": "^16.4.7",
-    "eslint": "^8.57.0",
-    "eslint-config-prettier": "^10.1.1",
-    "eslint-plugin-prettier": "^5.2.6",
-    "jest": "^29.7.0",
-    "prettier": "^3.5.3",
-    "ts-jest": "^29.3.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3",
-    "axios": "^1.8.4",
-    "@faker-js/faker": "^9.6.0"
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint-config-next": "14.1.0"
   }
 }
