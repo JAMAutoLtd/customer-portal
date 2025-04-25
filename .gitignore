@@ -1,46 +1,63 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Environment variables
+.env
+.env.*
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+# Node / TypeScript
+node_modules/
+dist/
 *.tsbuildinfo
-next-env.d.ts
 
-.vercel
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
 
-# supabase
-supabase
+# Python Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS stuff
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Editor folders / IDE
+.vscode/
+.idea/
+.idea/workspace.xml
+.idea/misc.xml
+*.iml
+
+# Test Artifacts / Coverage
+coverage/
+.coverage
+
+# Downloaded Logs (Ignore all)
+downloaded-logs-*.json
+
+# Sensitive configuration / documentation
+.cursor/mcp.json
+# docs/developer-info.md # Removed, should likely be tracked
+
+# Potential Downloaded Keys (Add specific filenames if needed)
+# *.private.json
+# *.key.json
+# service-account-*.json
+*-credentials.json
+
+# vibe tools
+.repomix-output.txt
+vibe-tools.config.json
+repomix.config.json
+.repomixignore
+PLAN.md
+
+# Configuration files (Generally keep unless they contain secrets)
+# repomix.config.json
+# vibe-tools.config.json

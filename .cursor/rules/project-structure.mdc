@@ -1,0 +1,27 @@
+---
+description: 
+globs: src/**,optimize-service/**,SIMULATION/**,package.json
+alwaysApply: false
+---
+---
+description: High-level overview of the project structure and entry points.
+globs: ["src/**", "optimize-service/**", "SIMULATION/**", "package.json"]
+tags: ["overview", "structure", "entrypoint"]
+---
+
+# Project Structure & Entry Points
+
+This project is a backend system for dynamically scheduling jobs, primarily consisting of two main components:
+
+1.  **Node.js/TypeScript Scheduler (`src/`)**: The main orchestrator responsible for fetching data, preparing the problem, calling the optimizer, and updating the database. It uses Supabase for data and Google Maps for travel times.
+    *   **Local/Script Execution**: Uses [src/index.ts](mdc:src/index.ts), which calls `runFullReplan` from [src/scheduler/orchestrator.ts](mdc:src/scheduler/orchestrator.ts).
+    *   **Cloud Run/HTTP Execution**: Uses [src/server.ts](mdc:src/server.ts), an Express server listening on `$PORT` (default 8080) with `/health` and `/run-replan` (POST) endpoints. The `/run-replan` endpoint triggers `runFullReplan` asynchronously.
+
+2.  **Python Optimization Service (`optimize-service/`)**: A separate FastAPI microservice ([optimize-service/main.py](mdc:optimize-service/main.py)) that receives the scheduling problem definition and uses Google OR-Tools to find an optimized solution via the `/optimize-schedule` endpoint. It uses Pydantic models defined in [optimize-service/models.py](mdc:optimize-service/models.py).
+
+**External Dependencies:**
+*   **Supabase**: Primary database and backend API. Client initialized in [src/supabase/client.ts](mdc:src/supabase/client.ts).
+*   **Google Maps API**: Used for travel time calculations in [src/google/maps.ts](mdc:src/google/maps.ts).
+
+Key configuration files include `.env` files, [package.json](mdc:package.json), and [tsconfig.json](mdc:tsconfig.json).
+

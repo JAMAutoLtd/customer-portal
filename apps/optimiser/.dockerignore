@@ -1,0 +1,52 @@
+# Ignore Python virtual environment
+.venv
+venv/
+env/
+ENV/
+
+# Ignore Test directory
+tests/
+
+# Ignore Python bytecode files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Ignore IDE/editor specific files
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Ignore Git directory (if initialized)
+.git/
+.gitignore
+
+# Ignore Docker specific files
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Ignore documentation
+README*
+LICENSE*
+*.md
+
+# Ignore build and distribution files
+build/
+dist/
+*.egg-info/
+
+# Ignore potentially sensitive or large files
+.env*
+*.log
+.secrets/
+credentials/
+
+# Ignore cache directories
+.cache/
+.mypy_cache/
+.coverage 

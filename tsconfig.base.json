@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    // Base options
+    "target": "ES2016",
+    "module": "CommonJS", 
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": false,
+    "strict": true,
+
+    // Module resolution
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+
+    // Add jest types globally for test files
+    "types": ["node", "jest"],
+
+    // Checks
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true, // Recommended
+    "noUnusedParameters": true, // Recommended
+    "noImplicitReturns": true, // Recommended
+    "noFallthroughCasesInSwitch": true // Recommended
+  },
+  "exclude": ["node_modules"]
+} 

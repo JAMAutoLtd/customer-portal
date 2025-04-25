@@ -1,0 +1,70 @@
+steps:
+  # Debug step: Check file contents before install
+  - name: 'ubuntu'
+    id: Debug
+    args: [
+        'bash', 
+        '-c',
+        'echo "--- Root package.json ---"; cat /workspace/package.json || echo "Root package.json not found"; \
+         echo "--- Scheduler package.json ---"; cat /workspace/apps/scheduler/package.json || echo "Scheduler package.json not found"; \
+         echo "--- Web package.json ---"; cat /workspace/apps/web/package.json || echo "Web package.json not found"; \
+         echo "--- Lockfile Scheduler Entry (if exists) ---"; grep -A 20 "importers:\/\.:\/dependencies:\/\@jamauto\/scheduler:" /workspace/pnpm-lock.yaml || grep -A 20 "importers:\/\.:\/devDependencies:\/\@jamauto\/scheduler:" /workspace/pnpm-lock.yaml || echo "Scheduler entry not found in lockfile importers"'
+      ]
+
+  # Build the Docker image using the multi-stage Dockerfile
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
+        '-t',
+        'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest', # Also tag latest
+        # Build context is the *root* of the repo checkout, as Dockerfile copies from ../..
+        '/workspace', 
+        '-f',
+        # Dockerfile path within the workspace
+        '/workspace/apps/scheduler/Dockerfile'
+      ]
+
+  # Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest'] # Also push latest
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'scheduler-node', # Service name
+        '--project=$PROJECT_ID',
+        '--region=us-west1',
+        '--image=us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA',
+        '--platform=managed',
+        '--port=8080',
+        '--no-allow-unauthenticated', # Require authentication
+        '--min-instances=0',
+        '--max-instances=2',
+        '--cpu=1',
+        '--memory=512Mi',
+        # Secrets (adjust versions if needed)
+        '--update-secrets=SUPABASE_ANON_KEY=supabase-anon-key:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest',
+        # Environment variables - Use substitutions from trigger
+        '--set-env-vars=OPTIMIZATION_SERVICE_URL=$_OPTIMIZATION_SERVICE_URL,SUPABASE_URL=$_SUPABASE_URL'
+      ]
+
+images:
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:$COMMIT_SHA'
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/scheduler-node:latest'
+
+# Define substitutions expected from the trigger (or provide defaults)
+substitutions:
+  _OPTIMIZATION_SERVICE_URL: 'https://scheduler-optimize-service-vyo5f2aa2a-uw.a.run.app' # Default or placeholder
+  _SUPABASE_URL: 'https://rpwazhpyylwqfbxcwtsy.supabase.co/' # Default or placeholder
+
+options:
+  logging: CLOUD_LOGGING_ONLY 
