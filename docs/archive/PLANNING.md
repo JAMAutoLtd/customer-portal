@@ -1,3 +1,5 @@
+> **Note:** This document is historical and may not reflect the current state of the project. Please refer to the main [README.md](../README.md) or current documentation in the `/docs` directory for up-to-date information.
+
 # Overview
 
 ## 1. Order Submission

@@ -1,86 +1,86 @@
 LOGICAL OVERVIEW TRACETHROUGH
 
-**1. Starting Point: `src/scheduler/orchestrator.ts` (`runFullReplan`)**
+**1. Starting Point: `apps/scheduler/src/scheduler/orchestrator.ts` (`runFullReplan`)**
 
 This file orchestrates the main replan process. It imports and calls functions from several modules:
 
-*   **Data Fetching (`src/supabase/`)**:
+*   **Data Fetching (`apps/scheduler/src/supabase/`)**:
     *   `technicians.ts`: `getActiveTechnicians` (Gets active technicians and their locations).
     *   `jobs.ts`: `getRelevantJobs` (Gets jobs for today's plan) and `getJobsByStatus` (Gets overflow jobs).
     *   `client.ts`: Provides the Supabase client instance.
-*   **Scheduling Logic (`src/scheduler/`)**:
+*   **Scheduling Logic (`apps/scheduler/src/scheduler/`)**:
     *   `availability.ts`: `calculateTechnicianAvailability` (For today) and `calculateAvailabilityForDay` (For future overflow days).
     *   `bundling.ts`: `bundleQueuedJobs`.
     *   `eligibility.ts`: `determineTechnicianEligibility`.
     *   `payload.ts`: `prepareOptimizationPayload`.
     *   `optimize.ts`: `callOptimizationService`.
     *   `results.ts`: `processOptimizationResults`.
-*   **Database Update (`src/db/`)**:
+*   **Database Update (`apps/scheduler/src/db/`)**:
     *   `update.ts`: `updateJobs`.
-*   **Types (`src/types/`)**: Imports various type definitions (`database.types.ts`).
+*   **Types (`apps/scheduler/src/types/`)**: Imports various type definitions (`database.types.ts`).
 
 
 
 **2. Tracing Dependencies:**
 
-*   **`src/supabase/client.ts`**:
+*   **`apps/scheduler/src/supabase/client.ts`**:
     *   Imports: `@supabase/supabase-js` (external library), `process.env` (Node.js standard).
     *   Purpose: Initializes and exports the Supabase client using environment variables.
 
-*   **`src/supabase/technicians.ts` (`getActiveTechnicians`)**:
+*   **`apps/scheduler/src/supabase/technicians.ts` (`getActiveTechnicians`)**:
     *   Imports: `supabase` (from `client.ts`), `Technician`, `Address`, `User` (types).
     *   Purpose: Queries Supabase `technicians` table, joining `users`, `van_assignments`, `vans`, and `addresses` to get technician details, current van location, and home address coordinates.
 
-*   **`src/supabase/jobs.ts` (`getRelevantJobs`, `getJobsByStatus`)**:
+*   **`apps/scheduler/src/supabase/jobs.ts` (`getRelevantJobs`, `getJobsByStatus`)**:
     *   Imports: `supabase` (from `client.ts`), `Job`, `JobStatus`, `Address`, `Service` (types).
     *   Purpose: Queries Supabase `jobs` table, joining `addresses` and `services`, filtering by specified statuses.
 
-*   **`src/db/update.ts` (`updateJobs`)**:
+*   **`apps/scheduler/src/db/update.ts` (`updateJobs`)**:
     *   Imports: `supabase` (from `client.ts`), `SupabaseClient`, `JobUpdateOperation` (types).
     *   Purpose: Performs batch updates on the Supabase `jobs` table based on a list of operations.
 
-*   **`src/scheduler/availability.ts` (`calculateTechnicianAvailability`, `calculateAvailabilityForDay`)**:
+*   **`apps/scheduler/src/scheduler/availability.ts` (`calculateTechnicianAvailability`, `calculateAvailabilityForDay`)**:
     *   Imports: `Technician`, `Job`, `TechnicianAvailability` (types).
     *   Purpose: Calculates technician start times, end times, and start locations based on locked jobs (for today) or standard work hours and home locations (for future days), considering working days/hours (currently Mon-Fri, 9am-6:30pm UTC). Uses standard JavaScript `Date` methods (UTC variants).
 
-*   **`src/scheduler/bundling.ts` (`bundleQueuedJobs`)**:
+*   **`apps/scheduler/src/scheduler/bundling.ts` (`bundleQueuedJobs`)**:
     *   Imports: `Job`, `JobBundle`, `SchedulableJob`, `SchedulableItem` (types).
     *   Purpose: Groups jobs with the same `order_id` into `JobBundle` objects.
 
-*   **`src/scheduler/eligibility.ts` (`determineTechnicianEligibility`)**:
+*   **`apps/scheduler/src/scheduler/eligibility.ts` (`determineTechnicianEligibility`)**:
     *   Imports: `SchedulableItem`, `Technician`, `JobBundle`, `SchedulableJob`, `EquipmentRequirement`, `VanEquipment` (types).
-    *   Imports: `getRequiredEquipmentForJob`, `getEquipmentForVans` (from `src/supabase/equipment.ts`).
+    *   Imports: `getRequiredEquipmentForJob`, `getEquipmentForVans` (from `apps/scheduler/src/supabase/equipment.ts`).
     *   Purpose: Compares equipment required for a job/bundle (fetched via `getRequiredEquipmentForJob`) with the equipment available in each technician's van (fetched via `getEquipmentForVans`) to determine eligibility. Breaks bundles if no single tech is eligible.
 
-*   **`src/scheduler/payload.ts` (`prepareOptimizationPayload`)**:
+*   **`apps/scheduler/src/scheduler/payload.ts` (`prepareOptimizationPayload`)**:
     *   Imports: `Technician`, `SchedulableItem`, `Job`, `Address`, `OptimizationPayload`, `OptimizationTechnician`, `OptimizationItem`, `OptimizationLocation`, `TechnicianAvailability` (types).
-    *   Imports: `getTravelTime` (from `src/google/maps.ts`).
+    *   Imports: `getTravelTime` (from `apps/scheduler/src/google/maps.ts`).
     *   Purpose: Constructs the JSON payload for the external optimization service. This involves:
         *   Indexing all unique locations (depot, technician start, job sites).
         *   Calculating the travel time matrix between all locations using `getTravelTime`.
         *   Formatting technician data (start/end times, start locations - either current or home based on `TechnicianAvailability`).
         *   Formatting schedulable items with their constraints and eligible technician indices.
 
-*   **`src/scheduler/optimize.ts` (`callOptimizationService`)**:
+*   **`apps/scheduler/src/scheduler/optimize.ts` (`callOptimizationService`)**:
     *   Imports: `axios` (external library), `OptimizationPayload`, `OptimizationResponsePayload` (types).
     *   Purpose: Sends the prepared payload to the optimization microservice URL (from environment variables) via an HTTP POST request using `axios`. Handles response and errors.
 
-*   **`src/scheduler/results.ts` (`processOptimizationResults`)**:
+*   **`apps/scheduler/src/scheduler/results.ts` (`processOptimizationResults`)**:
     *   Imports: `OptimizationResponsePayload`, `ScheduledJobUpdate`, `ItemRoute` (types).
     *   Purpose: Parses the JSON response from the optimization service, extracting the planned routes for each technician, calculated start times for scheduled jobs, and a list of unassigned items.
 
-*   **`src/supabase/equipment.ts` (`getRequiredEquipmentForJob`, `getEquipmentForVans`)**:
+*   **`apps/scheduler/src/supabase/equipment.ts` (`getRequiredEquipmentForJob`, `getEquipmentForVans`)**:
     *   Imports: `supabase` (from `client.ts`), `EquipmentRequirement`, `VanEquipment`, `Service`, `VehicleYmm` (types).
-    *   Imports: `getYmmIdForOrder` (from `src/supabase/orders.ts`).
+    *   Imports: `getYmmIdForOrder` (from `apps/scheduler/src/supabase/orders.ts`).
     *   Purpose:
         *   `getEquipmentForVans`: Fetches equipment currently assigned to specified vans.
         *   `getRequiredEquipmentForJob`: Determines equipment requirements based on job service category, vehicle type (using `getYmmIdForOrder`), and service details by querying `service_equipment_requirements`.
 
-*   **`src/google/maps.ts` (`getTravelTime`)**:
+*   **`apps/scheduler/src/google/maps.ts` (`getTravelTime`)**:
     *   Imports: `@googlemaps/google-maps-services-js` (external library), `Address` (type).
     *   Purpose: Calls the Google Maps Distance Matrix API to get driving travel times between locations. Includes an in-memory cache to avoid redundant API calls for the same origin-destination pairs within a short timeframe. Uses API key from environment variables.
 
-*   **`src/supabase/orders.ts` (`getYmmIdForOrder`)**:
+*   **`apps/scheduler/src/supabase/orders.ts` (`getYmmIdForOrder`)**:
     *   Imports: `supabase` (from `client.ts`), `Order` (type).
     *   Purpose: Fetches the `ymm_id` (Year-Make-Model identifier) associated with a specific `order_id` from the `orders` table.
 

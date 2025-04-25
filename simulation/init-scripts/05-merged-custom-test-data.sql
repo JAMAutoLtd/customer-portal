@@ -172,11 +172,11 @@ INSERT INTO "public"."users" ("id", "full_name", "phone", "home_address_id", "is
   ('00000000-0000-0000-0000-000000000150', 'Pirani''s Auto Service & Autobody', '403-200-0150', 54, false, 'insurance');
 
 -- 4. Vans
-INSERT INTO "public"."vans" ("id", "last_service", "next_service", "vin", "lat", "lng") VALUES
-  (1, '2024-01-01', '2024-07-01', '1FTNE24L57DA12345', 51.0301, -114.0719),
-  (2, '2024-01-01', '2024-07-01', '1FTNE24L57DA12346', 51.0852, -114.1303),
-  (3, '2024-01-01', '2024-07-01', '1FTNE24L57DA12347', 51.0123, -114.0387),
-  (4, '2024-01-01', '2024-07-01', '1FTNE24L57DA12348', 51.0624, -114.0412);
+INSERT INTO "public"."vans" ("id", "last_service", "next_service", "vin", "lat", "lng", "onestepgps_device_id") VALUES
+  (1, '2024-01-01', '2024-07-01', 'VIN_VAN_1', 51.0301, -114.0719, 'DEVICE_VAN_1'),
+  (2, '2024-01-01', '2024-07-01', 'VIN_VAN_2', 51.0852, -114.1303, 'DEVICE_VAN_2'),
+  (3, '2024-01-01', '2024-07-01', 'VIN_VAN_3', 51.0123, -114.0387, 'DEVICE_VAN_3'),
+  (4, '2024-01-01', '2024-07-01', 'VIN_VAN_4', 51.0624, -114.0412, 'DEVICE_VAN_4');
 
 -- 5. Equipment
 INSERT INTO "public"."equipment" ("id", "model", "equipment_type") VALUES
@@ -332,7 +332,7 @@ INSERT INTO "public"."customer_vehicles" ("id", "vin", "make", "model", "year") 
 
 -- 9. Technicians
 INSERT INTO "public"."technicians" ("id", "user_id", "assigned_van_id", "workload") VALUES
-  (1, '00000000-0000-0000-0000-000000000001', 1, 0),
-  (2, '00000000-0000-0000-0000-000000000002', 2, 0),
-  (3, '00000000-0000-0000-0000-000000000003', 3, 0),
-  (4, '00000000-0000-0000-0000-000000000004', 4, 0); 
+  (1, '00000000-0000-0000-0000-000000000001', 1, 100),
+  (2, '00000000-0000-0000-0000-000000000002', 2, 100),
+  (3, '00000000-0000-0000-0000-000000000003', 3, 80),
+  (4, '00000000-0000-0000-0000-000000000004', 4, 100); 

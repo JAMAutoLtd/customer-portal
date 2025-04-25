@@ -1,3 +1,5 @@
+> **Note:** This document contains historical task tracking information and may not reflect the current implementation details or project status. Refer to the main documentation in the `docs/` directory for up-to-date information.
+
 # Task List: Backend CI/CD Setup (Cloud Build)
 
 This document outlines the steps to configure Google Cloud Build triggers for automatically building and deploying the `scheduler` (Node.js) and `optimiser` (Python) backend services based on changes in the `JAMAutoLtd/customer-portal` monorepo.
