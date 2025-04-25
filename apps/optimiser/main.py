@@ -1,3 +1,14 @@
+# Load environment variables from root .env file
+import os
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from root .env file
+root_dir = Path(__file__).parent.parent.parent
+env_path = root_dir / '.env'
+load_dotenv(dotenv_path=env_path)
+
 from fastapi import FastAPI, HTTPException
 from models import (
     OptimizationRequestPayload, 

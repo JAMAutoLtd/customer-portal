@@ -42,11 +42,11 @@ export async function POST(request: Request) {
     if (sessionError || !session) {
       console.error(
         'Error getting session or user not authenticated:',
-        sessionError
+        sessionError,
       )
       return NextResponse.json(
         { error: 'User not authenticated' },
-        { status: 401 }
+        { status: 401 },
       )
     }
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       console.error('Error getting user profile:', userProfileError)
       return NextResponse.json(
         { error: 'Failed to retrieve user profile' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       console.error('Error creating address:', addressError)
       return NextResponse.json(
         { error: 'Failed to create address' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         { error: 'Invalid vehicle year' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -119,7 +119,6 @@ export async function POST(request: Request) {
       model: vehicleModel?.toUpperCase()?.trim() || 'UNKNOWN',
     }
 
-    console.log('🌟 vehicleData', vehicleData)
     // Upsert vehicle record
     const { data: vehicle, error: vehicleError } = await supabase
       .from('customer_vehicles')
@@ -137,7 +136,7 @@ export async function POST(request: Request) {
           error: 'Failed to create/update vehicle record',
           details: vehicleError.message,
         },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -162,7 +161,7 @@ export async function POST(request: Request) {
       console.error('Error creating order:', orderError)
       return NextResponse.json(
         { error: 'Failed to create order' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -176,14 +175,14 @@ export async function POST(request: Request) {
           selectedServiceIds.map((serviceId: string) => ({
             order_id: orderId,
             service_id: parseInt(serviceId),
-          }))
+          })),
         )
 
       if (orderServicesError) {
         console.error('Error creating order services:', orderServicesError)
         return NextResponse.json(
           { error: 'Failed to create order services' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
@@ -193,14 +192,14 @@ export async function POST(request: Request) {
         .select('id, service_name, service_category')
         .in(
           'id',
-          selectedServiceIds.map((id: string) => parseInt(id))
+          selectedServiceIds.map((id: string) => parseInt(id)),
         )
 
       if (servicesError) {
         console.error('Error fetching services:', servicesError)
         return NextResponse.json(
           { error: 'Failed to fetch service details' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
@@ -209,7 +208,7 @@ export async function POST(request: Request) {
         // Get priority using the extracted function
         const priority = determineJobPriority(
           customerType,
-          service.service_category
+          service.service_category,
         )
 
         // Create job record
@@ -233,7 +232,7 @@ export async function POST(request: Request) {
         console.error('Error creating jobs:', jobError)
         return NextResponse.json(
           { error: 'Failed to create jobs' },
-          { status: 500 }
+          { status: 500 },
         )
       }
     }
@@ -247,7 +246,7 @@ export async function POST(request: Request) {
     console.error('Error submitting order:', error)
     return NextResponse.json(
       { error: 'Failed to submit order' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
