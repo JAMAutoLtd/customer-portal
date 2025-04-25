@@ -34,7 +34,15 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
             lng
           )
         ),
-        vans ( id, vin, lat, lng, last_service, next_service )
+        vans ( 
+          id, 
+          vin, 
+          lat, 
+          lng, 
+          last_service, 
+          next_service,
+          onestepgps_device_id
+        )
       `);
 
       console.log('Raw Supabase response (technicians):', JSON.stringify(response, null, 2)); // Log raw response
@@ -81,7 +89,16 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
       // Cast to expected types after validation
       const user = userJoin as User; 
       const homeAddress = addressJoin as Address;
-      const van = Array.isArray(techRaw.vans) && techRaw.vans.length > 0 ? techRaw.vans[0] as Van : undefined;
+      
+      // Handle the vans join - it might be null or an array
+      let van: Van | undefined = undefined;
+      if (techRaw.vans) { // Check if vans data exists
+         // Supabase might return a single object or an array for a to-one join if specified like vans(...)
+         const vanData = Array.isArray(techRaw.vans) ? techRaw.vans[0] : techRaw.vans;
+         if (vanData) {
+            van = vanData as Van; // Cast the found van data
+         }
+      }
 
       // Create home_location object
       let homeLocation: { lat: number; lng: number } | undefined = undefined;
@@ -97,11 +114,11 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
         user_id: techRaw.user_id,
         assigned_van_id: techRaw.assigned_van_id,
         workload: techRaw.workload,
-        user: user, // Assign the validated User object
-        van: van, // van can be undefined, matching Technician interface
-        home_location: homeLocation, // home_location is optional
+        user: user,
+        van: van, // Assign the potentially updated van object (which includes device id)
+        home_location: homeLocation,
         current_location: (van?.lat != null && van?.lng != null) ? { lat: van.lat, lng: van.lng } : undefined,
-        earliest_availability: undefined, // earliest_availability is optional
+        earliest_availability: undefined,
       };
       return technicianData;
     })

@@ -180,7 +180,8 @@ CREATE TABLE IF NOT EXISTS "public"."vans" (
     "next_service" timestamp with time zone,
     "vin" character varying,
     "lat" numeric,
-    "lng" numeric
+    "lng" numeric,
+    "onestepgps_device_id" VARCHAR
 );
 
 CREATE SEQUENCE IF NOT EXISTS "public"."fleet_vehicles_id_seq"

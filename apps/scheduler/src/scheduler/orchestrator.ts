@@ -10,6 +10,7 @@ import { callOptimizationService } from './optimize';
 import { processOptimizationResults, ScheduledJobUpdate } from './results';
 import { updateJobs, JobUpdateOperation } from '../db/update';
 import { getEquipmentForVans } from '../supabase/equipment';
+import { fetchDeviceLocations, DeviceLocationMap } from '../onestepgps/client';
 
 const LOCKED_JOB_STATUSES: JobStatus[] = ['en_route', 'in_progress', 'fixed_time'];
 const INITIAL_SCHEDULABLE_STATUS: JobStatus = 'queued';
@@ -170,9 +171,42 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         }
     });
 
+    // +++ START One Step GPS Integration +++
+    console.log('Step 0.5: Fetching real-time technician locations from One Step GPS...');
+    const realTimeLocations: DeviceLocationMap | null = await fetchDeviceLocations();
+
+    if (realTimeLocations) {
+        let updatedCount = 0;
+        allTechnicians.forEach(tech => {
+            // Get device ID from the assigned van
+            const deviceId = tech.van?.onestepgps_device_id;
+
+            if (deviceId && realTimeLocations[deviceId]) {
+                const locationInfo = realTimeLocations[deviceId];
+                // Update the technician's current location in memory
+                tech.current_location = { lat: locationInfo.lat, lng: locationInfo.lng };
+                // Optional: Consider storing timestamp if needed for staleness checks
+                // tech.location_timestamp = locationInfo.timestamp; 
+                updatedCount++;
+            } else if (tech.assigned_van_id && deviceId) {
+                // Only warn if tech has a van and device ID, but no location was found in the API response
+                console.warn(`OneStepGPS WARN: No real-time location found for Tech ${tech.id} (Van: ${tech.assigned_van_id}, Device ID: ${deviceId}). Using last known DB/Van location.`);
+            } else if (tech.assigned_van_id && !deviceId) {
+                // Optional: Log info if van exists but has no device ID configured
+                // console.log(`OneStepGPS INFO: Tech ${tech.id} (Van: ${tech.assigned_van_id}) has no OneStepGPS device ID configured.`);
+            }
+            // If no assigned van or no deviceId, naturally fall back to DB location (likely home or last known van location from initial fetch)
+        });
+        console.log(`OneStepGPS: Successfully updated ${updatedCount} technician locations from One Step GPS.`);
+    } else {
+        console.warn('OneStepGPS WARN: Failed to fetch real-time locations from One Step GPS. Proceeding with last known locations from database/van data.');
+        // No changes needed, allTechnicians array already has DB/van locations as current_location fallback
+    }
+    // +++ END One Step GPS Integration +++
+
     const lockedJobsToday = relevantJobsToday.filter(job => LOCKED_JOB_STATUSES.includes(job.status));
     const fixedTimeJobsToday = lockedJobsToday.filter(job => job.status === 'fixed_time' && job.fixed_schedule_time);
-    console.log(`Initial state: ${jobsToPlan.size} jobs to plan, ${lockedJobsToday.length} locked, ${fixedTimeJobsToday.length} fixed time.`);
+    console.log(`Initial state (after GPS check): ${jobsToPlan.size} jobs to plan, ${lockedJobsToday.length} locked, ${fixedTimeJobsToday.length} fixed time.`);
 
     // ========================================\n    // == Pass 1: Plan for Today             ==\n    // ========================================
     if (jobsToPlan.size > 0) {

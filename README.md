@@ -1,6 +1,20 @@
-# Overview
+# JAM Auto - Customer Portal & Scheduler
 
-## 1. Order Submission
+## Project Structure
+
+This project is a monorepo managed using `pnpm` workspaces. It contains the following main applications and components:
+
+*   **`apps/web`**: The Next.js frontend application for customer interactions (order placement, viewing history) and potentially admin/technician views.
+*   **`apps/scheduler`**: The Node.js/TypeScript backend service responsible for core job scheduling logic, interacting with Supabase, Google Maps, One Step GPS, and the optimizer service.
+*   **`apps/optimiser`**: A Python/FastAPI backend service using Google OR-Tools to solve the route optimization problems sent by the scheduler.
+*   **`simulation/`**: A Docker Compose environment for simulating the backend (Postgres, PostgREST, Optimizer) for local development and end-to-end testing.
+*   **`docs/`**: Contains detailed technical documentation, specifications, and guides. **See [./docs/index.md](./docs/index.md) for the main documentation hub.**
+
+## Overview
+
+This section provides a high-level overview of the customer order flow and the backend scheduling system.
+
+### 1. Order Submission
 
 **Customer provides the following information:**
 
@@ -53,10 +67,10 @@
 ## 3. Job Creation & Prioritization
 
 - **Job Creation:**
-- Jobs are created from orders, creating a job for each service requested. The results of the \_equipment_requirements check will be used in determining the assigned technicians.
+- Jobs are created from orders, typically one job per service requested. The results of the equipment requirements check are used in determining technician eligibility.
 
 - **Job Prioritization:**
-- Jobs are assigned priorty based on the following:
+- Jobs are assigned priority based on the following (lower number = higher priority):
   1. Insurance customer jobs
   2. Commercial customer ADAS jobs
   3. Airbag jobs
@@ -70,50 +84,49 @@
 
 ## SCHEDULER SYSTEM OVERVIEW
 
-The scheduler is a dynamic system designed to continuously optimize job assignments and technician routes, balancing efficiency, customer ETAs, and job priorities within daily operational constraints.
+(See [./docs/architecture/ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md) and [./docs/reference/OVERVIEW.md](./docs/reference/OVERVIEW.md) for more details)
+
+The scheduler (`apps/scheduler`) is a dynamic system designed to continuously optimize job assignments and technician routes, balancing efficiency, customer ETAs, and job priorities within daily operational constraints.
 
 ### Core Components
 
 1.  **Technician Assignment Logic**
-
-    - **Eligibility:** Determines technician suitability based on `van_equipment` versus job `equipment_requirements`.
-    - **Order Grouping Preference:** For multi-job orders, prioritizes assigning all jobs to a single, fully equipped technician if available. If not, jobs from the order are assigned individually based on best fit.
-    - **ETA Optimization:** When multiple technicians are eligible, selects the one predicted to have the earliest ETA. **Note:** ETA prediction during assignment must simulate placement within the technician's multi-day schedule respecting daily constraints.
-    - **Fixed Assignments:** Supports manual ("fixed") job assignments. Fixed jobs _cannot_ be dynamically reassigned but _are_ included in their assigned technician's route optimization.
-
 2.  **Job Queuing & Routing Logic (Daily Planning)**
-    - **Daily Boundaries:** Routes are planned on a day-by-day basis, respecting each technician's specific working hours and availability for that day.
-    - **Starting Locations:** Route calculation starts from the technician's _current location_ for the first day (today) and from their _home base_ for subsequent days.
-    - **Schedulable Units:** Jobs are grouped into units: indivisible blocks for multi-job orders assigned to the same tech, or individual units for single jobs. Block priority is determined by the highest priority job within it.
-    - **Priority & Daily Fit:** Units are sorted by priority. The system iteratively fills each available day, selecting the highest priority units that fit within the remaining work time (considering travel + duration).
-    - **Route Optimization (Daily TSP):** A TSP algorithm optimizes the sequence of units scheduled _within each specific day_ to minimize travel time for that day.
-    - **Multi-Day Schedule:** The result is a multi-day schedule for each technician (e.g., `tech.schedule = {day1: [unitA, unitB], day2: [unitC]}`).
-    - **Continuous ETA Updates:** ETAs for _all_ jobs (across all scheduled days) are calculated and updated based on their position in the final, optimized multi-day schedule.
+3.  **Dynamic Operation & Recalculation**
 
-### Dynamic Operation & Recalculation
-
-The system operates dynamically, constantly seeking the optimal state:
-
-- **Recalculation Loop:** Core assignment and daily routing logic is re-evaluated in response to specific events.
-- **Re-evaluation Scope:** Re-evaluation considers _all_ active, non-fixed jobs against the current multi-day schedules and technician statuses.
-- **Event Triggers:** Recalculations are typically triggered by: new jobs, job status changes, technician status/location changes, manual interventions, or optional periodic timers.
-
-This continuous re-optimization ensures the system adapts to changing conditions, always aiming for the best possible job assignments and ETAs according to defined priorities and daily operational constraints.
-
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+---
 
 ## Getting Started
 
-First, run the development server:
+For detailed setup instructions (cloning, dependencies, environment variables), see the [**Development Guide**](./docs/guides/DEVELOPMENT.md#setup-instructions).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Development Workflow
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For common commands (running dev servers, building, testing, linting), see the [**Development Guide**](./docs/guides/DEVELOPMENT.md#common-development-workflows).
+
+*   **Key Commands:**
+    *   Install all dependencies: `pnpm install`
+    *   Run web dev server: `pnpm run dev`
+    *   Run scheduler dev server: `pnpm run dev:scheduler`
+    *   Run optimiser dev server: `pnpm run dev:optimiser`
+    *   Run all unit tests: `pnpm run test`
+    *   Run E2E tests: `pnpm run test:e2e --generate`
+
+## Simulation Environment
+
+For local backend development and testing, use the simulation environment.
+See the [**Testing Guide**](./docs/guides/TESTING.md#end-to-end-e2e-tests) for usage and `simulation/README.md` for manual setup details.
+
+## Deployment
+
+*   The **Frontend (`apps/web`)** is deployed to **Vercel**.
+*   The **Backend services (`apps/scheduler`, `apps/optimiser`)** are deployed to **Google Cloud Run** via **Google Cloud Build** triggers.
+
+See [Backend Deployment Guide](./docs/architecture/DEPLOYMENT.md) for more details.
+
+## Environment Variables
+
+See the [**Development Guide**](./docs/guides/DEVELOPMENT.md#environment-setup) for a list and description of required environment variables.
+
+---
+*This project was initially bootstrapped based on Next.js.*

@@ -1,3 +1,6 @@
+> **Note:** This document is historical and may not reflect the current state of the project. Please refer to the main [README.md](../README.md) or current documentation in the `/docs` directory, particularly [DEPLOYMENT.md](DEPLOYMENT.md), for up-to-date information.
+
+# GCP Build Permissions Guide (scheduler-py)
 
 Here's a summary of the key security, permission, identity, and secret management configurations we had to establish:
 

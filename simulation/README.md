@@ -1,5 +1,7 @@
 # Local Test Environment for Scheduler Application
 
+**Note:** For the primary guide on running end-to-end tests, please refer to [Testing Guide](../../docs/guides/TESTING.md#end-to-end-e2e-tests). This README focuses on the manual setup and details of the simulation environment itself.
+
 This directory contains configuration files and scripts for setting up a local test environment that simulates our Supabase backend.
 
 ## Requirements
@@ -18,9 +20,11 @@ This directory contains configuration files and scripts for setting up a local t
 - `docker-compose.yml`: Configuration for PostgreSQL, PostgREST, and Optimize Service containers
 - `init-scripts/`: SQL scripts for initializing the database
   - `01-schema.sql`: Creates database schema (tables, relationships)
-  - `02-seed-data.sql`: Populates database with test data
+  - `02-seed-data.sql`: Populates database with test data (Note: This is often superseded by generated data)
+  - `07-generated-seed-data.sql`: Dynamically generated data based on test scenarios.
 - `pg-api-config.js`: Configuration for PostgREST
-- `run-e2e-tests.js`: Script to run end-to-end tests with the local environment
+- `run-e2e-tests.js`: Script to run end-to-end tests with the local environment (See [Testing Guide](../../docs/guides/TESTING.md) for usage)
+- `generate-dynamic-seed.js`: Script used by `run-e2e-tests.js` to generate scenario-specific data.
 
 ## Running the Tests
 
@@ -45,7 +49,7 @@ This directory contains configuration files and scripts for setting up a local t
 
 ## Argument-Driven Seed Data Generation
 
-The E2E test runner uses an argument-driven approach for seed data generation to test specific, deterministic scenarios.
+The E2E test runner (`run-e2e-tests.js`, documented in the main [Testing Guide](../../docs/guides/TESTING.md)) uses this script (`generate-dynamic-seed.js`) to generate seed data for specific, deterministic scenarios. It creates `init-scripts/07-generated-seed-data.sql` and `seed-metadata.json`, which are used by the tests to verify specific outcomes. Refer to the [Testing Guide](../../docs/guides/TESTING.md#argument-driven-seed-data-generation) for more details on how scenarios are used.
 
 **Purpose:**
 Each run of `node SIMULATION/run-e2e-tests.js --generate [--scenario=<name>]` executes the `SIMULATION/generate-dynamic-seed.js` script first.
@@ -67,12 +71,15 @@ node SIMULATION/generate-dynamic-seed.js --scenario=<scenario_name>
 
 ## Manual Setup
 
-If you want to run the local environment manually:
+If you want to run the local environment manually (e.g., for debugging or direct interaction):
 
 1. Start the containers:
    ```bash
-   cd SIMULATION
-   docker-compose up -d
+   # Ensure you are in the root directory of the project
+   pnpm run sim:up
+   # Or manually:
+   # cd simulation
+   # docker-compose up -d
    ```
 
 2. Access the database:
@@ -99,7 +106,11 @@ If you want to run the local environment manually:
 
 5. To stop the environment:
    ```bash
-   docker-compose down
+   # From the project root:
+   pnpm run sim:down
+   # Or manually:
+   # cd simulation
+   # docker-compose down
    ```
 
 ## Customizing Test Data
@@ -166,10 +177,4 @@ The `e2e.test.ts` file reads the `seed-metadata.json` and uses it to perform dyn
 
 ### Real Optimization Service
 
-To run E2E tests against a deployed (non-Dockerized) instance of the `optimize-service`, use:
-
-```bash
-npm run test:e2e:real
-```
-
-This script performs the same steps as `test:e2e` but sets the `RUN_REAL_OPTIMIZE=true` environment variable. Make sure the `OPTIMIZATION_SERVICE_URL` environment variable points to your deployed service. 
+To run E2E tests against a non-Dockerized instance of the `optimize-service`, refer to the instructions in the [Testing Guide](../../docs/guides/TESTING.md#running-against-a-real-optimization-service). 

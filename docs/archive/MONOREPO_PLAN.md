@@ -1,3 +1,5 @@
+> **Note:** This document outlines the historical plan for migrating to a monorepo structure. The current structure is reflected in the workspace configuration (`package.json`, `pnpm-workspace.yaml`) and the `apps/` directory layout. Refer to the main documentation in the `docs/` directory for current project details.
+
 # Monorepo Migration Plan: jam-auto (customer-portal & scheduler-py)
 
 **Goal:** Combine `scheduler-py` (Node.js backend, Python optimizer, Simulation env) and `customer-portal` (Next.js frontend) into a single monorepo structure within the existing `JAMAutoLtd/customer-portal` repository (which will become the `jam-auto` monorepo). Ensure each application (`web`, `scheduler`, `optimiser`) can be built and deployed independently (Vercel for frontend, GCP Cloud Run for backends).
