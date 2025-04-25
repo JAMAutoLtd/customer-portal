@@ -1,0 +1,53 @@
+# Git / Node
+.git
+node_modules/
+npm-debug.log*
+*.tsbuildinfo
+.npmrc
+
+# Build artifacts (assuming build happens *before* Docker context is sent)
+# We *don't* ignore 'dist/' because we need to copy it in.
+# Instead, ignore the source files that produced 'dist/'.
+src/
+tests/
+tsconfig.json
+jest*.config.js
+jest.setup.ts
+
+# Docker / OS specific
+# Dockerfile*
+.dockerignore
+.DS_Store
+Thumbs.db
+
+# Secrets / Environment
+.env*
+*.env
+
+# Logs
+*.log
+
+# Docs / Specs / Local Dev / Other Services
+*.md
+README.md
+CHANGELOG.md
+DB.md
+OVERVIEW.md
+PLANNING.md
+TASK.md
+CONTRIBUTING.md
+local-docs/
+local-research/
+specs/
+SIMULATION/
+optimize-service/ # Exclude the Python service code
+.vscode/
+.idea/
+*.iml # IntelliJ module files
+
+# Test artifacts / Configs
+coverage/
+
+# Linting / Formatting Configs (usually not needed at runtime)
+.eslint*
+.prettier* 

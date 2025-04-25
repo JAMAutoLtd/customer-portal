@@ -1,0 +1,36 @@
+---
+description: 
+globs: src/scheduler/orchestrator.ts,src/scheduler/**/*.ts
+alwaysApply: false
+---
+---
+description: Explains the core scheduling logic flow within the orchestrator.
+globs: ["src/scheduler/orchestrator.ts", "src/scheduler/**/*.ts"]
+tags: ["scheduling", "orchestration", "logic", "multi-pass"]
+---
+
+# Core Scheduling Orchestration
+
+The main scheduling logic resides in `runFullReplan` within [src/scheduler/orchestrator.ts](mdc:src/scheduler/orchestrator.ts). It follows a multi-pass approach to assign jobs:
+
+**Workflow:**
+
+1.  **Initialization**: Sets up internal state: `finalAssignments` (Map), `jobsToPlan` (Set), `allFetchedJobsMap` (Map).
+2.  **Initial Data Fetch**: Concurrently fetches active technicians ([src/supabase/technicians.ts](mdc:src/supabase/technicians.ts)) and relevant jobs ([src/supabase/jobs.ts](mdc:src/supabase/jobs.ts)). Populates `allFetchedJobsMap` and identifies initial `jobsToPlan` (status 'queued'). Separates locked/fixed-time jobs.
+3.  **Pass 1 (Today)**:
+    *   Calculates today's technician availability based on *current* locations and locked jobs ([src/scheduler/availability.ts](mdc:src/scheduler/availability.ts)).
+    *   Bundles queued jobs ([src/scheduler/bundling.ts](mdc:src/scheduler/bundling.ts)).
+    *   Determines eligibility based on equipment ([src/scheduler/eligibility.ts](mdc:src/scheduler/eligibility.ts)).
+    *   Prepares the payload for the optimization service ([src/scheduler/payload.ts](mdc:src/scheduler/payload.ts)).
+    *   Calls the optimization service ([src/scheduler/optimize.ts](mdc:src/scheduler/optimize.ts)).
+    *   Processes results, updating `finalAssignments` and removing assigned jobs from `jobsToPlan` ([src/scheduler/results.ts](mdc:src/scheduler/results.ts)).
+4.  **Overflow Loop (Pass 2+ Future Days)**:
+    *   Iterates for `MAX_OVERFLOW_ATTEMPTS` days if `jobsToPlan` is not empty.
+    *   Calculates the next planning date.
+    *   Calculates availability for the *future* date (using *home* locations, skipping weekends) via [src/scheduler/availability.ts](mdc:src/scheduler/availability.ts).
+    *   Bundles, checks eligibility, prepares payload, calls optimizer, and processes results for the remaining `jobsToPlan` on the future date.
+5.  **Final DB Update**: Constructs `JobUpdateOperation` objects based on the final state of `finalAssignments` (gets `status: 'queued'`, assignment details) and `jobsToPlan` (gets `status: 'pending_review'`). Calls `updateJobs` in [src/db/update.ts](mdc:src/db/update.ts) **once** with all updates.
+6.  **Logging**: Logs a summary of the scheduling run.
+
+This process avoids intermediate database updates during the multi-day planning loop, only committing changes at the very end.
+

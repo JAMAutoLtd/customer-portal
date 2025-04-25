@@ -1,0 +1,39 @@
+---
+description: 
+globs: src/supabase/**/*.ts,src/db/update.ts,src/types/database.types.ts
+alwaysApply: false
+---
+---
+description: Explains how the application interacts with the Supabase database.
+globs: ["src/supabase/**/*.ts", "src/db/update.ts", "src/types/database.types.ts"]
+tags: ["database", "supabase", "data", "fetch", "update"]
+---
+
+# Supabase Data Interaction
+
+The application uses Supabase as its primary database. Interaction is handled via the client initialized in [src/supabase/client.ts](mdc:src/supabase/client.ts) and functions organized within the `src/supabase/` directory.
+
+**Key Data Fetching Functions:**
+
+*   **Jobs ([src/supabase/jobs.ts](mdc:src/supabase/jobs.ts))**:
+    *   `getRelevantJobs()`: Fetches jobs relevant for planning (queued, in progress, etc.) with joins to addresses, services, and orders (for earliest times).
+    *   `getJobsByStatus()`: Fetches jobs based on a specific list of statuses.
+*   **Technicians ([src/supabase/technicians.ts](mdc:src/supabase/technicians.ts))**:
+    *   `getActiveTechnicians()`: Fetches active technicians, joining user details, home addresses, and current van locations.
+*   **Equipment ([src/supabase/equipment.ts](mdc:src/supabase/equipment.ts))**:
+    *   `getEquipmentForVans()`: Fetches equipment assigned to specific vans.
+    *   `getRequiredEquipmentForJob()`: Determines equipment needed for a job based on service category and vehicle YMM, querying requirement tables.
+*   **Orders ([src/supabase/orders.ts](mdc:src/supabase/orders.ts))**:
+    *   `getYmmIdForOrder()`: Retrieves the specific Year-Make-Model ID (`ymm_id`) for an order, needed for equipment requirement lookups.
+
+**Data Update:**
+
+*   Job updates (status, assignment, estimated schedule) are handled exclusively by the `updateJobs` function in [src/db/update.ts](mdc:src/db/update.ts).
+*   This function receives an array of `JobUpdateOperation` objects.
+*   It groups updates by the data payload and performs efficient batched `UPDATE` operations using Supabase's `.in()` filter.
+*   This batching occurs only *once* at the end of the `runFullReplan` orchestration process.
+
+**Types:**
+
+*   Database table structures and related types are defined in [src/types/database.types.ts](mdc:src/types/database.types.ts) (likely generated from the database schema).
+

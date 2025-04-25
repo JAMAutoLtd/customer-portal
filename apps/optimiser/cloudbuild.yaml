@@ -1,0 +1,49 @@
+steps:
+  # Build the Docker image for the Python optimiser service
+  # trigger
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:$COMMIT_SHA',
+        '-t',
+        'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:latest',
+        '.', # Build context is the current directory (apps/optimiser)
+        '-f',
+        'Dockerfile' # Explicitly state Dockerfile name
+      ]
+    dir: 'apps/optimiser' # Specify the directory containing the Dockerfile
+
+  # Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:$COMMIT_SHA']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:latest']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'scheduler-optimize-service', # Service name
+        '--project=$PROJECT_ID',
+        '--region=us-west1',
+        '--image=us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:$COMMIT_SHA',
+        '--platform=managed',
+        '--port=8080',
+        '--no-allow-unauthenticated' # Require authentication
+        # Add other deployment flags (cpu, memory, min/max instances) if needed, matching previous manual deployment
+        # --cpu=1
+        # --memory=512Mi
+        # --max-instances=5
+      ]
+
+images:
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:$COMMIT_SHA'
+  - 'us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY 
