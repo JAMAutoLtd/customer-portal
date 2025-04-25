@@ -117,3 +117,14 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### Environment Variables
+
+Create a `.env` file in the root directory based on `.env.sample`. Key variables include:
+
+*   `SUPABASE_URL`: Your Supabase project URL.
+*   `SUPABASE_ANON_KEY`: Your Supabase anonymous key.
+*   `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key (for backend/server-side operations).
+*   `GOOGLE_MAPS_API_KEY`: Google Maps API key for frontend map components.
+*   `OPTIMIZER_URL`: URL for the optimization microservice.
+*   `ONESTEP_GPS_API_KEY`: API Key for the One Step GPS service (used by the scheduler to fetch real-time technician locations).

@@ -169,4 +169,26 @@ The service exposes a REST API with the following main endpoint:
     ```
     Tests cover helper functions (time conversions) and various optimization scenarios (simple cases, fixed constraints, unassignment due to time/eligibility, priority handling, travel time calculations). See `optimize-service/tests/test_main.py`.
 
+## One Step GPS Integration (Scheduler)
+
+To enhance scheduling accuracy, the system integrates with the One Step GPS API to fetch real-time locations for technician vans just before running the daily optimization pass (`runFullReplan` in `apps/scheduler/src/scheduler/orchestrator.ts`).
+
+### Configuration
+
+*   **Environment Variable:** The `ONESTEP_GPS_API_KEY` environment variable must be set with a valid API key obtained from One Step GPS.
+*   **Database:** The `public.vans` table requires a nullable `onestepgps_device_id` column (VARCHAR) containing the corresponding device ID from One Step GPS for each tracked van.
+
+### Process
+
+1.  The `apps/scheduler/src/onestepgps/client.ts` module contains the `fetchDeviceLocations` function.
+2.  This function reads the `ONESTEP_GPS_API_KEY` and makes a GET request to the One Step GPS `/device-info` endpoint using a Bearer token.
+3.  It requests `lat_lng`, `device`, and `dt_tracker` information.
+4.  The response (a JSON array of devices) is parsed into a map where keys are `device_id` and values contain `lat`, `lng`, and `timestamp`.
+5.  In `orchestrator.ts`, after fetching initial technician data, `fetchDeviceLocations` is called.
+6.  If successful, the orchestrator iterates through the technicians, finds the `onestepgps_device_id` associated with their assigned van (`tech.van?.onestepgps_device_id`).
+7.  If a matching device ID is found in the API response map, the technician's `current_location` (used as the starting point for the day's schedule) is updated in memory with the real-time coordinates.
+8.  If the API fetch fails or a specific device ID isn't found in the response, a warning is logged, and the scheduler proceeds using the last known location for that technician (typically their home location or the last known van location from the database).
+
+This ensures the scheduler uses the most up-to-date location information available when planning the initial routes for the day.
+
 --- End of Documentation --- 

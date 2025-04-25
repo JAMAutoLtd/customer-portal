@@ -23,6 +23,7 @@ export interface Van {
   vin: string | null;
   lat: number | null;
   lng: number | null;
+  onestepgps_device_id?: string | null;
 }
 
 export interface Technician {
@@ -36,6 +37,7 @@ export interface Technician {
   current_location?: { lat: number; lng: number }; // Added for scheduler convenience
   earliest_availability?: string; // Added for scheduler convenience
   home_location?: { lat: number; lng: number }; // Added for multi-day overflow
+  availability?: TechnicianAvailability[]; // Optional: Full availability schedule
 }
 
 export type JobStatus = 
