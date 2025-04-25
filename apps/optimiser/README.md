@@ -1,40 +1,14 @@
 # Optimize Service
 
-## Overview
-
-This service provides a job scheduling optimization API endpoint. It receives a description of locations, technicians (with their availability and start/end locations), items (jobs with locations, durations, priority, and technician eligibility), fixed time constraints, and a travel time matrix between locations. 
-
-Using Google OR-Tools, it solves the underlying Vehicle Routing Problem (VRP) with Time Windows and constraints to produce optimized routes for each technician, minimizing travel time and respecting constraints while prioritizing jobs.
-
-The primary goal is to determine the best sequence of jobs for each technician to minimize costs (like travel time) and maximize the number of completed jobs within the given constraints.
-
-## Main Endpoint
-
-*   **`POST /optimize-schedule`**: 
-    *   Accepts an `OptimizationRequestPayload` JSON body.
-    *   Returns an `OptimizationResponsePayload` JSON body containing the status (`success`, `partial`, `error`), a message, a list of optimized `TechnicianRoute` objects (each with a list of `RouteStop`), and a list of `unassignedItemIds`.
+See the [Technical Reference](../../docs/reference/technical-reference.md#2-package-documentation-python-optimization-microservice-appsoptimiser) for a detailed overview.
 
 ## Running Locally
 
-1.  **Install Dependencies**: 
-    ```bash
-    pip install -r requirements.txt 
-    ```
-2.  **Run the FastAPI Server**:
-    ```bash
-    uvicorn main:app --reload --port 8000
-    ```
-    The service will be available at `http://127.0.0.1:8000`, and interactive API documentation (Swagger UI) can be accessed at `http://127.0.0.1:8000/docs`.
+Refer to the [Development Guide](../../docs/guides/DEVELOPMENT.md#common-development-workflows) for instructions on running this service (e.g., using `pnpm run dev:optimiser`).
 
 ## Testing
 
-Unit tests are implemented using `pytest` and cover various scenarios to ensure the optimization logic behaves as expected.
-
-**Run Tests**:
-Navigate to the `optimize-service` directory in your terminal and run:
-```bash
-pytest
-```
+Unit tests are implemented using `pytest`. Refer to the [Testing Guide](../../docs/guides/TESTING.md#unit-tests) for instructions on running these tests (specifically the Optimiser section).
 
 **Test Coverage Includes:**
 

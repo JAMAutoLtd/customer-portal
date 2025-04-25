@@ -1,3 +1,5 @@
+> **Note:** This document describes a historical workflow detail regarding `pnpm --filter` behavior. While potentially still relevant, refer to the main project `README.md` and `docs/` directory for current development practices.
+
 # Monorepo Workflow Notes
 
 This document outlines key findings and the established workflow for this pnpm monorepo.

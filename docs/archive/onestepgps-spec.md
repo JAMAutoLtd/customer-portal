@@ -1,3 +1,5 @@
+> **Note:** This document contains historical specification details for the One Step GPS integration and may not reflect the final implementation details. Refer to `docs/technical-reference.md` for documentation on the current implementation in `apps/scheduler/src/onestepgps/client.ts` and `apps/scheduler/src/scheduler/orchestrator.ts`.
+
 # One Step GPS API Integration Specification
 
 ## 1. Overview
