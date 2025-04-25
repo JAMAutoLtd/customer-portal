@@ -7,12 +7,18 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Next.js
+.next/
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
+
+# Supabase
+supabase/.temp/
 
 # Python Virtual Environments
 .venv/
@@ -61,3 +67,4 @@ PLAN.md
 # Configuration files (Generally keep unless they contain secrets)
 # repomix.config.json
 # vibe-tools.config.json
+
