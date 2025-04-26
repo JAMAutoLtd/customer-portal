@@ -40,7 +40,7 @@ export async function PATCH(
     const { data, error } = await supabase
       .from('jobs')
       .update({ status })
-      .eq('id', jobId)
+      .eq('id', parseInt(jobId))
       .select()
       .single()
 
