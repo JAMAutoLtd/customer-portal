@@ -39,7 +39,9 @@ export default function TechnicianJobs() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-[768px]">
+    <div className="container mx-auto px-4 py-8 max-w-[1024px]">
+      <h1 className="text-2xl font-bold mb-6">Jobs</h1>
+
       <Tabs defaultValue="queued" className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="queued">Queued</TabsTrigger>
