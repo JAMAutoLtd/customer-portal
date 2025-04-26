@@ -24,21 +24,23 @@ export async function callOptimizationService(
   console.log(`Calling optimization service at: ${optimizeServiceUrl}`);
 
   try {
-    // --- Fetch OIDC Token for Authentication ---
-    console.log('Fetching OIDC token for optimization service...');
+    let authHeaders = {}; // Default to empty headers
 
-    // Initialize the IdTokenClient if it hasn't been already.
-    // The audience MUST be the URL of the service being called.
-    if (!idTokenClient) {
+    // --- Conditionally bypass OIDC token fetch ---
+    if (process.env.BYPASS_OPTIMIZER_AUTH !== 'true') {
+      console.log('Fetching OIDC token for optimization service...');
+      if (!idTokenClient) {
         idTokenClient = await auth.getIdTokenClient(optimizeServiceUrl);
         console.log('Initialized IdTokenClient.');
+      }
+      // Fetch the necessary headers, including the Authorization: Bearer token.
+      // getRequestHeaders() handles token caching and refreshing.
+      authHeaders = await idTokenClient.getRequestHeaders(optimizeServiceUrl);
+      console.log('Successfully fetched OIDC token header.');
+    } else {
+      console.log('BYPASS_OPTIMIZER_AUTH=true detected. Skipping OIDC token fetch.');
     }
-
-    // Fetch the necessary headers, including the Authorization: Bearer token.
-    // getRequestHeaders() handles token caching and refreshing.
-    const authHeaders = await idTokenClient.getRequestHeaders(optimizeServiceUrl);
-    console.log('Successfully fetched OIDC token header.');
-    // --- End Authentication ---
+    // --- End Conditional Bypass ---
 
     // Construct the full URL with the specific endpoint path
     const fullOptimizeUrl = `${optimizeServiceUrl.replace(/\/$/, '')}/optimize-schedule`; // Remove trailing slash if exists, add endpoint
@@ -51,7 +53,7 @@ export async function callOptimizationService(
       {
         headers: {
             'Content-Type': 'application/json',
-            ...authHeaders, // Spread the authentication headers
+            ...authHeaders, // Spread potentially empty authHeaders
         },
         timeout: 120000 // Keep existing timeout
       }

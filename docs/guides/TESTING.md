@@ -75,6 +75,7 @@ E2E tests validate the entire scheduling workflow within a simulated environment
         *   **Initialization:** Executes initialization scripts (`init-scripts/*.sql`) inside the `postgres` container.
         *   **Wait:** Waits for the database, PostgREST, and optimizer services to become ready.
         *   **Jest Execution:** Runs the E2E tests located in `apps/scheduler/tests/e2e/` using `jest --config jest.e2e.config.js`. The tests use the environment variables defined in `.env.test` (pointing to the simulation services) and read `simulation/seed-metadata.json` for scenario-specific assertions.
+        *   **Build-time Variables:** The script ensures the correct environment variables (from `.env.test`) are available *during* the `docker-compose build` phase (especially for the `web` service) by using the `--env-file ../.env.test` flag when invoking `docker-compose`.
         *   **Cleanup:** Stops and removes the simulation containers (`docker-compose down -v --remove-orphans`), unless tests fail *and* the `--keep-containers-on-fail` flag is used.
     *   **Examples:**
         ```bash

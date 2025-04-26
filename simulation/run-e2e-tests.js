@@ -1,41 +1,25 @@
 /**
- * End-to-End Testing Setup Script
+ * End-to-End Testing Simulation Script (Strategy 1 - Docker)
  * 
  * This script:
- * 1. Starts Docker containers for PostgreSQL and PostgREST
- * 2. Waits for services to be ready
- * 3. Runs Jest tests with the .env.test configuration
- * 4. Tears down containers
+ * 1. Loads configuration exclusively from `.env.test` (using production variable names).
+ * 2. Starts Docker containers for all services (Postgres, PostgREST, Nginx, Optimizer, Web) via Docker Compose.
+ * 3. Waits for all services to be ready using health checks and direct connections.
+ * 4. Optionally generates dynamic seed data.
+ * 5. Runs Playwright E2E tests located in `tests/e2e`.
+ * 6. Tears down containers and volumes.
  */
 
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { setTimeout } = require('timers/promises');
-const http = require('http');
-const axios = require('axios');
+const axios = require('axios'); // Or use Node's fetch in newer versions
+const dotenv = require('dotenv');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const SIMULATION_DIR = path.resolve(__dirname);
-
-// Parse command line arguments
-const args = process.argv.slice(2);
-const useRealOptimize = args.includes('--real-optimize') || args.includes('-r');
-const fastMode = args.includes('--fast') || args.includes('-f');
-const generateSeed = args.includes('--generate') || args.includes('--generate-seed') || args.includes('-g');
-const keepContainersOnFail = args.includes('--keep-containers-on-fail');
-
-// Extract --scenario argument
-let scenario = null;
-const scenarioIndex = args.findIndex(arg => arg === '--scenario');
-if (scenarioIndex !== -1 && args.length > scenarioIndex + 1) {
-  scenario = args[scenarioIndex + 1];
-}
-
-const jestArgs = args.filter((arg, index) =>
-  !['--real-optimize', '-r', '--generate-seed', '-g', '--fast', '-f', '--generate', '--keep-containers-on-fail', '--scenario'].includes(arg) &&
-  !(index === scenarioIndex + 1 && scenarioIndex !== -1) // Exclude the scenario value itself
-).join(' ');
+const envPath = path.resolve(ROOT_DIR, '.env.test');
 
 // Colors for console output
 const colors = {
@@ -49,364 +33,235 @@ const colors = {
 };
 
 function log(message, color = colors.reset) {
-  console.log(`${color}[E2E Test Setup]${colors.reset} ${message}`);
+  console.log(`${color}[E2E Simulation]${colors.reset} ${message}`);
 }
 
+// --- Load ONLY .env.test --- (Moved to top)
+if (!fs.existsSync(envPath)) {
+    log(`ERROR: .env.test file not found at ${envPath}. This is required for the simulation.`, colors.red);
+    process.exit(1);
+}
+// Load .env.test, overwriting any existing process.env variables
+dotenv.config({ path: envPath, override: true });
+log(`Loaded environment variables EXCLUSIVELY from ${envPath}`, colors.cyan);
+
+// --- Verify Essential Vars (Using Production Names) ---
+const requiredVars = [
+    'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY',
+    'OPTIMIZATION_SERVICE_URL', 'E2E_BASE_URL', 'DATABASE_URL',
+    'PGRST_DB_URI', 'PGRST_JWT_SECRET', 'POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_DB'
+    // Add others like GOOGLE_MAPS_API_KEY if strictly needed for services to start
+];
+const missingVars = requiredVars.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+    log(`ERROR: Missing required variables in .env.test: ${missingVars.join(', ')}`, colors.red);
+    process.exit(1);
+}
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const generateSeed = args.includes('--generate') || args.includes('--generate-seed') || args.includes('-g');
+const buildContainers = args.includes('--build'); // Flag to force build
+const keepContainersOnFail = args.includes('--keep-containers-on-fail');
+const playwrightArgs = args.filter(arg => 
+    !['--generate', '--generate-seed', '-g', '--build', '--keep-containers-on-fail'].includes(arg)
+);
+
 /**
- * Checks if Docker is running by running a simple docker command
+ * Checks if Docker is running.
  */
 function checkDockerRunning() {
   try {
     execSync('docker info', { stdio: 'ignore' });
     return true;
   } catch (error) {
+    log('Docker command failed. Is Docker running and accessible?', colors.red);
     return false;
   }
 }
 
 /**
- * Starts ONLY the PostgreSQL container
+ * Starts all Docker Compose services defined in simulation/docker-compose.yml.
+ * Uses the --env-file flag to ensure configuration comes from ../.env.test.
  */
-async function startPostgresContainer() {
-  log('Starting ONLY PostgreSQL container...', colors.blue);
+async function startAllServices() {
+  log('Starting Docker Compose services (Postgres, PostgREST, Nginx, Optimizer, Web)...', colors.blue);
   try {
-    // Start only postgres, rebuild it
-    execSync(`docker-compose up -d --no-deps --build postgres`, {
+    // Determine base args: up, detach, remove orphans
+    const baseArgs = ['up', '-d', '--remove-orphans'];
+    // Prepend the crucial --env-file argument and specify the compose file
+    const composeArgs = ['--env-file', '../.env.test', '-f', 'docker-compose.test.yml', ...baseArgs]; // Use relative path for .env.test
+
+    if (buildContainers) {
+       composeArgs.push('--build'); // Add build flag if requested
+       log('Including --build flag for docker-compose', colors.yellow);
+    }
+    // Execute the command
+    execSync(`docker-compose ${composeArgs.join(' ')}`, { // Compose file is now in args
       cwd: SIMULATION_DIR,
-      stdio: 'inherit'
+      stdio: 'inherit' // Show docker-compose output
     });
-    log('PostgreSQL container started', colors.green);
+    log('Docker Compose services started/updated.', colors.green);
     return true;
   } catch (error) {
-    log(`Error starting postgres container: ${error.message}`, colors.red);
-    // Log postgres container logs on error
+    log(`Error starting Docker Compose services: ${error.message}`, colors.red);
+    // Log docker-compose ps output on failure for context
     try {
-      const logs = execSync('docker-compose logs postgres', {
-        cwd: SIMULATION_DIR,
-        stdio: 'pipe'
-      }).toString();
-      log('PostgreSQL logs on start error:', colors.red);
-      console.log(logs);
+        log('Docker Compose status on failure:', colors.red);
+        // Also specify the test file for ps
+        execSync(`docker-compose -f docker-compose.test.yml ps`, { cwd: SIMULATION_DIR, stdio: 'inherit' });
     } catch (e) { /* ignore */ }
     return false;
   }
 }
 
 /**
- * Manually copies and executes init scripts in the running postgres container.
+ * Generic function to wait for a service to be ready.
+ * Uses checkFn to determine readiness.
  */
-async function initializeDatabaseManually() {
-  log('Waiting for PostgreSQL to be ready before manual init...', colors.yellow);
-  let pgReady = false;
-  let attempts = 0;
-  const maxAttempts = 30;
-  while (!pgReady && attempts < maxAttempts) {
-    try {
-      // Use the database name defined in docker-compose
-      execSync('docker-compose exec -T postgres pg_isready -U postgres -d scheduler_test_db', {
-        cwd: SIMULATION_DIR,
-        stdio: 'ignore'
-      });
-      pgReady = true;
-      log('PostgreSQL is ready for manual init', colors.green);
-    } catch (error) {
-      attempts++;
-      log(`Waiting for PostgreSQL... (${attempts}/${maxAttempts})`, colors.yellow);
-      await setTimeout(1000);
-    }
-  }
-  if (!pgReady) {
-    log('PostgreSQL failed to become ready in time for manual init', colors.red);
-    return false;
-  }
-
-  // Manually copy and execute init scripts
-  log('Manually copying and executing init scripts...', colors.magenta);
-  const scripts = [
-    '00-roles.sql',
-    '01-schema.sql',
-    '05-merged-custom-test-data.sql',       // Static base data
-    '06-equipment-requirements-test-data.sql', // Static requirements
-    '07-generated-seed-data.sql',         // Dynamically generated data
-    '09-permissions.sql'                // Permissions for PostgREST
-  ];
-  const initScriptsDir = path.join(SIMULATION_DIR, 'init-scripts');
-  const containerDest = '/tmp/init-scripts'; // Copy to a temporary location in the container
-
-  try {
-    // Create the destination directory inside the container
-    execSync(`docker-compose exec -T postgres mkdir -p ${containerDest}`, { cwd: SIMULATION_DIR, stdio: 'inherit' });
-
-    // Copy each script
-    for (const script of scripts) {
-      const hostPath = path.join(initScriptsDir, script);
-      // Ensure file exists before copying
-      if (!fs.existsSync(hostPath)) {
-        // Special handling for the generated file
-        if (script === '07-generated-seed-data.sql') {
-          log(`Error: Generated seed file not found on host: ${hostPath}. Did the generator fail?`, colors.red);
-        } else {
-          log(`Error: Required init script file not found on host: ${hostPath}`, colors.red);
-        }
-        throw new Error(`Script file not found: ${script}`);
-      }
-      const containerPath = `${containerDest}/${script}`;
-      log(`Copying ${hostPath} to pgdb:${containerPath}...`, colors.cyan);
-      execSync(`docker cp "${hostPath}" pgdb:${containerPath}`, { stdio: 'inherit' });
-    }
-
-    // Execute each script
-    for (const script of scripts) {
-       const containerPath = `${containerDest}/${script}`;
-       log(`Executing ${script} inside container...`, colors.cyan);
-       // Ensure script exists in container before executing
-       execSync(`docker-compose exec -T postgres test -f ${containerPath}`, { cwd: SIMULATION_DIR, stdio: 'ignore' });
-       execSync(`docker-compose exec -T postgres psql -U postgres -d scheduler_test_db -f ${containerPath}`, {
-         cwd: SIMULATION_DIR,
-         stdio: 'inherit'
-       });
-    }
-    log('Manual init scripts executed successfully.', colors.green);
-    return true;
-
-  } catch (error) {
-    log(`Error copying or executing init scripts: ${error.message}`, colors.red);
-    // Log postgres container logs on error
-    try {
-      const logs = execSync('docker-compose logs postgres', {
-        cwd: SIMULATION_DIR,
-        stdio: 'pipe'
-      }).toString();
-      log('PostgreSQL logs on script execution error:', colors.red);
-      console.log(logs);
-    } catch (e) { /* ignore */ }
-    return false;
-  }
-}
-
-/**
- * Starts the dependent services (PostgREST, Nginx, Optimize)
- */
-async function startDependentServices() {
-  log('Starting dependent services (PostgREST, Nginx, Optimize)...', colors.blue);
-  try {
-    // Start other services, build optimize if needed
-    const optimizeServiceFlag = useRealOptimize ? '--build optimize-service' : ''; // Corrected build flag name
-    execSync(`docker-compose up -d --no-deps ${optimizeServiceFlag} postgrest nginx optimize-service`, {
-      cwd: SIMULATION_DIR,
-      stdio: 'inherit'
-    });
-    log('Dependent services started', colors.green);
-    return true;
-  } catch (error) {
-    log(`Error starting dependent services: ${error.message}`, colors.red);
-    return false;
-  }
-}
-
-/**
- * Checks if PostgREST service is ready
- */
-async function waitForPostgREST() {
-  log('Waiting for PostgREST service to respond...', colors.yellow);
-  const postgrestUrl = 'http://localhost:3000/'; // Base URL
-  let attempts = 0;
-  const maxAttempts = 12; // Wait up to 60 seconds (12 attempts * 5 seconds)
-
-  while (attempts < maxAttempts) {
-    attempts++;
-    try {
-      // Attempt a simple HTTP GET request
-      await new Promise((resolve, reject) => {
-        const req = http.get(postgrestUrl, { timeout: 4000 }, (res) => {
-          // Check for a successful status code (e.g., 200)
-          if (res.statusCode >= 200 && res.statusCode < 400) { // Allow 3xx redirects too
-            log('PostgREST service responded successfully!', colors.green);
-            resolve(true);
-          } else {
-            log(`PostgREST responded with status ${res.statusCode} (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
-            res.resume(); // Consume response data to free up memory
-            reject(new Error(`Status Code: ${res.statusCode}`));
-          }
-        });
-
-        req.on('error', (e) => {
-          log(`PostgREST connection error: ${e.message} (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
-          reject(e);
-        });
-
-        req.on('timeout', () => {
-          req.destroy();
-          log(`PostgREST request timed out (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
-          reject(new Error('Request timed out'));
-        });
-      });
-      // If the promise resolves, the request was successful
-      return true;
-    } catch (error) {
-      // If the promise rejects, wait and retry
-      if (attempts >= maxAttempts) {
-        log(`PostgREST failed to respond after ${maxAttempts} attempts.`, colors.red);
-        log(`Last error: ${error.message}`, colors.red);
-        // Log final PostgREST container logs for debugging
+async function waitForService(name, url, checkFn, containerLogName, maxAttempts = 30, interval = 5000) {
+    log(`Waiting for ${name} at ${url}...`, colors.yellow);
+    let attempts = 0;
+    while (attempts < maxAttempts) {
+        attempts++;
         try {
-          const finalLogs = execSync('docker-compose logs postgrest', { cwd: SIMULATION_DIR, stdio: 'pipe', timeout: 10000 }).toString();
-          log('Final PostgREST logs:', colors.red);
-          console.log(finalLogs);
-        } catch (e) {
-          log('Could not retrieve final PostgREST logs.', colors.red);
+            const ready = await checkFn(url);
+            if (ready) {
+                log(`${name} is ready!`, colors.green);
+                return true;
+            }
+            // Optional: Log specific non-ready status if checkFn provides it
+            log(`${name} not ready yet (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
+        } catch (error) {
+            log(`${name} connection error: ${error.message} (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
         }
-        return false;
-      }
-      await setTimeout(5000); // Wait 5 seconds before retrying
+        if (attempts >= maxAttempts) {
+            log(`${name} failed to respond/become ready after ${maxAttempts} attempts.`, colors.red);
+            // Log relevant container logs
+             try {
+                log(`${name} container logs:`, colors.red);
+                execSync(`docker-compose logs ${containerLogName}`, { cwd: SIMULATION_DIR, stdio: 'inherit', timeout: 10000 });
+             } catch (e) { log(`Could not retrieve logs for ${containerLogName}. Error: ${e.message}`, colors.red); }
+            return false;
+        }
+        await setTimeout(interval);
     }
-  }
-  // Should not be reached if maxAttempts > 0
-  return false;
+    return false;
 }
 
 /**
- * Checks if the Optimization service is ready
+ * Placeholder for any additional DB initialization needed AFTER docker-entrypoint scripts.
  */
-async function waitForOptimizationService() {
-  log('Waiting for Optimization Service to be ready...', colors.yellow);
-  // Check the health endpoint of the optimization service
-  const optimizeUrl = process.env.OPTIMIZATION_SERVICE_URL?.replace('/optimize-schedule', '/health') || 'http://localhost:8080/health';
-  let attempts = 0;
-  const maxAttempts = 12; // Wait up to 60 seconds
-
-  log(`Checking Optimization Service health at: ${optimizeUrl}`, colors.cyan);
-
-  while (attempts < maxAttempts) {
-    attempts++;
-    try {
-      const response = await axios.get(optimizeUrl, { timeout: 4000 });
-      if (response.status === 200 && response.data?.status === 'healthy') {
-        log('Optimization Service is ready!', colors.green);
-        return true;
-      }
-      log(`Optimization Service responded with status ${response.status} (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
-    } catch (axiosError) {
-      log(`Optimization Service connection error: ${axiosError.message} (attempt ${attempts}/${maxAttempts}). Retrying...`, colors.yellow);
-    }
-    if (attempts >= maxAttempts) {
-      log(`Optimization Service failed to respond after ${maxAttempts} attempts.`, colors.red);
-      // Log final service logs for debugging
-      try {
-        const finalLogs = execSync('docker-compose logs optimize-service', { cwd: SIMULATION_DIR, stdio: 'pipe', timeout: 10000 }).toString();
-        log('Final Optimization Service logs:', colors.red);
-        console.log(finalLogs);
-      } catch (e) {
-        log('Could not retrieve final Optimization Service logs.', colors.red);
-      }
-      return false;
-    }
-    await setTimeout(5000); // Wait 5 seconds before retrying
-  }
-  return false;
+async function runDatabaseInitializationIfNeeded() {
+    // Example: Run migrations if not handled by init scripts
+    // try {
+    //     log('Running database migrations...', colors.magenta);
+    //     execSync('pnpm --filter @jam-auto/scheduler db:migrate', { cwd: ROOT_DIR, stdio: 'inherit' });
+    //     log('Database migrations completed.', colors.green);
+    //     return true;
+    // } catch (error) {
+    //     log(`Database migration failed: ${error.message}`, colors.red);
+    //     return false;
+    // }
+    log('Skipping additional database initialization (handled by init-scripts).', colors.cyan);
+    return true;
 }
 
 /**
- * Runs the seed data generator script and captures its metadata output.
+ * Runs the seed data generator script.
  */
-async function runSeedGenerator(scenario) {
-  log('Running NEW dynamic seed data generator (generate-dynamic-seed.js)...', colors.magenta);
-  const seedGeneratorScript = path.join(SIMULATION_DIR, 'generate-dynamic-seed.js'); // Use the new generator script
+async function runSeedGenerator() {
+  log('Running dynamic seed data generator (generate-dynamic-seed.js)...', colors.magenta);
+  const seedGeneratorScript = path.join(SIMULATION_DIR, 'generate-dynamic-seed.js');
+  const seedSqlPath = path.join(SIMULATION_DIR, 'init-scripts', '07-generated-seed-data.sql');
+
   if (!fs.existsSync(seedGeneratorScript)) {
       log(`Error: Seed generator script not found at ${seedGeneratorScript}`, colors.red);
-      return false; // Indicate failure
+      return false;
   }
+
+  // Delete existing generated file first
+  log(`Attempting to delete existing dynamic seed file: ${seedSqlPath}...`, colors.yellow);
   try {
-    const command = `node "${seedGeneratorScript}" ${scenario ? `--scenario=${scenario}` : ''}`; // Pass scenario if provided
+    if (fs.existsSync(seedSqlPath)) {
+      fs.unlinkSync(seedSqlPath);
+      log('Deleted existing dynamic seed SQL file successfully.', colors.green);
+    } else {
+      log('No existing dynamic seed SQL file found to delete.', colors.cyan);
+    }
+  } catch (deleteError) {
+    log(`Warning: Could not delete existing dynamic seed SQL file: ${deleteError.message}. Continuing...`, colors.yellow);
+  }
+
+  try {
+    const command = `node "${seedGeneratorScript}"`; // No scenario support assumed here, add if needed
     log(`Executing: ${command}`, colors.cyan);
-    // Execute the script, inherit stdio as it logs to console and writes to file directly
-    execSync(command, { // Use the constructed command
+    execSync(command, {
       cwd: SIMULATION_DIR,
-      stdio: 'inherit', // Show output directly, don't capture stdout for metadata
+      stdio: 'inherit',
       encoding: 'utf-8',
-      timeout: 60000
+      timeout: 60000 // 1 minute timeout
     });
 
-    // New generator writes to file, doesn't output JSON metadata to stdout
     log('Dynamic seed data generator script executed successfully.', colors.green);
-    if (!scenario) {
-        log('Note: New generator does not produce metadata.json. Tests needing metadata may fail.', colors.yellow);
+
+    // Verify the generated SQL file EXISTENCE
+    log(`Verifying existence of generated dynamic seed file: ${seedSqlPath}...`, colors.cyan);
+    if (!fs.existsSync(seedSqlPath)) {
+        log(`Error: Dynamic seed generator ran but the output file ${seedSqlPath} was NOT created!`, colors.red);
+        throw new Error('Generated dynamic seed SQL file does not exist after generation attempt.');
     } else {
-        log(`Generated data for scenario: ${scenario}`, colors.cyan);
+        log(`Generated dynamic seed file ${seedSqlPath} exists.`, colors.green);
     }
-    return true; // Indicate success
+    return true;
 
   } catch (error) {
     log(`Error running dynamic seed generator script: ${error.message}`, colors.red);
-    return false; // Indicate failure
+    return false;
   }
 }
 
 /**
- * Run Jest tests with the proper environment configuration
+ * Run Playwright tests located in tests/e2e
  */
-async function runTests(scenario) {
-  log('Running end-to-end tests...', colors.magenta);
-
-  // Use the package manager specific to your project
+async function runTests() {
+  log('Running end-to-end tests (Playwright)...', colors.magenta);
   try {
-    // Load .env.test variables into the process environment
-    require('dotenv').config({ path: path.join(ROOT_DIR, '.env.test') });
+    // Environment variables (including E2E_BASE_URL) were loaded via dotenv at script start
+    const env = { ...process.env };
 
-    // Add extra environment variables
-    const env = {
-      ...process.env,
-      RUN_REAL_OPTIMIZE: useRealOptimize ? 'true' : 'false',
-      E2E_SCENARIO: scenario ? scenario : undefined // Set E2E_SCENARIO env var
-    };
-
-    if (useRealOptimize) {
-      log('Using REAL optimization service for tests', colors.cyan);
-    } else {
-      log('Using MOCKED optimization service for tests', colors.cyan);
-    }
-
-    // Determine the correct npx command based on OS
     const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+    // Base command to run Playwright tests via the root package.json script
+    const testCommandBase = ['pnpm', 'run', 'test:e2e:run']; 
+    // Append any additional arguments passed to this script
+    const testCommand = [...testCommandBase, ...playwrightArgs];
 
-    // Prepare Jest arguments, splitting jestArgs if it contains spaces
-    const jestCliArgs = ['jest', '--config=jest.e2e.config.js', '--detectOpenHandles', 'apps/scheduler/tests/e2e'];
-    // Filter out empty strings that might result from split
-    const additionalArgs = jestArgs ? jestArgs.split(' ').filter(arg => arg) : [];
-    if (additionalArgs.length > 0) {
-        log(`Passing additional arguments to Jest: ${additionalArgs.join(' ')}`, colors.cyan);
-        jestCliArgs.push(...additionalArgs);
+    log(`Executing Tests: ${npxCmd} ${testCommand.join(' ')}`, colors.cyan);
+    log(`  Targeting Base URL: ${env.E2E_BASE_URL}`);
+    if (playwrightArgs.length > 0) {
+        log(`  With additional args: ${playwrightArgs.join(' ')}`, colors.cyan);
     }
 
-    log(`Executing Jest: ${npxCmd} ${jestCliArgs.join(' ')}`, colors.cyan);
-    // Run Jest with e2e tests
-    const jest = spawn(npxCmd, jestCliArgs, { // Use the prepared jestCliArgs array
-      cwd: ROOT_DIR,
+    const testProcess = spawn(npxCmd, testCommand, {
+      cwd: ROOT_DIR, // Run from root
       stdio: 'inherit',
-      env,
-      shell: process.platform === 'win32' // Use shell on Windows
+      env, // Pass the current environment
+      shell: process.platform === 'win32'
     });
 
     return new Promise((resolve) => {
-      jest.on('close', (code) => {
+      testProcess.on('close', (code) => {
         if (code === 0) {
-          log('Tests completed successfully', colors.green);
+          log('Playwright tests completed successfully', colors.green);
           resolve(true);
         } else {
-          log(`Tests failed with exit code ${code}`, colors.red);
-          // Conditionally skip cleanup based on the flag
-          if (keepContainersOnFail) {
-            log('--keep-containers-on-fail flag detected. Skipping container cleanup.', colors.yellow);
-          } else {
-            // Existing cleanup logic here (might be in main() or stopContainers())
-            // We will modify the main() function's finally block instead for simplicity.
-          }
+          log(`Playwright tests failed with exit code ${code}`, colors.red);
           resolve(false);
         }
       });
-      jest.on('error', (err) => {
-          log(`Failed to start Jest process: ${err.message}`, colors.red);
-          resolve(false);
+      testProcess.on('error', (err) => {
+        log(`Failed to start Playwright process: ${err.message}`, colors.red);
+        resolve(false);
       });
     });
   } catch (error) {
@@ -416,119 +271,21 @@ async function runTests(scenario) {
 }
 
 /**
- * Stop and remove the Docker containers
+ * Stop and remove the Docker containers and volumes.
  */
-function stopContainers() {
-  log('Stopping Docker containers...', colors.blue);
-
+async function cleanup() {
+  log('Cleaning up Docker Compose services and volumes...', colors.blue);
   try {
-    execSync('docker-compose down -v --remove-orphans', { // Added -v and --remove-orphans
+    // Also use --env-file and -f here for consistency
+    execSync(`docker-compose --env-file ../.env.test -f docker-compose.test.yml down -v --remove-orphans`, {
       cwd: SIMULATION_DIR,
       stdio: 'inherit'
     });
-    log('Containers stopped and removed', colors.green);
+    log('Cleanup complete.', colors.green);
     return true;
-  } catch (error) {
-    log(`Error stopping containers: ${error.message}`, colors.red);
+  } catch (error) { 
+    log(`Error during cleanup: ${error.message}`, colors.red);
     return false;
-  }
-}
-
-/**
- * Create a Jest config for E2E tests if it doesn't exist
- */
-function ensureJestConfig() {
-  const configPath = path.join(ROOT_DIR, 'jest.e2e.config.js');
-
-  if (!fs.existsSync(configPath)) {
-    log('Creating Jest E2E config file...', colors.yellow);
-
-    const configContent = `
-module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  testMatch: ['<rootDir>/apps/scheduler/tests/e2e/**/*.test.ts'],
-  setupFiles: ['dotenv/config'],
-  testTimeout: 60000 // Increased timeout
-};
-    `.trim();
-
-    fs.writeFileSync(configPath, configContent);
-    log('Created Jest E2E config file', colors.green);
-  }
-}
-
-/**
- * Print usage information
- */
-function printUsage() {
-  console.log(`
-Usage: node run-e2e-tests.js [options] [jest options]
-
-Options:
-  --real-optimize, -r    Use the real optimization service instead of mocks
-  --fast, -f             Skip waiting for PostgREST/Optimize service in mock mode (PostgreSQL only)
-  --generate-seed, -g    Generate new seed data for the tests
-  --scenario <name>      Generate data for and run a specific named scenario
-  --keep-containers-on-fail    Keep containers running even if tests fail
-  --help, -h             Show this help information
-
-Jest options are passed directly to the Jest CLI.
-
-Examples:
-  node run-e2e-tests.js              # Run tests with mocked optimization service (random data)
-  node run-e2e-tests.js -g           # Generate new random seed data and run tests
-  node run-e2e-tests.js -g --scenario missing-equipment # Generate 'missing-equipment' data and run tests
-  node run-e2e-tests.js -t "specific test name" # Run only specific tests
-  `);
-}
-
-/**
- * Clean up any existing data to ensure we start fresh
- */
-async function cleanupVolumes() {
-  log('Cleaning up existing containers and data...', colors.blue);
-
-  try {
-    // Stop any existing containers and remove volumes
-    execSync('docker-compose down -v --remove-orphans', { // Added --remove-orphans
-      cwd: SIMULATION_DIR,
-      stdio: 'inherit'
-    });
-
-    // Remove the postgres data directory if it exists
-    const pgDataDir = path.join(SIMULATION_DIR, 'pgdata');
-    if (fs.existsSync(pgDataDir)) {
-      log('Removing existing PostgreSQL data directory...', colors.yellow);
-      try {
-        // On Windows we need to use different commands than on Unix
-        if (process.platform === 'win32') {
-          execSync(`rmdir /s /q "${pgDataDir}"`, { stdio: 'ignore' });
-        } else {
-          execSync(`rm -rf "${pgDataDir}"`, { stdio: 'ignore' });
-        }
-        log('Successfully removed PostgreSQL data directory', colors.green);
-      } catch (e) {
-        log(`Warning: Could not remove PostgreSQL data directory: ${e.message}`, colors.yellow);
-        // Continue anyway, the container will likely recreate it
-      }
-    } else {
-      log('No existing PostgreSQL data directory to remove', colors.yellow);
-    }
-
-    // Create an empty pgdata directory
-    if (!fs.existsSync(pgDataDir)) {
-      log('Creating fresh PostgreSQL data directory...', colors.yellow);
-      fs.mkdirSync(pgDataDir, { recursive: true });
-      log('Created fresh PostgreSQL data directory', colors.green);
-    }
-
-    log('Cleanup completed successfully', colors.green);
-    return true;
-  } catch (error) {
-    log(`Warning: Error during cleanup: ${error.message}`, colors.yellow);
-    // Continue anyway, as this is just a cleanup step
-    return true;
   }
 }
 
@@ -536,164 +293,157 @@ async function cleanupVolumes() {
  * Main function to run the entire process
  */
 async function main() {
-  // Check for help flag
-  if (args.includes('--help') || args.includes('-h')) {
-    printUsage();
-    process.exit(0);
-  }
+  log('Starting E2E Test Simulation...', colors.blue);
 
-  // Load .env.test variables EARLY
-  log('Loading environment variables from .env.test...', colors.yellow);
-  require('dotenv').config({ path: path.join(ROOT_DIR, '.env.test') });
-
-  // Ensure jest config exists
-  ensureJestConfig();
-
-  // Check if Docker is running
+  // Check Docker availability
   if (!checkDockerRunning()) {
-    log('Docker is not running. Please start Docker and try again.', colors.red);
     process.exit(1);
   }
 
-  // Create the tests/e2e directory if it doesn't exist
-  const e2eDir = path.join(ROOT_DIR, 'apps', 'scheduler', 'tests', 'e2e');
-  if (!fs.existsSync(e2eDir)) {
-    fs.mkdirSync(e2eDir, { recursive: true });
-    log(`Created directory: ${e2eDir}`, colors.green);
-  }
-
-  let success = false;
-  let exitCode = 0; // Track exit code
-  const seedSqlPath = path.join(SIMULATION_DIR, 'init-scripts', '07-generated-seed-data.sql'); // Target the new file
+  let servicesStarted = false;
+  let testsPassed = false;
+  let exitCode = 1; // Default to failure
 
   try {
     // Generate seed data if requested
     if (generateSeed) {
-      log('--generate flag detected. Attempting to generate new dynamic seed data...', colors.yellow);
-      // Explicitly delete existing DYNAMIC seed file FIRST
-      log(`Attempting to delete existing dynamic seed file: ${seedSqlPath}...`, colors.yellow);
-      try {
-        if (fs.existsSync(seedSqlPath)) {
-          fs.unlinkSync(seedSqlPath);
-          log('Deleted existing dynamic seed SQL file successfully.', colors.green);
-        } else {
-          log('No existing dynamic seed SQL file found to delete.', colors.cyan);
-        }
-      } catch (deleteError) {
-        log(`Warning: Could not delete existing dynamic seed SQL file: ${deleteError.message}. Continuing...`, colors.yellow);
-      }
-
-      // Run the new generator (returns boolean success status)
-      const generatorSuccess = await runSeedGenerator(scenario);
-      if (!generatorSuccess) {
+      log('--generate flag detected. Generating new dynamic seed data...', colors.yellow);
+      if (!await runSeedGenerator()) {
         throw new Error('Dynamic seed data generation failed. Cannot proceed.');
       }
-
-      // Verify the generated SQL file EXISTENCE
-      log(`Verifying existence of generated dynamic seed file: ${seedSqlPath}...`, colors.cyan);
-      if (!fs.existsSync(seedSqlPath)) {
-        log(`Error: Dynamic seed generator ran but the output file ${seedSqlPath} was NOT created!`, colors.red);
-        throw new Error('Generated dynamic seed SQL file does not exist after generation attempt.');
-      } else {
-        log(`Generated dynamic seed file ${seedSqlPath} exists.`, colors.green);
-      }
-
-      // Add a small delay *after* generation and verification
-      log('Adding 1-second delay after dynamic seed generation for filesystem sync...', colors.yellow);
+      // Add a small delay *after* generation and verification for filesystem sync
+      log('Adding 1-second delay after dynamic seed generation...', colors.yellow);
       await setTimeout(1000);
     } else {
-      log('--generate flag NOT detected. Using existing init-scripts (if present)...', colors.cyan);
-      // Ensure the target generated file exists if not generating
-      if (!fs.existsSync(seedSqlPath)) {
-        log(`Warning: Not generating seed data, but required generated file ${seedSqlPath} is missing!`, colors.yellow);
-        log('Database initialization might fail or use incomplete data.', colors.yellow);
-      }
+      log('--generate flag NOT detected. Using existing init-scripts/seed data.', colors.cyan);
+      // Optional: Verify existence of 07-generated-seed-data.sql even if not generating?
+      // const seedSqlPath = path.join(SIMULATION_DIR, 'init-scripts', '07-generated-seed-data.sql');
+      // if (!fs.existsSync(seedSqlPath)) {
+      //   log(`Warning: Required generated file ${seedSqlPath} is missing! DB init might fail.`, colors.yellow);
+      // }
     }
 
-    // Clean up existing volumes/containers before starting fresh
-    await cleanupVolumes();
-
-    // Start and initialize ONLY the database
-    if (!await startPostgresContainer()) {
-       throw new Error('Failed to start the PostgreSQL container');
-    }
-    if (!await initializeDatabaseManually()) {
-      throw new Error('Failed to manually initialize the database');
+    // Start all services
+    servicesStarted = await startAllServices();
+    if (!servicesStarted) {
+        throw new Error("Docker Compose failed to start services.");
     }
 
-    // Start the rest of the services
-    if (!await startDependentServices()) {
-       throw new Error('Failed to start dependent services');
+    // Wait for all services to be ready
+    log('Waiting for services to become healthy...', colors.magenta);
+
+    // Wait for Postgres (using healthcheck defined in docker-compose.yml is implicitly handled by depends_on) 
+    // Adding an explicit wait can be more robust.
+    if (!await waitForService('PostgreSQL', process.env.DATABASE_URL, async (url) => {
+        // Attempt a basic query or use pg client to connect
+        // For simplicity, just check if the pg_isready command in healthcheck passed implicitly
+        // We rely on docker-compose healthcheck reporting for postgres readiness via depends_on
+        // Check docker ps output or docker inspect for health status if needed
+        log('Checking Postgres health via docker-compose ps...', colors.cyan);
+        const status = execSync(`docker-compose ps postgres`, { cwd: SIMULATION_DIR }).toString();
+        if (status.includes('(healthy)')) return true;
+        if (status.includes('(health: starting)')) return false; // Still starting
+        throw new Error(`Postgres not healthy. Status: ${status}`); // Failed
+    }, 'postgres', 30, 2000)) { // Check more frequently initially
+        throw new Error('PostgreSQL failed to become ready.');
     }
 
-    // Wait for services to be ready (if not in fast mode)
-    if (!fastMode || useRealOptimize) {
-      if (!await waitForPostgREST()) {
-        throw new Error('PostgREST failed to become ready');
-      }
-      if (useRealOptimize) {
-        if (!await waitForOptimizationService()) {
-          throw new Error('Optimization Service failed to become ready');
-        }
-      }
+    // Optional: Run additional DB init/migrations if needed
+    if (!await runDatabaseInitializationIfNeeded()) {
+        throw new Error('Database initialization failed.');
     }
 
-    // --- Optional: Direct PostgREST Check ---
-    log('Making direct HTTP request to PostgREST (/jobs)...', colors.cyan);
-    try {
-      const anonKey = process.env.SUPABASE_ANON_KEY;
-      log(`Using SUPABASE_ANON_KEY: ${anonKey ? anonKey.substring(0, 20) + '...' : '[Not Found]'}`, colors.cyan);
-      if (!anonKey) {
-        throw new Error('SUPABASE_ANON_KEY is not defined in process.env');
-      }
-
-      const response = await axios.get('http://localhost:3000/jobs', {
-        headers: {
-          'Authorization': `Bearer ${anonKey}`,
-          'Accept': 'application/json'
-        },
-        timeout: 5000
-      });
-      log(`Direct PostgREST request successful! Status: ${response.status}`, colors.green);
-    } catch (axiosError) {
-      log(`Direct PostgREST request FAILED: ${axiosError.message}`, colors.red);
-      if (axiosError.response) {
-        log(`Response Status: ${axiosError.response.status}`, colors.red);
-        log(`Response Data: ${JSON.stringify(axiosError.response.data)}`, colors.red);
-      }
-      // Don't necessarily fail the whole test run here, just log it
-      log('Warning: Direct PostgREST check failed, but continuing...', colors.yellow);
+    // Wait for PostgREST (via Nginx)
+    if (!await waitForService('PostgREST API (via Nginx)', process.env.NEXT_PUBLIC_SUPABASE_URL, async (url) => {
+        const response = await axios.get(url, { timeout: 4000 }); // Check root or /rpc/health endpoint if available
+        return response.status >= 200 && response.status < 400; // Simple status check
+    }, 'nginx')) { // Check nginx container logs on failure
+        throw new Error('PostgREST API (Nginx) failed to become ready.');
     }
-    // --- End Direct PostgREST Check ---
+
+    // Wait for Optimization Service
+    const optimizerHealthUrl = process.env.OPTIMIZATION_SERVICE_URL.replace('/optimize-schedule', '/health');
+    if (!await waitForService('Optimization Service', optimizerHealthUrl, async (url) => {
+        const response = await axios.get(url, { timeout: 4000 });
+        // Adjust check based on actual health endpoint response
+        return response.status === 200 && (response.data?.status === 'healthy' || response.data?.ok === true);
+    }, 'optimizer_service')) { // Use consistent container name
+        throw new Error('Optimization Service failed to become ready.');
+    }
+
+    // Wait for Web App
+    if (!await waitForService('Web App', process.env.E2E_BASE_URL, async (url) => {
+        const response = await axios.get(url, { timeout: 4000 }); // Check base URL
+        return response.status === 200;
+    }, 'web_app', 45, 5000)) { // Longer timeout for web app build/start
+        throw new Error('Web App failed to become ready.');
+    }
+
+    log('All services are ready!', colors.green);
 
     // Run tests
-    success = await runTests(scenario); // Pass scenario to tests
+    testsPassed = await runTests();
 
   } catch (error) {
     log(`Critical error during setup or testing: ${error.message}`, colors.red);
-    success = false;
+    testsPassed = false;
   } finally {
-    // Cleanup based on success AND the flag
-    if (!success && keepContainersOnFail) {
+    if (!testsPassed && keepContainersOnFail) {
       log('Tests failed, but --keep-containers-on-fail flag detected. SKIPPING cleanup.', colors.yellow);
-      exitCode = 1; // Set exit code to indicate failure
-    } else {
+      exitCode = 1; // Indicate failure
+    } else if (!servicesStarted && !keepContainersOnFail) {
+        log('Services failed to start. Performing cleanup...', colors.blue);
+        await cleanup();
+        exitCode = 1;
+    } else if (servicesStarted) {
       log('Performing cleanup...', colors.blue);
-      if (!stopContainers()) {
-        log('Cleanup failed, but continuing...', colors.yellow);
-      }
-      exitCode = success ? 0 : 1; // Set exit code based on test success
+      await cleanup();
+      exitCode = testsPassed ? 0 : 1; // Set exit code based on test success
     }
+    log(`Exiting with code ${exitCode}.`, exitCode === 0 ? colors.green : colors.red);
     process.exit(exitCode); // Exit with appropriate code
   }
 }
 
+// --- Helper Functions Removed ---
+// (Removed startPostgresContainer, initializeDatabaseManually, startDependentServices,
+// waitForPostgREST, waitForOptimizationService, ensureJestConfig etc. as they are 
+// replaced by startAllServices and waitForService)
+
+// --- Usage Function (Optional - could be simplified) ---
+function printUsage() {
+  console.log(`
+Usage: node simulation/run-e2e-tests.js [options] [-- playwright-options]
+
+Options:
+  --generate, -g        Generate new dynamic seed data before starting services.
+  --build               Force rebuild of Docker images.
+  --keep-containers-on-fail Keep containers running if tests fail.
+  --help, -h            Show this help information.
+
+Any arguments after '--' are passed directly to the Playwright CLI.
+
+Examples:
+  node simulation/run-e2e-tests.js              # Run tests with existing seed data
+  node simulation/run-e2e-tests.js -g           # Generate new seed data and run tests
+  node simulation/run-e2e-tests.js -- --headed  # Run tests in headed mode
+  node simulation/run-e2e-tests.js -- -g "My Test Suite" # Run specific Playwright tests by grep
+  `);
+}
+
+// Check for help flag before doing anything else
+if (args.includes('--help') || args.includes('-h')) {
+    printUsage();
+    process.exit(0);
+}
+
 // Run the main function
 main().catch(err => {
-  log(`Unhandled error in main: ${err.message}`, colors.red);
+  log(`Unhandled error in main: ${err.stack || err.message}`, colors.red);
   // Attempt cleanup even on unhandled error, unless flag is set
   if (!keepContainersOnFail) {
-     stopContainers();
+     log('Attempting emergency cleanup due to unhandled error...', colors.red);
+     cleanup(); // Fire and forget cleanup
   }
   process.exit(1);
 }); 
