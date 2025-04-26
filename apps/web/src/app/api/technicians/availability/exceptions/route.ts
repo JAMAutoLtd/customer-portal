@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     if (!technician) {
       return NextResponse.json(
         { error: 'Technician not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!body.date || !body.exception_type || body.is_available === undefined) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         { error: 'Time slots should not be provided for time off' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         { error: 'Time slots are required for custom hours' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     console.error('Error creating exception:', error)
     return NextResponse.json(
       { error: 'Failed to create exception' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -121,7 +121,7 @@ export async function DELETE(request: Request) {
     if (!exceptionId) {
       return NextResponse.json(
         { error: 'exception_id is required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -148,14 +148,14 @@ export async function DELETE(request: Request) {
     if (!technician) {
       return NextResponse.json(
         { error: 'Technician not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
     const { error } = await supabase
       .from('technician_availability_exceptions')
       .delete()
-      .eq('id', exceptionId)
+      .eq('id', parseInt(exceptionId))
       .eq('technician_id', technician.id)
 
     if (error) throw error
@@ -165,7 +165,7 @@ export async function DELETE(request: Request) {
     console.error('Error deleting exception:', error)
     return NextResponse.json(
       { error: 'Failed to delete exception' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

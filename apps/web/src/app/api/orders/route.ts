@@ -26,7 +26,7 @@ export async function GET() {
         invoice,
         addresses:address_id(id, street_address, lat, lng),
         vehicles:vehicle_id(id, vin, year, make, model)
-      `
+      `,
       )
       .eq('user_id', user.id)
       .order('id', { ascending: false })
@@ -35,7 +35,7 @@ export async function GET() {
       console.error('Error fetching orders:', ordersError)
       return NextResponse.json(
         { detail: 'Failed to fetch orders' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -55,19 +55,18 @@ export async function GET() {
         const { data: jobsData } = await supabase
           .from('jobs')
           .select(
-            'id, status, requested_time, estimated_sched, job_duration, notes'
+            'id, status, requested_time, estimated_sched, job_duration, notes',
           )
           .eq('order_id', order.id)
 
-        const vehicle =
-          order.vehicles && order.vehicles[0]
-            ? {
-                ...order.vehicles[0],
-                ymm: `${order.vehicles[0].year || ''} ${
-                  order.vehicles[0].make || ''
-                } ${order.vehicles[0].model || ''}`.trim(),
-              }
-            : null
+        const vehicle = order.vehicles
+          ? {
+              ...order.vehicles,
+              ymm: `${order.vehicles.year || ''} ${
+                order.vehicles.make || ''
+              } ${order.vehicles.model || ''}`.trim(),
+            }
+          : null
 
         return {
           id: order.id,
@@ -81,7 +80,7 @@ export async function GET() {
           uploads: uploadsData || [],
           jobs: jobsData || [],
         }
-      })
+      }),
     )
 
     return NextResponse.json(ordersWithDetails)
@@ -89,7 +88,7 @@ export async function GET() {
     console.error('Error in orders API:', error)
     return NextResponse.json(
       { detail: 'Internal server error' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

@@ -5,12 +5,7 @@ import {
   DayOfWeek,
 } from '@/types/availability'
 import { Button } from '../ui/Button'
-import {
-  AvailabilityFormProps,
-  FormData,
-  DefaultHoursFormProps,
-  ExceptionFormProps,
-} from './types'
+import { FormData, DefaultHoursFormProps, ExceptionFormProps } from './types'
 
 // Component for default hours
 export function DefaultHoursForm({
@@ -61,7 +56,7 @@ export function DefaultHoursForm({
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value, type } = e.target
     setFormData((prev) => ({
@@ -70,8 +65,8 @@ export function DefaultHoursForm({
         type === 'checkbox'
           ? (e.target as HTMLInputElement).checked
           : name === 'day_of_week'
-          ? (parseInt(value) as DayOfWeek)
-          : value,
+            ? (parseInt(value) as DayOfWeek)
+            : value,
     }))
   }
 
@@ -194,7 +189,7 @@ export function ExceptionForm({
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value, type } = e.target
     setFormData((prev) => ({
@@ -203,8 +198,8 @@ export function ExceptionForm({
         type === 'checkbox'
           ? (e.target as HTMLInputElement).checked
           : name === 'day_of_week'
-          ? (parseInt(value) as DayOfWeek)
-          : value,
+            ? (parseInt(value) as DayOfWeek)
+            : value,
     }))
 
     setHasChanges(true)

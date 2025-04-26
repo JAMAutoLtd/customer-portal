@@ -25,7 +25,7 @@ const GOOGLE_MAPS_URL = 'https://www.google.com/maps/dir/?api=1'
 
 export function QueuedJobs() {
   const { user } = useAuth()
-  const [jobs, setJobs] = useState<TechnicianJob[]>([])
+  const [_, setJobs] = useState<TechnicianJob[]>([])
   const [groupedJobs, setGroupedJobs] = useState<GroupedJobs>({})
   const [isLoading, setIsLoading] = useState(true)
   const [expandedJobs, setExpandedJobs] = useState<number[]>([])
@@ -315,7 +315,7 @@ export function QueuedJobs() {
     )
   }
 
-  const renderHeaderActions = (job: TechnicianJob) => {
+  const renderHeaderActions = (_job: TechnicianJob) => {
     return null // If needed, add header actions here
   }
 

@@ -53,7 +53,7 @@ export function PendingJobs() {
     await assignJob(jobId, technicianId)
   }
 
-  const handleGoToJob = (jobId: number, lat?: number, lng?: number) => {
+  const handleGoToJob = (_jobId: number, lat?: number, lng?: number) => {
     if (lat && lng) {
       window.open(`${GOOGLE_MAPS_URL}&destination=${lat},${lng}`, '_blank')
     }
