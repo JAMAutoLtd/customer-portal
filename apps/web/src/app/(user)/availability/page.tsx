@@ -21,16 +21,16 @@ import { useRouter } from 'next/navigation'
 
 export default function AvailabilityPage() {
   const [availabilities, setAvailabilities] = useState<AvailabilityResponse[]>(
-    []
+    [],
   )
   const [defaultHours, setDefaultHours] = useState<DefaultHours[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [currentMonth] = useState(new Date())
   const [isDefaultHoursModalOpen, setIsDefaultHoursModalOpen] = useState(false)
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<DayOfWeek>(
-    new Date().getDay() as DayOfWeek
+    new Date().getDay() as DayOfWeek,
   )
   const [defaultHoursFormKey, setDefaultHoursFormKey] = useState(0)
   const { user, userProfile, loading: authLoading } = useAuth()
@@ -56,7 +56,7 @@ export default function AvailabilityPage() {
       setError(null)
 
       const response = await fetch(
-        `/api/technicians/availability?start_date=${startDate}&end_date=${endDate}`
+        `/api/technicians/availability?start_date=${startDate}&end_date=${endDate}`,
       )
 
       if (!response.ok) {
@@ -115,7 +115,7 @@ export default function AvailabilityPage() {
         const errorData = await response.json()
         console.error('API error response:', errorData)
         throw new Error(
-          errorData.error || 'Failed to save availability exception'
+          errorData.error || 'Failed to save availability exception',
         )
       }
 
@@ -170,10 +170,10 @@ export default function AvailabilityPage() {
 
   // Get default hours for a specific day of week
   const getDefaultHoursForDay = (
-    dayOfWeek: number
+    dayOfWeek: number,
   ): DefaultHours | undefined => {
     const defaultHour = defaultHours.find(
-      (hour) => hour.day_of_week === dayOfWeek
+      (hour) => hour.day_of_week === dayOfWeek,
     )
 
     // If no default hours found, return undefined to indicate no availability
