@@ -79,7 +79,7 @@ export async function GET() {
             model
           )
         )
-      `
+      `,
       )
       .eq('status', 'pending_review')
       .order('requested_time', { ascending: true })
@@ -88,7 +88,7 @@ export async function GET() {
       console.error('Supabase query error:', jobsError)
       return NextResponse.json(
         { error: 'Failed to fetch pending jobs', details: jobsError.message },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -110,9 +110,7 @@ export async function GET() {
 
         // Extract user info from orders.users
         const userData =
-          order.user && order.user.length > 0
-            ? order.user[0]
-            : { full_name: 'Unknown' }
+          order.user && order.user ? order.user : { full_name: 'Unknown' }
 
         // Extract vehicle info
         const vehicleData = order.customer_vehicles || {
@@ -181,7 +179,7 @@ export async function GET() {
     console.error('Error fetching pending jobs:', error)
     return NextResponse.json(
       { error: 'Failed to fetch pending jobs' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
