@@ -33,6 +33,7 @@ interface JobData {
     service_name: string
   }
   order: OrderData
+  assigned_technician: number
 }
 
 export async function GET() {
@@ -80,6 +81,7 @@ export async function GET() {
         notes,
         technician_notes,
         service_id,
+        assigned_technician,
         address:address_id (
           street_address,
           lat,
@@ -159,6 +161,7 @@ export async function GET() {
           status: job.status,
           estimated_sched: job.estimated_sched,
           requested_time: job.requested_time,
+          assigned_technician: job.assigned_technician || 0,
         }
       } catch (error) {
         console.error('Error formatting job data:', error, job)
@@ -181,6 +184,7 @@ export async function GET() {
           status: job.status || 'queued',
           estimated_sched: job.estimated_sched || new Date().toISOString(),
           requested_time: job.requested_time || new Date().toISOString(),
+          assigned_technician: job.assigned_technician || 0,
         }
       }
     })
