@@ -3,14 +3,14 @@ import { createClient } from '@/utils/supabase/server'
 
 // Define types to help TypeScript understand the data structure
 interface OrderData {
-  users: {
+  user: {
     full_name: string
-  }[]
-  customer_vehicles: {
+  }
+  vehicle: {
     year: number
     make: string
     model: string
-  }[]
+  }
 }
 
 interface AddressData {
@@ -28,11 +28,12 @@ interface JobData {
   job_duration?: number
   notes?: string
   technician_notes?: string
-  addresses: AddressData
-  services: {
+  address: AddressData
+  service: {
     service_name: string
   }
-  orders: OrderData
+  order: OrderData
+  assigned_technician: number
 }
 
 export async function GET() {
@@ -60,7 +61,7 @@ export async function GET() {
     if (technicianError || !technicianData) {
       return NextResponse.json(
         { error: 'User is not a technician or technician record not found' },
-        { status: 403 }
+        { status: 403 },
       )
     }
 
@@ -80,25 +81,26 @@ export async function GET() {
         notes,
         technician_notes,
         service_id,
-        addresses:address_id (
+        assigned_technician,
+        address:address_id (
           street_address,
           lat,
           lng
         ),
-        services (
+        service:service_id (
           service_name
         ),
-        orders (
-          users (
+        order:order_id (
+          user:user_id (
             full_name
           ),
-          customer_vehicles (
+          vehicle:vehicle_id (
             year,
             make,
             model
           )
         )
-      `
+      `,
       )
       .eq('assigned_technician', technicianId)
       .neq('status', 'pending_review')
@@ -108,7 +110,7 @@ export async function GET() {
       console.error('Supabase query error:', jobsError)
       return NextResponse.json(
         { error: 'Failed to fetch jobs', details: jobsError.message },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -116,36 +118,30 @@ export async function GET() {
       return NextResponse.json([])
     }
 
-    // Type assertion to help TypeScript understand the structure
     const jobs = jobsData as unknown as JobData[]
 
     // Format the response to match the expected structure in the frontend
     const formattedJobs = jobs.map((job) => {
       try {
         // Handle potential data structure issues safely
-        const order = job.orders || ({} as OrderData)
-        const address = job.addresses || ({} as AddressData)
+        const order = job.order || ({} as OrderData)
+        const address = job.address || ({} as AddressData)
 
         // Extract user info
-        const userData =
-          order.users && order.users.length > 0
-            ? order.users[0]
-            : { full_name: 'Unknown' }
+        const userData = order.user || { full_name: 'Unknown' }
 
         // Extract vehicle info
-        const vehicleData =
-          order.customer_vehicles && order.customer_vehicles.length > 0
-            ? order.customer_vehicles[0]
-            : { year: 0, make: 'Unknown', model: 'Unknown' }
+        const vehicleData = order.vehicle || {
+          year: 0,
+          make: 'Unknown',
+          model: 'Unknown',
+        }
 
         // Extract service info
         let serviceName = 'Unknown service'
-        if (job.services) {
-          serviceName = job.services.service_name || 'Unknown service'
+        if (job.service) {
+          serviceName = job.service.service_name || 'Unknown service'
         }
-
-        // Mock equipment data (would need a real implementation)
-        const equipmentRequired = ['Scanner', 'ADAS Tools', 'Diagnostic cable']
 
         return {
           id: job.id,
@@ -165,7 +161,7 @@ export async function GET() {
           status: job.status,
           estimated_sched: job.estimated_sched,
           requested_time: job.requested_time,
-          equipment_required: equipmentRequired,
+          assigned_technician: job.assigned_technician || 0,
         }
       } catch (error) {
         console.error('Error formatting job data:', error, job)
@@ -188,7 +184,7 @@ export async function GET() {
           status: job.status || 'queued',
           estimated_sched: job.estimated_sched || new Date().toISOString(),
           requested_time: job.requested_time || new Date().toISOString(),
-          equipment_required: [],
+          assigned_technician: job.assigned_technician || 0,
         }
       }
     })
