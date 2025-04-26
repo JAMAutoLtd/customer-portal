@@ -1,22 +1,19 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 
-interface Params {
-  params: {
-    jobId: string
-  }
-}
-
-export async function PATCH(request: Request, { params }: Params) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ jobId: string }> },
+) {
   try {
-    const jobId = params.jobId
+    const { jobId } = await params
     const { technician_id } = await request.json()
 
     // Validate technician_id
     if (!technician_id || isNaN(parseInt(technician_id))) {
       return NextResponse.json(
         { error: 'Invalid technician ID' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -41,7 +38,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (technicianError || !technicianData) {
       return NextResponse.json(
         { error: 'Technician not found' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
@@ -56,7 +53,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (error) {
       return NextResponse.json(
         { error: 'Failed to reassign job', details: error.message },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -66,7 +63,7 @@ export async function PATCH(request: Request, { params }: Params) {
     console.error('Error reassigning job:', error)
     return NextResponse.json(
       { error: 'Failed to reassign job' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 
-interface Params {
-  params: {
-    jobId: string
-  }
-}
-
-export async function PATCH(request: Request, { params }: Params) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ jobId: string }> },
+) {
   try {
-    const jobId = params.jobId
+    const { jobId } = await params
     const { status } = await request.json()
 
     // Validate status
@@ -24,7 +21,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { error: 'Invalid status value' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -50,7 +47,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (error) {
       return NextResponse.json(
         { error: 'Failed to update job status', details: error.message },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -60,7 +57,7 @@ export async function PATCH(request: Request, { params }: Params) {
     console.error('Error updating job status:', error)
     return NextResponse.json(
       { error: 'Failed to update job status' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
