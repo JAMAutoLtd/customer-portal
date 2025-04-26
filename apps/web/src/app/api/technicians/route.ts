@@ -34,6 +34,7 @@ export async function GET() {
 
     const formattedTechnicians = data.map((tech) => ({
       id: tech.id,
+      // @ts-ignore
       name: tech.user.full_name || `Technician ${tech.id}`,
     }))
 
