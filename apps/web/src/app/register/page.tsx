@@ -25,9 +25,9 @@ export default function RegisterPage() {
 
   const handleAddressSelect = (
     address: string,
-    isValid: boolean,
+    _isValid: boolean,
     lat?: number,
-    lng?: number
+    lng?: number,
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -80,7 +80,7 @@ export default function RegisterPage() {
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target
     setFormData((prev) => ({

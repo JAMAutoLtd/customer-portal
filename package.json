@@ -16,7 +16,8 @@
     "test:optimiser": "cd apps/optimiser && pytest",
     "test:e2e": "cd apps/scheduler; pnpm run test:e2e; cd ../..",
     "db:generate-types": "cd apps/scheduler; pnpm run db:generate-types; cd ../..",
-    "clean": "rm -fo package-lock.json -ErrorAction SilentlyContinue; rm -fo pnpm-lock.yaml -ErrorAction SilentlyContinue; rm -r -fo node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/web/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/dist -ErrorAction SilentlyContinue; rm -r -fo apps/web/.next -ErrorAction SilentlyContinue"
+    "clean": "rm -fo package-lock.json -ErrorAction SilentlyContinue; rm -fo pnpm-lock.yaml -ErrorAction SilentlyContinue; rm -r -fo node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/web/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/dist -ErrorAction SilentlyContinue; rm -r -fo apps/web/.next -ErrorAction SilentlyContinue",
+    "type-check": "tsc --noEmit -p apps/web/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
