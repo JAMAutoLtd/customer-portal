@@ -38,7 +38,6 @@ interface TechnicianJob {
     | 'fixed_time'
   estimated_sched: string
   requested_time: string
-  equipment_required: string[]
 }
 
 interface GroupedJobs {
@@ -130,7 +129,7 @@ export function QueuedJobs() {
       grouped[dateKey].sort(
         (a, b) =>
           new Date(a.estimated_sched).getTime() -
-          new Date(b.estimated_sched).getTime()
+          new Date(b.estimated_sched).getTime(),
       )
     })
 
@@ -160,10 +159,9 @@ export function QueuedJobs() {
   const handleGoToJob = async (jobId: number, lat?: number, lng?: number) => {
     try {
       if (lat && lng) {
-        // Open Google Maps with the location
         window.open(
           `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
-          '_blank'
+          '_blank',
         )
       }
 
@@ -183,8 +181,8 @@ export function QueuedJobs() {
       // Update job in the local state
       setJobs((prev) =>
         prev.map((job) =>
-          job.id === jobId ? { ...job, status: 'en_route' } : job
-        )
+          job.id === jobId ? { ...job, status: 'en_route' } : job,
+        ),
       )
 
       // Update grouped jobs
@@ -192,7 +190,7 @@ export function QueuedJobs() {
         const newGrouped = { ...prev }
         Object.keys(newGrouped).forEach((dateKey) => {
           newGrouped[dateKey] = newGrouped[dateKey].map((job) =>
-            job.id === jobId ? { ...job, status: 'en_route' } : job
+            job.id === jobId ? { ...job, status: 'en_route' } : job,
           )
         })
         return newGrouped
@@ -220,8 +218,8 @@ export function QueuedJobs() {
       // Update job in the local state
       setJobs((prev) =>
         prev.map((job) =>
-          job.id === jobId ? { ...job, status: 'in_progress' } : job
-        )
+          job.id === jobId ? { ...job, status: 'in_progress' } : job,
+        ),
       )
 
       // Update grouped jobs
@@ -229,7 +227,7 @@ export function QueuedJobs() {
         const newGrouped = { ...prev }
         Object.keys(newGrouped).forEach((dateKey) => {
           newGrouped[dateKey] = newGrouped[dateKey].map((job) =>
-            job.id === jobId ? { ...job, status: 'in_progress' } : job
+            job.id === jobId ? { ...job, status: 'in_progress' } : job,
           )
         })
         return newGrouped
@@ -257,8 +255,8 @@ export function QueuedJobs() {
       // Update job in the local state
       setJobs((prev) =>
         prev.map((job) =>
-          job.id === jobId ? { ...job, status: 'completed' } : job
-        )
+          job.id === jobId ? { ...job, status: 'completed' } : job,
+        ),
       )
 
       // Update grouped jobs
@@ -266,7 +264,7 @@ export function QueuedJobs() {
         const newGrouped = { ...prev }
         Object.keys(newGrouped).forEach((dateKey) => {
           newGrouped[dateKey] = newGrouped[dateKey].map((job) =>
-            job.id === jobId ? { ...job, status: 'completed' } : job
+            job.id === jobId ? { ...job, status: 'completed' } : job,
           )
         })
         return newGrouped
@@ -299,7 +297,7 @@ export function QueuedJobs() {
         const newGrouped = { ...prev }
         Object.keys(newGrouped).forEach((dateKey) => {
           newGrouped[dateKey] = newGrouped[dateKey].filter(
-            (job) => job.id !== jobId
+            (job) => job.id !== jobId,
           )
 
           // If no jobs left for this date, remove the date key
@@ -337,13 +335,13 @@ export function QueuedJobs() {
 
           window.open(
             `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypointsParam}`,
-            '_blank'
+            '_blank',
           )
         } else {
           // If there's only one location, just navigate to it
           window.open(
             `https://www.google.com/maps/dir/?api=1&destination=${waypoints[0]}`,
-            '_blank'
+            '_blank',
           )
         }
       }
@@ -398,7 +396,7 @@ export function QueuedJobs() {
                   }}
                   className="mr-4 text-sm"
                 >
-                  <MapPin className="w-4 h-4 mr-1" /> View Route
+                  <MapPin className="w-4 h-4 mr-1" /> Overview
                 </Button>
                 {isExpanded ? (
                   <ChevronUp className="w-5 h-5 text-gray-500" />
@@ -449,7 +447,7 @@ export function QueuedJobs() {
                                 handleGoToJob(
                                   job.id,
                                   job.address.lat,
-                                  job.address.lng
+                                  job.address.lng,
                                 )
                               }}
                               className="w-full"
@@ -464,10 +462,10 @@ export function QueuedJobs() {
                               job.status === 'completed'
                                 ? 'bg-green-100 text-green-800'
                                 : job.status === 'in_progress'
-                                ? 'bg-blue-100 text-blue-800'
-                                : job.status === 'en_route'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : job.status === 'en_route'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'
                             }`}
                           >
                             {job.status.replace('_', ' ')}
@@ -494,19 +492,6 @@ export function QueuedJobs() {
                             </div>
 
                             <div>
-                              <p className="text-sm text-gray-500">
-                                Equipment Required:
-                              </p>
-                              <ul className="text-sm list-disc pl-4">
-                                {job.equipment_required.map(
-                                  (equipment, index) => (
-                                    <li key={index}>{equipment}</li>
-                                  )
-                                )}
-                              </ul>
-                            </div>
-
-                            <div>
                               <p className="text-sm text-gray-500">Address:</p>
                               <p className="text-sm">
                                 {job.address.street_address}
@@ -522,7 +507,7 @@ export function QueuedJobs() {
                                 onChange={(e) =>
                                   handleReassignJob(
                                     job.id,
-                                    parseInt(e.target.value)
+                                    parseInt(e.target.value),
                                   )
                                 }
                                 value=""
