@@ -52,7 +52,7 @@ steps:
         '--cpu=1',
         '--memory=512Mi',
         # Secrets (adjust versions if needed)
-        '--update-secrets=SUPABASE_ANON_KEY=supabase-anon-key:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest,ONESTEP_GPS_API_KEY=onestep-gps-api-key:latest',
+        '--update-secrets=SUPABASE_ANON_KEY=supabase-anon-key:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest',
         # Environment variables - Use substitutions from trigger
         '--set-env-vars=OPTIMIZATION_SERVICE_URL=$_OPTIMIZATION_SERVICE_URL,SUPABASE_URL=$_SUPABASE_URL'
       ]

@@ -3,14 +3,16 @@ import { createClient } from '@/utils/supabase/server'
 
 // Define types to help TypeScript understand the data structure
 interface OrderData {
-  users: {
+  id: number
+  user: {
+    id: string
     full_name: string
-  }[]
+  }
   customer_vehicles: {
     year: number
     make: string
     model: string
-  }[]
+  }
 }
 
 interface AddressData {
@@ -24,10 +26,7 @@ interface JobData {
   order_id: number
   status: string
   requested_time: string
-  estimated_sched: string
-  job_duration?: number
-  notes?: string
-  technician_notes?: string
+  assigned_technician: number | null
   addresses: AddressData
   services: {
     service_name: string
@@ -48,25 +47,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
-
-    // Get the technician ID for the current user
-    const { data: technicianData, error: technicianError } = await supabase
-      .from('technicians')
-      .select('id')
-      .eq('user_id', userId)
-      .single()
-
-    if (technicianError || !technicianData) {
-      return NextResponse.json(
-        { error: 'User is not a technician or technician record not found' },
-        { status: 403 }
-      )
-    }
-
-    const technicianId = technicianData.id
-
-    // Get all jobs assigned to this technician (excluding pending_review status)
+    // Get all jobs with queued status
     const { data: jobsData, error: jobsError } = await supabase
       .from('jobs')
       .select(
@@ -75,10 +56,7 @@ export async function GET() {
         order_id,
         status,
         requested_time,
-        estimated_sched,
-        job_duration,
-        notes,
-        technician_notes,
+        assigned_technician,
         service_id,
         addresses:address_id (
           street_address,
@@ -86,13 +64,16 @@ export async function GET() {
           lng
         ),
         services (
+          id,
           service_name
         ),
         orders (
-          users (
+          id,
+          user:user_id (
+            id,
             full_name
           ),
-          customer_vehicles (
+          customer_vehicles:vehicle_id (
             year,
             make,
             model
@@ -100,14 +81,13 @@ export async function GET() {
         )
       `
       )
-      .eq('assigned_technician', technicianId)
-      .neq('status', 'pending_review')
-      .order('estimated_sched', { ascending: true })
+      .eq('status', 'queued')
+      .order('requested_time', { ascending: true })
 
     if (jobsError) {
       console.error('Supabase query error:', jobsError)
       return NextResponse.json(
-        { error: 'Failed to fetch jobs', details: jobsError.message },
+        { error: 'Failed to fetch queued jobs', details: jobsError.message },
         { status: 500 }
       )
     }
@@ -115,6 +95,8 @@ export async function GET() {
     if (!jobsData || jobsData.length === 0) {
       return NextResponse.json([])
     }
+
+    console.log('Job data example:', jobsData[0])
 
     // Type assertion to help TypeScript understand the structure
     const jobs = jobsData as unknown as JobData[]
@@ -126,17 +108,15 @@ export async function GET() {
         const order = job.orders || ({} as OrderData)
         const address = job.addresses || ({} as AddressData)
 
-        // Extract user info
-        const userData =
-          order.users && order.users.length > 0
-            ? order.users[0]
-            : { full_name: 'Unknown' }
+        // Extract user info - order.user is now directly available
+        const userData = order.user || { full_name: 'Unknown' }
 
         // Extract vehicle info
-        const vehicleData =
-          order.customer_vehicles && order.customer_vehicles.length > 0
-            ? order.customer_vehicles[0]
-            : { year: 0, make: 'Unknown', model: 'Unknown' }
+        const vehicleData = order.customer_vehicles || {
+          year: 0,
+          make: 'Unknown',
+          model: 'Unknown',
+        }
 
         // Extract service info
         let serviceName = 'Unknown service'
@@ -163,9 +143,9 @@ export async function GET() {
           },
           service_name: serviceName,
           status: job.status,
-          estimated_sched: job.estimated_sched,
           requested_time: job.requested_time,
           equipment_required: equipmentRequired,
+          assigned_technician: job.assigned_technician,
         }
       } catch (error) {
         console.error('Error formatting job data:', error, job)
@@ -186,16 +166,19 @@ export async function GET() {
           },
           service_name: 'Unknown service',
           status: job.status || 'queued',
-          estimated_sched: job.estimated_sched || new Date().toISOString(),
           requested_time: job.requested_time || new Date().toISOString(),
           equipment_required: [],
+          assigned_technician: job.assigned_technician,
         }
       }
     })
 
     return NextResponse.json(formattedJobs)
   } catch (error) {
-    console.error('Error fetching technician jobs:', error)
-    return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 })
+    console.error('Error fetching queued jobs:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch queued jobs' },
+      { status: 500 }
+    )
   }
 }
