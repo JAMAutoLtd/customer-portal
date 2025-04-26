@@ -50,4 +50,7 @@ coverage/
 
 # Linting / Formatting Configs (usually not needed at runtime)
 .eslint*
-.prettier* 
+.prettier*
+
+# Additional exclusion
+**/node_modules

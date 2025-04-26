@@ -1,54 +1,38 @@
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15
-    container_name: pgdb
+    image: postgres:16
+    container_name: postgres_db
     ports:
       - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: scheduler_test_db
-      # Enable remote connections
-      POSTGRES_HOST_AUTH_METHOD: trust
-    command:
-      - "postgres"
-      - "-c"
-      - "listen_addresses=*"
+    env_file:
+      - ../.env.test
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "psql -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1;'"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # PostgREST API (Supabase-like REST interface)
   postgrest:
-    image: postgrest/postgrest:v11.2.2
-    container_name: pgrest
+    image: postgrest/postgrest:v12.0.2
+    container_name: postgrest_api
     ports:
       - "3000:3000"
-    environment:
-      # Use postgres role initially since anon role won't exist until init scripts run
-      PGRST_DB_URI: postgres://postgres:postgres@pgdb:5432/scheduler_test_db
-      PGRST_DB_SCHEMA: public
-      PGRST_DB_ANON_ROLE: anon
-      PGRST_DB_POOL: 10
-      PGRST_SERVER_PORT: 3000
-      PGRST_JWT_SECRET: "super-secret-jwt-token-with-at-least-32-characters-long"
-      PGRST_OPENAPI_SERVER_PROXY_URI: http://localhost:3000
-      # Add retry settings
-      PGRST_DB_MAX_RETRIES: 20
-      PGRST_DB_RETRY_DELAY: 5
+    env_file:
+      - ../.env.test
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - app-network
-    restart: on-failure
+    restart: unless-stopped
 
   # Nginx Reverse Proxy for PostgREST
   nginx:
@@ -56,7 +40,7 @@ services:
       context: ./nginx
     container_name: nginx_proxy
     ports:
-      - "3001:80" # Expose proxy on host port 3001
+      - "3001:80"
     depends_on:
       - postgrest
     networks:
@@ -66,21 +50,22 @@ services:
   # Optimization Service
   optimize-service:
     build:
-      context: ../optimize-service
+      context: ../apps/optimiser
       dockerfile: Dockerfile
-    container_name: optimize
+    container_name: optimizer_service
     ports:
       - "8080:8080"
-    environment:
-      - PORT=8080
-    volumes:
-      - ../optimize-service:/app
-    depends_on:
-      - postgres
-      - postgrest
+    env_file:
+      - ../.env.test
     networks:
       - app-network
-    restart: on-failure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 # Define a custom network for better control
 networks:

@@ -75,8 +75,11 @@ supabase
 
 # vibe tools
 .repomix-output.txt
+.repomix-plan-files.txt
+.repomix-plan-filtered.txt
 vibe-tools.config.json
 repomix.config.json
 .repomixignore
+.cursor
 
 PLAN.md
