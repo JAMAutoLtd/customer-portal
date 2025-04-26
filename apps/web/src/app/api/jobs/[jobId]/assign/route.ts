@@ -3,10 +3,10 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { jobId: string } },
+  { params }: { params: Promise<{ jobId: string }> },
 ) {
   try {
-    const jobId = params.jobId
+    const { jobId } = await params
     const { technician_id, status = 'queued' } = await request.json()
 
     // Validate technician_id
