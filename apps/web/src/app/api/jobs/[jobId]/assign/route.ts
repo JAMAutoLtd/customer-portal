@@ -49,7 +49,7 @@ export async function PATCH(
         assigned_technician: technician_id,
         status,
       })
-      .eq('id', jobId)
+      .eq('id', parseInt(jobId))
       .select()
       .single()
 
