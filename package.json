@@ -19,8 +19,8 @@
     "test:integration": "jest --config=tests/integration/jest.config.integration.js",
     "e2e:run": "ts-node simulation/scripts/e2e-runner.ts",
     "db:generate-types": "cd apps/scheduler; pnpm run db:generate-types; cd ../..",
-    "db:seed:staging": "ts-node simulation/scripts/db/seed/index.ts",
-    "db:clean:staging": "ts-node simulation/scripts/db/cleanup-staging.ts",
+    "db:seed:staging": "cross-env dotenv_config_path=.env.test ts-node -r dotenv/config --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/db/seed/index.ts",
+    "db:clean:staging": "cross-env dotenv_config_path=.env.test ts-node -r dotenv/config --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/db/cleanup-staging.ts",
     "clean": "rm -fo package-lock.json -ErrorAction SilentlyContinue; rm -fo pnpm-lock.yaml -ErrorAction SilentlyContinue; rm -r -fo node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/web/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/dist -ErrorAction SilentlyContinue; rm -r -fo apps/web/.next -ErrorAction SilentlyContinue",
     "type-check": "tsc --noEmit -p apps/web/tsconfig.json"
   },
@@ -34,6 +34,7 @@
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "axios": "^1.8.4",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.5.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^10.1.1",

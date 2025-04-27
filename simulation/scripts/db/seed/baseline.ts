@@ -1,12 +1,36 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-// Use the existing generated types for the PUBLIC schema
-import { Database, Tables } from './staged.database.types.ts'; // Adjust path if needed
-// Import types for the AUTH schema if available separately
-// import { Database as AuthDatabase } from '../auth.types.ts'; // Example path
+// Import types and utils from the central utils file
+import {
+  Database,
+  Tables,
+  TablesInsert,
+  // BaselineRefs is defined in scenarios/types.ts
+  insertData,
+  logInfo,
+  logError,
+} from '../../utils';
+// Import BaselineRefs from its actual location
+import type { BaselineRefs } from './scenarios/types';
+import { cleanupAllTestData } from '../cleanup-staging';
+// It's good practice to move large static data arrays to a separate file
+import {
+  addressesData,
+  authUsersData,
+  publicUsersData,
+  vansData,
+  equipmentData,
+  ymmRefData,
+  servicesData,
+  customerVehiclesData,
+  techniciansData,
+  diagRequirementsData,
+  immoRequirementsData,
+  progRequirementsData,
+  airbagRequirementsData,
+  adasRequirementsData,
+} from './baseline-data';
 
-
-
-// --- Use Generated Types (Public Schema) ---
+// --- Use Type Aliases from Imported Helpers ---
 type Address = Tables<'addresses'>;
 type PublicUser = Tables<'users'>;
 type Van = Tables<'vans'>;
@@ -15,622 +39,24 @@ type YmmRef = Tables<'ymm_ref'>;
 type Service = Tables<'services'>;
 type CustomerVehicle = Tables<'customer_vehicles'>;
 type Technician = Tables<'technicians'>;
-interface RequirementInsertBase {
-  ymm_id: number;
-  service_id: number;
-}
-interface AdasRequirementInsert extends RequirementInsertBase {
-  equipment_model: string;
-}
+// Explicitly use the Insert type helper for data being inserted
+type TechnicianInsert = TablesInsert<'technicians'>;
+type VanInsert = TablesInsert<'vans'>;
+type UserInsert = TablesInsert<'users'>;
 
-// --- Define Interface for Auth User Creation Data ---
-// Based on supabase.auth.admin.createUser parameters and our seed data
+
+// --- Define Interface for Auth User Creation Data (Keep local if only used here) ---
 interface AuthUserSeedData {
-  id: string; // The UUID from our seed data
+  id: string;
   email: string;
-  password?: string; // Optional: provide a default password
-  // Add other fields like email_confirm: true if needed, depending on Supabase settings
+  password?: string;
 }
-
-// --- Baseline Data Arrays --- (Ensure data matches the generated types or defined interfaces)
-const addressesData: Address[] = [
-  { id: 1, street_address: '1234 Maple St SW', lat: 51.0301, lng: -114.0719 },
-  { id: 2, street_address: '5678 Oak Ave NW', lat: 51.0852, lng: -114.1303 },
-  { id: 3, street_address: '9101 Spruce Dr SE', lat: 51.0123, lng: -114.0387 },
-  { id: 4, street_address: '2468 Pine Cres NE', lat: 51.0624, lng: -114.0412 },
-  { id: 5, street_address: 'Superior Paint & Body Service Ltd, 112 17 Ave SE', lat: 51.0385, lng: -114.0606 },
-  { id: 6, street_address: 'Center Street Auto Service, 1005 Centre St North', lat: 51.0641, lng: -114.0620 },
-  { id: 7, street_address: 'National Transmission, 402 14 St NW', lat: 51.0537, lng: -114.0934 },
-  { id: 8, street_address: 'Southwest Auto Service, 2703 14th St SW', lat: 51.0275, lng: -114.0949 },
-  { id: 9, street_address: 'Wolfe Calgary, 1720 Bow Trail SW', lat: 51.0435, lng: -114.0979 },
-  { id: 10, street_address: 'Heninger Collision Centre, 3636 Dartmouth Rd SE', lat: 51.0193, lng: -114.0347 },
-  { id: 11, street_address: 'KAL Tire North Hill, 1616 14 Ave NW', lat: 51.0644, lng: -114.0956 },
-  { id: 12, street_address: 'MacLeod Auto & Truck Repair, 4002 Macleod Trail S', lat: 51.0170, lng: -114.0705 },
-  { id: 13, street_address: 'Superior Paint & Autobody Corp., 112 17 Ave SE', lat: 51.0385, lng: -114.0606 },
-  { id: 14, street_address: 'CARSTAR Calgary Downtown, 1407 9 Ave SW', lat: 51.0452, lng: -114.0925 },
-  { id: 15, street_address: 'Heninger Toyota, 3640 Macleod Tr S', lat: 51.0175, lng: -114.0717 },
-  { id: 16, street_address: 'S O S Paint & Body Shop Ltd., 3648 Burnsland Rd SE', lat: 51.0198, lng: -114.0341 },
-  { id: 17, street_address: 'CARSTAR Burnsland RD, 3648 Burnsland Road SE', lat: 51.0198, lng: -114.0341 },
-  { id: 18, street_address: 'Macleod Trail Auto Body Ltd, 319 38 A Avenue SE', lat: 51.0150, lng: -114.0595 },
-  { id: 19, street_address: 'Road Runner Motors, 2A 4015 1 St SE', lat: 51.0162, lng: -114.0584 },
-  { id: 20, street_address: 'Stevo Auto Clinic, 3505 - 16 St. SW', lat: 51.0277, lng: -114.1037 },
-  { id: 21, street_address: 'Boyd Autobody & Glass 1 Street SE, 4303 - 1 Street SE', lat: 51.0118, lng: -114.0582 },
-  { id: 22, street_address: 'Calgary Body Shop Supplies Ltd. South, 4339B Manhattan Rd SE', lat: 51.0124, lng: -114.0353 },
-  { id: 23, street_address: 'Hallmark Auto Body Ltd., 1440 9 Ave SE', lat: 51.0442, lng: -114.0288 },
-  { id: 24, street_address: 'Carstar Chinook, 4700 1 St SE', lat: 51.0058, lng: -114.0572 },
-  { id: 25, street_address: 'Uber Autobody Ltd., 4603 Manilla Rd SE', lat: 51.0125, lng: -114.0298 },
-  { id: 26, street_address: 'Simplicity Car Care Calgary South, 5009 1 St SW', lat: 50.9988, lng: -114.0756 },
-  { id: 27, street_address: 'CARSTAR Calgary McKnight, 4413-11th Street NE', lat: 51.0955, lng: -114.0530 },
-  { id: 28, street_address: 'Boyd Autobody & Glass 32 St. NE, 3520 - 32 St NE', lat: 51.0838, lng: -113.9802 },
-  { id: 29, street_address: 'Boyd Autobody & Glass Crowfoot, 109 - 64 Crowfoot Circle NW', lat: 51.1096, lng: -114.2082 },
-  { id: 30, street_address: 'Maaco Calgary, 908 53 Ave. NE, Bays J&K', lat: 51.0678, lng: -114.0492 },
-  { id: 31, street_address: 'A-1 Auto Body Ltd., 5304 1a St SE', lat: 50.9911, lng: -114.0594 },
-  { id: 32, street_address: 'MP Auto Body Repair, #2, 343 Forge Rd SE', lat: 51.0187, lng: -114.0271 },
-  { id: 33, street_address: 'Calgary Auto Body Repairs, 235105 Wrangler Dr #29, Rocky View County', lat: 51.0736, lng: -113.9039 },
-  { id: 34, street_address: 'CARSTAR Calgary Heritage, 4215 12 St NE', lat: 51.0889, lng: -114.0409 },
-  { id: 35, street_address: 'Fix Auto Calgary North, 222 61 Ave SE', lat: 50.9982, lng: -114.0623 },
-  { id: 36, street_address: 'Fix Auto Deerfoot, 816 41 Ave NE', lat: 51.0831, lng: -114.0409 },
-  { id: 37, street_address: 'CSN Collision, 233 Forge Rd SE', lat: 51.0171, lng: -114.0272 },
-  { id: 38, street_address: 'Horton Auto Body & Paint, 3804 Edmonton Trail NE', lat: 51.0836, lng: -114.0448 },
-  { id: 39, street_address: 'Fix Auto Calgary South Central, 4045 106 Ave SE', lat: 50.9681, lng: -113.9655 },
-  { id: 40, street_address: 'Concours Collision Centre, 3602 21 St NE', lat: 51.0841, lng: -114.0086 },
-  { id: 41, street_address: 'Calgary Coachworks, 3810 3a St NE', lat: 51.0805, lng: -114.0497 },
-  { id: 42, street_address: 'Speedy Collision, 7725 44 St SE #103', lat: 50.9761, lng: -113.9497 },
-  { id: 43, street_address: 'National Collision Centre, 3801 1 St NE', lat: 51.0780, lng: -114.0580 },
-  { id: 44, street_address: 'Minute Muffler & Brake with Autobody, 4220 17 Ave SE', lat: 51.0391, lng: -113.9691 },
-  { id: 45, street_address: 'Calgary Collision Centre, 1635 32 Ave NE', lat: 51.0842, lng: -114.0335 },
-  { id: 46, street_address: 'Dent Clinic, 3015 5 Ave NE', lat: 51.0649, lng: -114.0132 },
-  { id: 47, street_address: 'Prestige Auto Body, 2125 32 Ave NE #108', lat: 51.0830, lng: -114.0236 },
-  { id: 48, street_address: 'Ultimate Auto Body Ltd., 3434 48 Ave SE', lat: 50.9893, lng: -113.9952 },
-  { id: 49, street_address: 'Varsity Auto Body, 4101 19 St NE', lat: 51.0914, lng: -114.0227 },
-  { id: 50, street_address: 'Valley Collision Ltd., 3221 9 St SE', lat: 51.0279, lng: -114.0416 },
-  { id: 51, street_address: 'Advantage Collision, 2307 52 Ave SE #6', lat: 50.9909, lng: -114.0269 },
-  { id: 52, street_address: 'Procolor Collision Calgary Sunridge, 3020 26 St NE Unit #119', lat: 51.0775, lng: -113.9944 },
-  { id: 53, street_address: 'All Makes Auto Repair & Collision, 219 41 Ave NE', lat: 51.0841, lng: -114.0580 },
-  { id: 54, street_address: "Pirani's Auto Service & Autobody, 6900 46 St SE #101", lat: 50.9832, lng: -113.9583 },
-];
-
-// Update authUsersData to match AuthUserSeedData
-const authUsersData: AuthUserSeedData[] = [
-  { id: '00000000-0000-0000-0000-000000000001', email: 'tech1@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000002', email: 'tech2@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000003', email: 'tech3@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000004', email: 'tech4@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000101', email: 'customer1@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000102', email: 'customer2@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000103', email: 'customer3@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000104', email: 'customer4@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000105', email: 'customer5@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000106', email: 'customer6@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000107', email: 'customer7@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000108', email: 'customer8@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000109', email: 'customer9@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000110', email: 'customer10@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000111', email: 'customer11@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000112', email: 'customer12@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000113', email: 'customer13@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000114', email: 'customer14@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000115', email: 'customer15@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000116', email: 'customer16@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000117', email: 'customer17@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000118', email: 'customer18@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000119', email: 'customer19@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000120', email: 'customer20@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000121', email: 'customer21@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000122', email: 'customer22@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000123', email: 'customer23@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000124', email: 'customer24@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000125', email: 'customer25@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000126', email: 'customer26@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000127', email: 'customer27@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000128', email: 'customer28@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000129', email: 'customer29@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000130', email: 'customer30@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000131', email: 'customer31@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000132', email: 'customer32@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000133', email: 'customer33@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000134', email: 'customer34@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000135', email: 'customer35@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000136', email: 'customer36@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000137', email: 'customer37@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000138', email: 'customer38@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000139', email: 'customer39@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000140', email: 'customer40@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000141', email: 'customer41@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000142', email: 'customer42@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000143', email: 'customer43@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000144', email: 'customer44@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000145', email: 'customer45@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000146', email: 'customer46@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000147', email: 'customer47@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000148', email: 'customer48@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000149', email: 'customer49@shop.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000150', email: 'customer50@shop.com', password: 'password123' },
-];
-
-const publicUsersData: PublicUser[] = [
-  // Technicians (will be filtered)
-  { id: '00000000-0000-0000-0000-000000000001', full_name: 'Tech One', phone: '403-100-0001', home_address_id: 1, is_admin: true, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000002', full_name: 'Tech Two', phone: '403-100-0002', home_address_id: 2, is_admin: true, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000003', full_name: 'Tech Three', phone: '403-100-0003', home_address_id: 3, is_admin: true, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000004', full_name: 'Tech Four', phone: '403-100-0004', home_address_id: 4, is_admin: true, customer_type: 'residential' },
-  // Customers
-  { id: '00000000-0000-0000-0000-000000000101', full_name: 'Superior Paint & Body Service Ltd', phone: '403-200-0101', home_address_id: 5, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000102', full_name: 'Center Street Auto Service', phone: '403-200-0102', home_address_id: 6, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000103', full_name: 'National Transmission', phone: '403-200-0103', home_address_id: 7, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000104', full_name: 'Southwest Auto Service', phone: '403-200-0104', home_address_id: 8, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000105', full_name: 'Wolfe Calgary', phone: '403-200-0105', home_address_id: 9, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000106', full_name: 'Heninger Collision Centre', phone: '403-200-0106', home_address_id: 10, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000107', full_name: 'KAL Tire North Hill', phone: '403-200-0107', home_address_id: 11, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000108', full_name: 'MacLeod Auto & Truck Repair', phone: '403-200-0108', home_address_id: 12, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000109', full_name: 'Superior Paint & Autobody Corp.', phone: '403-200-0109', home_address_id: 13, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000110', full_name: 'CARSTAR Calgary Downtown', phone: '403-200-0110', home_address_id: 14, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000111', full_name: 'Heninger Toyota', phone: '403-200-0111', home_address_id: 15, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000112', full_name: 'S O S Paint & Body Shop Ltd.', phone: '403-200-0112', home_address_id: 16, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000113', full_name: 'CARSTAR Burnsland RD', phone: '403-200-0113', home_address_id: 17, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000114', full_name: 'Macleod Trail Auto Body Ltd', phone: '403-200-0114', home_address_id: 18, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000115', full_name: 'Road Runner Motors', phone: '403-200-0115', home_address_id: 19, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000116', full_name: 'Stevo Auto Clinic', phone: '403-200-0116', home_address_id: 20, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000117', full_name: 'Boyd Autobody & Glass 1 Street SE', phone: '403-200-0117', home_address_id: 21, is_admin: false, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000118', full_name: 'Calgary Body Shop Supplies Ltd. South', phone: '403-200-0118', home_address_id: 22, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000119', full_name: 'Hallmark Auto Body Ltd.', phone: '403-200-0119', home_address_id: 23, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000120', full_name: 'Carstar Chinook', phone: '403-200-0120', home_address_id: 24, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000121', full_name: 'Uber Autobody Ltd.', phone: '403-200-0121', home_address_id: 25, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000122', full_name: 'Simplicity Car Care Calgary South', phone: '403-200-0122', home_address_id: 26, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000123', full_name: 'CARSTAR Calgary McKnight', phone: '403-200-0123', home_address_id: 27, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000124', full_name: 'Boyd Autobody & Glass 32 St. NE', phone: '403-200-0124', home_address_id: 28, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000125', full_name: 'Boyd Autobody & Glass Crowfoot', phone: '403-200-0125', home_address_id: 29, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000126', full_name: 'Maaco Calgary', phone: '403-200-0126', home_address_id: 30, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000127', full_name: 'A-1 Auto Body Ltd.', phone: '403-200-0127', home_address_id: 31, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000128', full_name: 'MP Auto Body Repair', phone: '403-200-0128', home_address_id: 32, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000129', full_name: 'Calgary Auto Body Repairs', phone: '403-200-0129', home_address_id: 33, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000130', full_name: 'CARSTAR Calgary Heritage', phone: '403-200-0130', home_address_id: 34, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000131', full_name: 'Fix Auto Calgary North', phone: '403-200-0131', home_address_id: 35, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000132', full_name: 'Fix Auto Deerfoot', phone: '403-200-0132', home_address_id: 36, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000133', full_name: 'CSN Collision', phone: '403-200-0133', home_address_id: 37, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000134', full_name: 'Horton Auto Body & Paint', phone: '403-200-0134', home_address_id: 38, is_admin: false, customer_type: 'commercial' },
-  { id: '00000000-0000-0000-0000-000000000135', full_name: 'Fix Auto Calgary South Central', phone: '403-200-0135', home_address_id: 39, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000136', full_name: 'Concours Collision Centre', phone: '403-200-0136', home_address_id: 40, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000137', full_name: 'Calgary Coachworks', phone: '403-200-0137', home_address_id: 41, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000138', full_name: 'Speedy Collision', phone: '403-200-0138', home_address_id: 42, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000139', full_name: 'National Collision Centre', phone: '403-200-0139', home_address_id: 43, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000140', full_name: 'Minute Muffler & Brake with Autobody', phone: '403-200-0140', home_address_id: 44, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000141', full_name: 'Calgary Collision Centre', phone: '403-200-0141', home_address_id: 45, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000142', full_name: 'Dent Clinic', phone: '403-200-0142', home_address_id: 46, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000143', full_name: 'Prestige Auto Body', phone: '403-200-0143', home_address_id: 47, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000144', full_name: 'Ultimate Auto Body Ltd.', phone: '403-200-0144', home_address_id: 48, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000145', full_name: 'Varsity Auto Body', phone: '403-200-0145', home_address_id: 49, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000146', full_name: 'Valley Collision Ltd.', phone: '403-200-0146', home_address_id: 50, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000147', full_name: 'Advantage Collision', phone: '403-200-0147', home_address_id: 51, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000148', full_name: 'Procolor Collision Calgary Sunridge', phone: '403-200-0148', home_address_id: 52, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000149', full_name: 'All Makes Auto Repair & Collision', phone: '403-200-0149', home_address_id: 53, is_admin: false, customer_type: 'insurance' },
-  { id: '00000000-0000-0000-0000-000000000150', full_name: "Pirani's Auto Service & Autobody", phone: '403-200-0150', home_address_id: 54, is_admin: false, customer_type: 'insurance' },
-];
-
-const vansData: Van[] = [
-  { id: 1, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_1', lat: 51.0301, lng: -114.0719 },
-  { id: 2, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_2', lat: 51.0852, lng: -114.1303 },
-  { id: 3, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_3', lat: 51.0123, lng: -114.0387 },
-  { id: 4, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_4', lat: 51.0624, lng: -114.0412 },
-];
-
-const equipmentData: Equipment[] = [
-  { id: 5, model: 'airbag', equipment_type: 'airbag' },
-  { id: 6, model: 'diag', equipment_type: 'diag' },
-  { id: 7, model: 'immo', equipment_type: 'immo' },
-  { id: 8, model: 'prog', equipment_type: 'prog' },
-  { id: 9, model: 'AUTEL-CSC0602/01', equipment_type: 'adas' },
-  { id: 10, model: 'AUTEL-CSC0806/01', equipment_type: 'adas' },
-  { id: 11, model: 'AUTEL-CSC0605/01', equipment_type: 'adas' },
-  { id: 12, model: 'AUTEL-CSC0601/01', equipment_type: 'adas' },
-  { id: 13, model: 'AUTEL-CSC0601/15', equipment_type: 'adas' },
-  { id: 14, model: 'AUTEL-CSC0601/08', equipment_type: 'adas' },
-  { id: 15, model: 'AUTEL-CSC0601/07', equipment_type: 'adas' },
-  { id: 16, model: 'AUTEL-CSC0601/14', equipment_type: 'adas' },
-  { id: 17, model: 'AUTEL-CSC0601/03', equipment_type: 'adas' },
-  { id: 18, model: 'AUTEL-CSC1004/10', equipment_type: 'adas' },
-  { id: 19, model: 'AUTEL-CSC0601/24/01', equipment_type: 'adas' },
-  { id: 20, model: 'AUTEL-CSC1004/02', equipment_type: 'adas' },
-  { id: 21, model: 'AUTEL-CSC0601/11', equipment_type: 'adas' },
-  { id: 22, model: 'AUTEL-CSC0601/06', equipment_type: 'adas' },
-  { id: 23, model: 'AUTEL-CSC0601/25', equipment_type: 'adas' },
-  { id: 24, model: 'AUTEL-CSC0601/13', equipment_type: 'adas' },
-  { id: 25, model: 'AUTEL-CSC1004/03', equipment_type: 'adas' },
-  { id: 26, model: 'AUTEL-CSC0802', equipment_type: 'adas' },
-  { id: 27, model: 'AUTEL-CSC0602/08', equipment_type: 'adas' },
-  { id: 28, model: 'AUTEL-CSC0601/02', equipment_type: 'adas' },
-  { id: 29, model: 'AUTEL-CSC0601/17', equipment_type: 'adas' },
-  { id: 30, model: 'AUTEL-CSC0611/03', equipment_type: 'adas' },
-  { id: 31, model: 'AUTEL-CSC0601/11/01', equipment_type: 'adas' },
-  { id: 32, model: 'AUTEL-CSC1014/17', equipment_type: 'adas' },
-  { id: 33, model: 'AUTEL-CSC0602/02', equipment_type: 'adas' },
-  { id: 34, model: 'AUTEL-CSC0601/22', equipment_type: 'adas' },
-  { id: 35, model: 'AUTEL-CSC0611/07', equipment_type: 'adas' },
-  { id: 36, model: 'AUTEL-CSC0611/05', equipment_type: 'adas' },
-  { id: 37, model: 'AUTEL-CSC0601/12', equipment_type: 'adas' },
-  { id: 38, model: 'AUTEL-CSC0800', equipment_type: 'adas' },
-];
-
-const ymmRefData: YmmRef[] = [
-  { ymm_id: 6062, year: 2015, make: 'AUDI', model: 'Q5' },
-  { ymm_id: 6977, year: 2017, make: 'HONDA', model: 'Odyssey' },
-  { ymm_id: 8034, year: 2020, make: 'AUDI', model: 'A6' },
-  { ymm_id: 7970, year: 2019, make: 'TOYOTA', model: 'Avalon' },
-  { ymm_id: 8456, year: 2021, make: 'AUDI', model: 'A7' },
-  { ymm_id: 4326, year: 2010, make: 'AUDI', model: 'Q7' },
-  { ymm_id: 4321, year: 2010, make: 'AUDI', model: 'A5' },
-  { ymm_id: 6373, year: 2015, make: 'SUBARU', model: 'WRX' },
-  { ymm_id: 9719, year: 2023, make: 'VOLKSWAGEN', model: 'Other' },
-  { ymm_id: 4976, year: 2012, make: 'AUDI', model: 'A4' },
-  { ymm_id: 8834, year: 2021, make: 'VOLKSWAGEN', model: 'Golf' },
-  { ymm_id: 9082, year: 2022, make: 'HYUNDAI', model: 'Venue' },
-  { ymm_id: 1062, year: 2025, make: 'VOLKSWAGEN', model: 'Taos' },
-  { ymm_id: 8058, year: 2020, make: 'AUDI', model: 'TT' },
-  { ymm_id: 7984, year: 2019, make: 'TOYOTA', model: 'RAV4' },
-  { ymm_id: 6983, year: 2017, make: 'HYUNDAI', model: 'Elantra' },
-  { ymm_id: 6431, year: 2016, make: 'ACURA', model: 'TLX' },
-  { ymm_id: 9257, year: 2022, make: 'TOYOTA', model: 'Mirai' },
-  { ymm_id: 7159, year: 2017, make: 'TOYOTA', model: 'Other' },
-  { ymm_id: 8869, year: 2022, make: 'AUDI', model: 'A5' },
-  { ymm_id: 6030, year: 2014, make: 'VOLKSWAGEN', model: 'Other' },
-  { ymm_id: 1057, year: 2025, make: 'SUBARU', model: 'Legacy' },
-  { ymm_id: 8228, year: 2020, make: 'HYUNDAI', model: 'Venue' },
-  { ymm_id: 9720, year: 2023, make: 'VOLKSWAGEN', model: 'Taos' },
-  { ymm_id: 9238, year: 2022, make: 'SUBARU', model: 'Other' },
-  { ymm_id: 5998, year: 2014, make: 'TOYOTA', model: 'Camry' },
-  { ymm_id: 6010, year: 2014, make: 'TOYOTA', model: 'Prius V' },
-  { ymm_id: 4470, year: 2010, make: 'INFINITI', model: 'Other' },
-  { ymm_id: 6445, year: 2016, make: 'AUDI', model: 'R8' },
-  { ymm_id: 7181, year: 2017, make: 'VOLKSWAGEN', model: 'Other' },
-  { ymm_id: 6986, year: 2017, make: 'HYUNDAI', model: 'Other' },
-  { ymm_id: 8630, year: 2021, make: 'HONDA', model: 'Odyssey' },
-  { ymm_id: 8217, year: 2020, make: 'HYUNDAI', model: 'Ioniq' },
-  { ymm_id: 9283, year: 2022, make: 'VOLVO', model: 'C40' },
-  { ymm_id: 7112, year: 2017, make: 'NISSAN', model: 'Rogue' },
-  { ymm_id: 4599, year: 2010, make: 'TOYOTA', model: 'Prius' },
-  { ymm_id: 4851, year: 2011, make: 'MAZDA', model: 'CX-9' },
-  { ymm_id: 7890, year: 2019, make: 'MAZDA', model: 'Mazda3' },
-  { ymm_id: 5252, year: 2012, make: 'SUBARU', model: 'Impreza' },
-  { ymm_id: 7500, year: 2018, make: 'MITSUBISHI', model: 'Other' },
-  { ymm_id: 9688, year: 2023, make: 'TOYOTA', model: 'Corolla' },
-  { ymm_id: 4616, year: 2010, make: 'VOLKSWAGEN', model: 'Other' },
-  { ymm_id: 7061, year: 2017, make: 'MASERATI', model: 'Other' },
-  { ymm_id: 9668, year: 2023, make: 'SUBARU', model: 'Ascent' },
-  { ymm_id: 8803, year: 2021, make: 'TESLA', model: 'Model 3' },
-];
-
-const servicesData: Service[] = [
-  { id: 1, service_name: 'Front Radar', service_category: 'adas', slug: 'front-radar' },
-  { id: 2, service_name: 'Windshield Camera', service_category: 'adas', slug: 'windshield-camera' },
-  { id: 3, service_name: '360 Camera or Side Mirror', service_category: 'adas', slug: '360-camera-side-mirror' },
-  { id: 4, service_name: 'Blind Spot Monitor', service_category: 'adas', slug: 'blind-spot-monitor' },
-  { id: 5, service_name: 'Parking Assist Sensor', service_category: 'adas', slug: 'parking-assist-sensor' },
-  { id: 6, service_name: 'ECM', service_category: 'prog', slug: 'ecm' },
-  { id: 7, service_name: 'TCM', service_category: 'prog', slug: 'tcm' },
-  { id: 8, service_name: 'BCM', service_category: 'prog', slug: 'bcm' },
-  { id: 9, service_name: 'Airbag Module Reset', service_category: 'airbag', slug: 'airbag-module-reset' },
-  { id: 10, service_name: 'Instrument Cluster', service_category: 'prog', slug: 'instrument-cluster' },
-  { id: 14, service_name: 'Headlamp Module', service_category: 'prog', slug: 'headlamp-module' },
-  { id: 15, service_name: 'Other', service_category: 'prog', slug: 'other-prog' },
-  { id: 16, service_name: 'Immobilizer R&R', service_category: 'immo', slug: 'immobilizer-rr' },
-  { id: 17, service_name: 'All Keys Lost', service_category: 'immo', slug: 'all-keys-lost' },
-  { id: 18, service_name: 'Adding Spare Keys', service_category: 'immo', slug: 'adding-spare-keys' },
-  { id: 19, service_name: 'Diagnostic or Wiring', service_category: 'diag', slug: 'diagnostic-wiring' },
-];
-
-const customerVehiclesData: CustomerVehicle[] = [
-  { id: 1, vin: 'VIN60620000000000', make: 'AUDI', model: 'Q5', year: 2015 },
-  { id: 2, vin: 'VIN69770000000000', make: 'HONDA', model: 'Odyssey', year: 2017 },
-  { id: 3, vin: 'VIN80340000000000', make: 'AUDI', model: 'A6', year: 2020 },
-  { id: 4, vin: 'VIN79700000000000', make: 'TOYOTA', model: 'Avalon', year: 2019 },
-  { id: 5, vin: 'VIN84560000000000', make: 'AUDI', model: 'A7', year: 2021 },
-  { id: 6, vin: 'VIN43260000000000', make: 'AUDI', model: 'Q7', year: 2010 },
-  { id: 7, vin: 'VIN43210000000000', make: 'AUDI', model: 'A5', year: 2010 },
-  { id: 8, vin: 'VIN63730000000000', make: 'SUBARU', model: 'WRX', year: 2015 },
-  { id: 9, vin: 'VIN97190000000000', make: 'VOLKSWAGEN', model: 'Other', year: 2023 },
-  { id: 10, vin: 'VIN49760000000000', make: 'AUDI', model: 'A4', year: 2012 },
-  { id: 11, vin: 'VIN88340000000000', make: 'VOLKSWAGEN', model: 'Golf', year: 2021 },
-  { id: 12, vin: 'VIN90820000000000', make: 'HYUNDAI', model: 'Venue', year: 2022 },
-  { id: 13, vin: 'VIN10620000000000', make: 'VOLKSWAGEN', model: 'Taos', year: 2025 },
-  { id: 14, vin: 'VIN80580000000000', make: 'AUDI', model: 'TT', year: 2020 },
-  { id: 15, vin: 'VIN79840000000000', make: 'TOYOTA', model: 'RAV4', year: 2019 },
-  { id: 16, vin: 'VIN69830000000000', make: 'HYUNDAI', model: 'Elantra', year: 2017 },
-  { id: 17, vin: 'VIN64310000000000', make: 'ACURA', model: 'TLX', year: 2016 },
-  { id: 18, vin: 'VIN92570000000000', make: 'TOYOTA', model: 'Mirai', year: 2022 },
-  { id: 19, vin: 'VIN71590000000000', make: 'TOYOTA', model: 'Other', year: 2017 },
-  { id: 20, vin: 'VIN88690000000000', make: 'AUDI', model: 'A5', year: 2022 },
-  { id: 21, vin: 'VIN60300000000000', make: 'VOLKSWAGEN', model: 'Other', year: 2014 },
-  { id: 22, vin: 'VIN10570000000000', make: 'SUBARU', model: 'Legacy', year: 2025 },
-  { id: 23, vin: 'VIN82280000000000', make: 'HYUNDAI', model: 'Venue', year: 2020 },
-  { id: 24, vin: 'VIN97200000000000', make: 'VOLKSWAGEN', model: 'Taos', year: 2023 },
-  { id: 25, vin: 'VIN92380000000000', make: 'SUBARU', model: 'Other', year: 2022 },
-  { id: 26, vin: 'VIN59980000000000', make: 'TOYOTA', model: 'Camry', year: 2014 },
-  { id: 27, vin: 'VIN60100000000000', make: 'TOYOTA', model: 'Prius V', year: 2014 },
-  { id: 28, vin: 'VIN44700000000000', make: 'INFINITI', model: 'Other', year: 2010 },
-  { id: 29, vin: 'VIN64450000000000', make: 'AUDI', model: 'R8', year: 2016 },
-  { id: 30, vin: 'VIN71810000000000', make: 'VOLKSWAGEN', model: 'Other', year: 2017 },
-  { id: 31, vin: 'VIN69860000000000', make: 'HYUNDAI', model: 'Other', year: 2017 },
-  { id: 32, vin: 'VIN86300000000000', make: 'HONDA', model: 'Odyssey', year: 2021 },
-  { id: 33, vin: 'VIN82170000000000', make: 'HYUNDAI', model: 'Ioniq', year: 2020 },
-  { id: 34, vin: 'VIN92830000000000', make: 'VOLVO', model: 'C40', year: 2022 },
-  { id: 35, vin: 'VIN71120000000000', make: 'NISSAN', model: 'Rogue', year: 2017 },
-  { id: 36, vin: 'VIN45990000000000', make: 'TOYOTA', model: 'Prius', year: 2010 },
-  { id: 37, vin: 'VIN48510000000000', make: 'MAZDA', model: 'CX-9', year: 2011 },
-  { id: 38, vin: 'VIN78900000000000', make: 'MAZDA', model: 'Mazda3', year: 2019 },
-  { id: 39, vin: 'VIN52520000000000', make: 'SUBARU', model: 'Impreza', year: 2012 },
-  { id: 40, vin: 'VIN75000000000000', make: 'MITSUBISHI', model: 'Other', year: 2018 },
-  { id: 41, vin: 'VIN96880000000000', make: 'TOYOTA', model: 'Corolla', year: 2023 },
-  { id: 42, vin: 'VIN46160000000000', make: 'VOLKSWAGEN', model: 'Other', year: 2010 },
-  { id: 43, vin: 'VIN70610000000000', make: 'MASERATI', model: 'Other', year: 2017 },
-  { id: 44, vin: 'VIN96680000000000', make: 'SUBARU', model: 'Ascent', year: 2023 },
-  { id: 45, vin: 'VIN88030000000000', make: 'TESLA', model: 'Model 3', year: 2021 },
-];
-
-const techniciansData: Technician[] = [
-  { id: 1, user_id: '00000000-0000-0000-0000-000000000001', assigned_van_id: 1, workload: 100 },
-  { id: 2, user_id: '00000000-0000-0000-0000-000000000002', assigned_van_id: 2, workload: 100 },
-  { id: 3, user_id: '00000000-0000-0000-0000-000000000003', assigned_van_id: 3, workload: 80 },
-  { id: 4, user_id: '00000000-0000-0000-0000-000000000004', assigned_van_id: 4, workload: 100 },
-];
-
-const diagRequirementsData: RequirementInsertBase[] = [
-  { ymm_id: 6062, service_id: 19 },
-  { ymm_id: 6977, service_id: 19 },
-  { ymm_id: 8034, service_id: 19 },
-  { ymm_id: 7970, service_id: 19 },
-  { ymm_id: 8456, service_id: 19 },
-  { ymm_id: 4326, service_id: 19 },
-  { ymm_id: 4321, service_id: 19 },
-  { ymm_id: 6373, service_id: 19 },
-  { ymm_id: 9719, service_id: 19 },
-  { ymm_id: 4976, service_id: 19 },
-  { ymm_id: 8834, service_id: 19 },
-  { ymm_id: 9082, service_id: 19 },
-  { ymm_id: 1062, service_id: 19 },
-  { ymm_id: 8058, service_id: 19 },
-  { ymm_id: 7984, service_id: 19 },
-  { ymm_id: 6983, service_id: 19 },
-  { ymm_id: 6431, service_id: 19 },
-  { ymm_id: 9257, service_id: 19 },
-  { ymm_id: 7159, service_id: 19 },
-  { ymm_id: 8869, service_id: 19 },
-  { ymm_id: 6030, service_id: 19 },
-  { ymm_id: 1057, service_id: 19 },
-  { ymm_id: 8228, service_id: 19 },
-  { ymm_id: 9720, service_id: 19 },
-  { ymm_id: 9238, service_id: 19 },
-  { ymm_id: 5998, service_id: 19 },
-  { ymm_id: 6010, service_id: 19 },
-  { ymm_id: 4470, service_id: 19 },
-  { ymm_id: 6445, service_id: 19 },
-  { ymm_id: 7181, service_id: 19 },
-  { ymm_id: 6986, service_id: 19 },
-  { ymm_id: 8630, service_id: 19 },
-  { ymm_id: 8217, service_id: 19 },
-  { ymm_id: 9283, service_id: 19 },
-  { ymm_id: 7112, service_id: 19 },
-  { ymm_id: 4599, service_id: 19 },
-  { ymm_id: 4851, service_id: 19 },
-  { ymm_id: 7890, service_id: 19 },
-  { ymm_id: 5252, service_id: 19 },
-  { ymm_id: 7500, service_id: 19 },
-  { ymm_id: 9688, service_id: 19 },
-  { ymm_id: 4616, service_id: 19 },
-  { ymm_id: 7061, service_id: 19 },
-  { ymm_id: 9668, service_id: 19 },
-  { ymm_id: 8803, service_id: 19 },
-];
-
-const immoRequirementsData: RequirementInsertBase[] = [
-  { ymm_id: 6062, service_id: 16 }, { ymm_id: 6062, service_id: 17 }, { ymm_id: 6062, service_id: 18 },
-  { ymm_id: 6977, service_id: 16 }, { ymm_id: 6977, service_id: 17 }, { ymm_id: 6977, service_id: 18 },
-  { ymm_id: 8034, service_id: 16 }, { ymm_id: 8034, service_id: 17 }, { ymm_id: 8034, service_id: 18 },
-  { ymm_id: 7970, service_id: 16 }, { ymm_id: 7970, service_id: 17 }, { ymm_id: 7970, service_id: 18 },
-  { ymm_id: 8456, service_id: 16 }, { ymm_id: 8456, service_id: 17 }, { ymm_id: 8456, service_id: 18 },
-  { ymm_id: 4326, service_id: 16 }, { ymm_id: 4326, service_id: 17 }, { ymm_id: 4326, service_id: 18 },
-  { ymm_id: 4321, service_id: 16 }, { ymm_id: 4321, service_id: 17 }, { ymm_id: 4321, service_id: 18 },
-  { ymm_id: 6373, service_id: 16 }, { ymm_id: 6373, service_id: 17 }, { ymm_id: 6373, service_id: 18 },
-  { ymm_id: 9719, service_id: 16 }, { ymm_id: 9719, service_id: 17 }, { ymm_id: 9719, service_id: 18 },
-  { ymm_id: 4976, service_id: 16 }, { ymm_id: 4976, service_id: 17 }, { ymm_id: 4976, service_id: 18 },
-  { ymm_id: 8834, service_id: 16 }, { ymm_id: 8834, service_id: 17 }, { ymm_id: 8834, service_id: 18 },
-  { ymm_id: 9082, service_id: 16 }, { ymm_id: 9082, service_id: 17 }, { ymm_id: 9082, service_id: 18 },
-  { ymm_id: 1062, service_id: 16 }, { ymm_id: 1062, service_id: 17 }, { ymm_id: 1062, service_id: 18 },
-  { ymm_id: 8058, service_id: 16 }, { ymm_id: 8058, service_id: 17 }, { ymm_id: 8058, service_id: 18 },
-  { ymm_id: 7984, service_id: 16 }, { ymm_id: 7984, service_id: 17 }, { ymm_id: 7984, service_id: 18 },
-  { ymm_id: 6983, service_id: 16 }, { ymm_id: 6983, service_id: 17 }, { ymm_id: 6983, service_id: 18 },
-  { ymm_id: 6431, service_id: 16 }, { ymm_id: 6431, service_id: 17 }, { ymm_id: 6431, service_id: 18 },
-  { ymm_id: 9257, service_id: 16 }, { ymm_id: 9257, service_id: 17 }, { ymm_id: 9257, service_id: 18 },
-  { ymm_id: 7159, service_id: 16 }, { ymm_id: 7159, service_id: 17 }, { ymm_id: 7159, service_id: 18 },
-  { ymm_id: 8869, service_id: 16 }, { ymm_id: 8869, service_id: 17 }, { ymm_id: 8869, service_id: 18 },
-  { ymm_id: 6030, service_id: 16 }, { ymm_id: 6030, service_id: 17 }, { ymm_id: 6030, service_id: 18 },
-  { ymm_id: 1057, service_id: 16 }, { ymm_id: 1057, service_id: 17 }, { ymm_id: 1057, service_id: 18 },
-  { ymm_id: 8228, service_id: 16 }, { ymm_id: 8228, service_id: 17 }, { ymm_id: 8228, service_id: 18 },
-  { ymm_id: 9720, service_id: 16 }, { ymm_id: 9720, service_id: 17 }, { ymm_id: 9720, service_id: 18 },
-  { ymm_id: 9238, service_id: 16 }, { ymm_id: 9238, service_id: 17 }, { ymm_id: 9238, service_id: 18 },
-  { ymm_id: 5998, service_id: 16 }, { ymm_id: 5998, service_id: 17 }, { ymm_id: 5998, service_id: 18 },
-  { ymm_id: 6010, service_id: 16 }, { ymm_id: 6010, service_id: 17 }, { ymm_id: 6010, service_id: 18 },
-  { ymm_id: 4470, service_id: 16 }, { ymm_id: 4470, service_id: 17 }, { ymm_id: 4470, service_id: 18 },
-  { ymm_id: 6445, service_id: 16 }, { ymm_id: 6445, service_id: 17 }, { ymm_id: 6445, service_id: 18 },
-  { ymm_id: 7181, service_id: 16 }, { ymm_id: 7181, service_id: 17 }, { ymm_id: 7181, service_id: 18 },
-  { ymm_id: 6986, service_id: 16 }, { ymm_id: 6986, service_id: 17 }, { ymm_id: 6986, service_id: 18 },
-  { ymm_id: 8630, service_id: 16 }, { ymm_id: 8630, service_id: 17 }, { ymm_id: 8630, service_id: 18 },
-  { ymm_id: 8217, service_id: 16 }, { ymm_id: 8217, service_id: 17 }, { ymm_id: 8217, service_id: 18 },
-  { ymm_id: 9283, service_id: 16 }, { ymm_id: 9283, service_id: 17 }, { ymm_id: 9283, service_id: 18 },
-  { ymm_id: 7112, service_id: 16 }, { ymm_id: 7112, service_id: 17 }, { ymm_id: 7112, service_id: 18 },
-  { ymm_id: 4599, service_id: 16 }, { ymm_id: 4599, service_id: 17 }, { ymm_id: 4599, service_id: 18 },
-  { ymm_id: 4851, service_id: 16 }, { ymm_id: 4851, service_id: 17 }, { ymm_id: 4851, service_id: 18 },
-  { ymm_id: 7890, service_id: 16 }, { ymm_id: 7890, service_id: 17 }, { ymm_id: 7890, service_id: 18 },
-  { ymm_id: 5252, service_id: 16 }, { ymm_id: 5252, service_id: 17 }, { ymm_id: 5252, service_id: 18 },
-  { ymm_id: 7500, service_id: 16 }, { ymm_id: 7500, service_id: 17 }, { ymm_id: 7500, service_id: 18 },
-  { ymm_id: 9688, service_id: 16 }, { ymm_id: 9688, service_id: 17 }, { ymm_id: 9688, service_id: 18 },
-  { ymm_id: 4616, service_id: 16 }, { ymm_id: 4616, service_id: 17 }, { ymm_id: 4616, service_id: 18 },
-  { ymm_id: 7061, service_id: 16 }, { ymm_id: 7061, service_id: 17 }, { ymm_id: 7061, service_id: 18 },
-  { ymm_id: 9668, service_id: 16 }, { ymm_id: 9668, service_id: 17 }, { ymm_id: 9668, service_id: 18 },
-  { ymm_id: 8803, service_id: 16 }, { ymm_id: 8803, service_id: 17 }, { ymm_id: 8803, service_id: 18 },
-];
-
-const progRequirementsData: RequirementInsertBase[] = [
-  { ymm_id: 6062, service_id: 6 }, { ymm_id: 6062, service_id: 7 }, { ymm_id: 6062, service_id: 8 }, { ymm_id: 6062, service_id: 10 }, { ymm_id: 6062, service_id: 14 }, { ymm_id: 6062, service_id: 15 },
-  { ymm_id: 6977, service_id: 6 }, { ymm_id: 6977, service_id: 7 }, { ymm_id: 6977, service_id: 8 }, { ymm_id: 6977, service_id: 10 }, { ymm_id: 6977, service_id: 14 }, { ymm_id: 6977, service_id: 15 },
-  { ymm_id: 8034, service_id: 6 }, { ymm_id: 8034, service_id: 7 }, { ymm_id: 8034, service_id: 8 }, { ymm_id: 8034, service_id: 10 }, { ymm_id: 8034, service_id: 14 }, { ymm_id: 8034, service_id: 15 },
-  { ymm_id: 7970, service_id: 6 }, { ymm_id: 7970, service_id: 7 }, { ymm_id: 7970, service_id: 8 }, { ymm_id: 7970, service_id: 10 }, { ymm_id: 7970, service_id: 14 }, { ymm_id: 7970, service_id: 15 },
-  { ymm_id: 8456, service_id: 6 }, { ymm_id: 8456, service_id: 7 }, { ymm_id: 8456, service_id: 8 }, { ymm_id: 8456, service_id: 10 }, { ymm_id: 8456, service_id: 14 }, { ymm_id: 8456, service_id: 15 },
-  { ymm_id: 4326, service_id: 6 }, { ymm_id: 4326, service_id: 7 }, { ymm_id: 4326, service_id: 8 }, { ymm_id: 4326, service_id: 10 }, { ymm_id: 4326, service_id: 14 }, { ymm_id: 4326, service_id: 15 },
-  { ymm_id: 4321, service_id: 6 }, { ymm_id: 4321, service_id: 7 }, { ymm_id: 4321, service_id: 8 }, { ymm_id: 4321, service_id: 10 }, { ymm_id: 4321, service_id: 14 }, { ymm_id: 4321, service_id: 15 },
-  { ymm_id: 6373, service_id: 6 }, { ymm_id: 6373, service_id: 7 }, { ymm_id: 6373, service_id: 8 }, { ymm_id: 6373, service_id: 10 }, { ymm_id: 6373, service_id: 14 }, { ymm_id: 6373, service_id: 15 },
-  { ymm_id: 9719, service_id: 6 }, { ymm_id: 9719, service_id: 7 }, { ymm_id: 9719, service_id: 8 }, { ymm_id: 9719, service_id: 10 }, { ymm_id: 9719, service_id: 14 }, { ymm_id: 9719, service_id: 15 },
-  { ymm_id: 4976, service_id: 6 }, { ymm_id: 4976, service_id: 7 }, { ymm_id: 4976, service_id: 8 }, { ymm_id: 4976, service_id: 10 }, { ymm_id: 4976, service_id: 14 }, { ymm_id: 4976, service_id: 15 },
-  { ymm_id: 8834, service_id: 6 }, { ymm_id: 8834, service_id: 7 }, { ymm_id: 8834, service_id: 8 }, { ymm_id: 8834, service_id: 10 }, { ymm_id: 8834, service_id: 14 }, { ymm_id: 8834, service_id: 15 },
-  { ymm_id: 9082, service_id: 6 }, { ymm_id: 9082, service_id: 7 }, { ymm_id: 9082, service_id: 8 }, { ymm_id: 9082, service_id: 10 }, { ymm_id: 9082, service_id: 14 }, { ymm_id: 9082, service_id: 15 },
-  { ymm_id: 1062, service_id: 6 }, { ymm_id: 1062, service_id: 7 }, { ymm_id: 1062, service_id: 8 }, { ymm_id: 1062, service_id: 10 }, { ymm_id: 1062, service_id: 14 }, { ymm_id: 1062, service_id: 15 },
-  { ymm_id: 8058, service_id: 6 }, { ymm_id: 8058, service_id: 7 }, { ymm_id: 8058, service_id: 8 }, { ymm_id: 8058, service_id: 10 }, { ymm_id: 8058, service_id: 14 }, { ymm_id: 8058, service_id: 15 },
-  { ymm_id: 7984, service_id: 6 }, { ymm_id: 7984, service_id: 7 }, { ymm_id: 7984, service_id: 8 }, { ymm_id: 7984, service_id: 10 }, { ymm_id: 7984, service_id: 14 }, { ymm_id: 7984, service_id: 15 },
-  { ymm_id: 6983, service_id: 6 }, { ymm_id: 6983, service_id: 7 }, { ymm_id: 6983, service_id: 8 }, { ymm_id: 6983, service_id: 10 }, { ymm_id: 6983, service_id: 14 }, { ymm_id: 6983, service_id: 15 },
-  { ymm_id: 6431, service_id: 6 }, { ymm_id: 6431, service_id: 7 }, { ymm_id: 6431, service_id: 8 }, { ymm_id: 6431, service_id: 10 }, { ymm_id: 6431, service_id: 14 }, { ymm_id: 6431, service_id: 15 },
-  { ymm_id: 9257, service_id: 6 }, { ymm_id: 9257, service_id: 7 }, { ymm_id: 9257, service_id: 8 }, { ymm_id: 9257, service_id: 10 }, { ymm_id: 9257, service_id: 14 }, { ymm_id: 9257, service_id: 15 },
-  { ymm_id: 7159, service_id: 6 }, { ymm_id: 7159, service_id: 7 }, { ymm_id: 7159, service_id: 8 }, { ymm_id: 7159, service_id: 10 }, { ymm_id: 7159, service_id: 14 }, { ymm_id: 7159, service_id: 15 },
-  { ymm_id: 8869, service_id: 6 }, { ymm_id: 8869, service_id: 7 }, { ymm_id: 8869, service_id: 8 }, { ymm_id: 8869, service_id: 10 }, { ymm_id: 8869, service_id: 14 }, { ymm_id: 8869, service_id: 15 },
-  { ymm_id: 6030, service_id: 6 }, { ymm_id: 6030, service_id: 7 }, { ymm_id: 6030, service_id: 8 }, { ymm_id: 6030, service_id: 10 }, { ymm_id: 6030, service_id: 14 }, { ymm_id: 6030, service_id: 15 },
-  { ymm_id: 1057, service_id: 6 }, { ymm_id: 1057, service_id: 7 }, { ymm_id: 1057, service_id: 8 }, { ymm_id: 1057, service_id: 10 }, { ymm_id: 1057, service_id: 14 }, { ymm_id: 1057, service_id: 15 },
-  { ymm_id: 8228, service_id: 6 }, { ymm_id: 8228, service_id: 7 }, { ymm_id: 8228, service_id: 8 }, { ymm_id: 8228, service_id: 10 }, { ymm_id: 8228, service_id: 14 }, { ymm_id: 8228, service_id: 15 },
-  { ymm_id: 9720, service_id: 6 }, { ymm_id: 9720, service_id: 7 }, { ymm_id: 9720, service_id: 8 }, { ymm_id: 9720, service_id: 10 }, { ymm_id: 9720, service_id: 14 }, { ymm_id: 9720, service_id: 15 },
-  { ymm_id: 9238, service_id: 6 }, { ymm_id: 9238, service_id: 7 }, { ymm_id: 9238, service_id: 8 }, { ymm_id: 9238, service_id: 10 }, { ymm_id: 9238, service_id: 14 }, { ymm_id: 9238, service_id: 15 },
-  { ymm_id: 5998, service_id: 6 }, { ymm_id: 5998, service_id: 7 }, { ymm_id: 5998, service_id: 8 }, { ymm_id: 5998, service_id: 10 }, { ymm_id: 5998, service_id: 14 }, { ymm_id: 5998, service_id: 15 },
-  { ymm_id: 6010, service_id: 6 }, { ymm_id: 6010, service_id: 7 }, { ymm_id: 6010, service_id: 8 }, { ymm_id: 6010, service_id: 10 }, { ymm_id: 6010, service_id: 14 }, { ymm_id: 6010, service_id: 15 },
-  { ymm_id: 4470, service_id: 6 }, { ymm_id: 4470, service_id: 7 }, { ymm_id: 4470, service_id: 8 }, { ymm_id: 4470, service_id: 10 }, { ymm_id: 4470, service_id: 14 }, { ymm_id: 4470, service_id: 15 },
-  { ymm_id: 6445, service_id: 6 }, { ymm_id: 6445, service_id: 7 }, { ymm_id: 6445, service_id: 8 }, { ymm_id: 6445, service_id: 10 }, { ymm_id: 6445, service_id: 14 }, { ymm_id: 6445, service_id: 15 },
-  { ymm_id: 7181, service_id: 6 }, { ymm_id: 7181, service_id: 7 }, { ymm_id: 7181, service_id: 8 }, { ymm_id: 7181, service_id: 10 }, { ymm_id: 7181, service_id: 14 }, { ymm_id: 7181, service_id: 15 },
-  { ymm_id: 6986, service_id: 6 }, { ymm_id: 6986, service_id: 7 }, { ymm_id: 6986, service_id: 8 }, { ymm_id: 6986, service_id: 10 }, { ymm_id: 6986, service_id: 14 }, { ymm_id: 6986, service_id: 15 },
-  { ymm_id: 8630, service_id: 6 }, { ymm_id: 8630, service_id: 7 }, { ymm_id: 8630, service_id: 8 }, { ymm_id: 8630, service_id: 10 }, { ymm_id: 8630, service_id: 14 }, { ymm_id: 8630, service_id: 15 },
-  { ymm_id: 8217, service_id: 6 }, { ymm_id: 8217, service_id: 7 }, { ymm_id: 8217, service_id: 8 }, { ymm_id: 8217, service_id: 10 }, { ymm_id: 8217, service_id: 14 }, { ymm_id: 8217, service_id: 15 },
-  { ymm_id: 9283, service_id: 6 }, { ymm_id: 9283, service_id: 7 }, { ymm_id: 9283, service_id: 8 }, { ymm_id: 9283, service_id: 10 }, { ymm_id: 9283, service_id: 14 }, { ymm_id: 9283, service_id: 15 },
-  { ymm_id: 7112, service_id: 6 }, { ymm_id: 7112, service_id: 7 }, { ymm_id: 7112, service_id: 8 }, { ymm_id: 7112, service_id: 10 }, { ymm_id: 7112, service_id: 14 }, { ymm_id: 7112, service_id: 15 },
-  { ymm_id: 4599, service_id: 6 }, { ymm_id: 4599, service_id: 7 }, { ymm_id: 4599, service_id: 8 }, { ymm_id: 4599, service_id: 10 }, { ymm_id: 4599, service_id: 14 }, { ymm_id: 4599, service_id: 15 },
-  { ymm_id: 4851, service_id: 6 }, { ymm_id: 4851, service_id: 7 }, { ymm_id: 4851, service_id: 8 }, { ymm_id: 4851, service_id: 10 }, { ymm_id: 4851, service_id: 14 }, { ymm_id: 4851, service_id: 15 },
-  { ymm_id: 7890, service_id: 6 }, { ymm_id: 7890, service_id: 7 }, { ymm_id: 7890, service_id: 8 }, { ymm_id: 7890, service_id: 10 }, { ymm_id: 7890, service_id: 14 }, { ymm_id: 7890, service_id: 15 },
-  { ymm_id: 5252, service_id: 6 }, { ymm_id: 5252, service_id: 7 }, { ymm_id: 5252, service_id: 8 }, { ymm_id: 5252, service_id: 10 }, { ymm_id: 5252, service_id: 14 }, { ymm_id: 5252, service_id: 15 },
-  { ymm_id: 7500, service_id: 6 }, { ymm_id: 7500, service_id: 7 }, { ymm_id: 7500, service_id: 8 }, { ymm_id: 7500, service_id: 10 }, { ymm_id: 7500, service_id: 14 }, { ymm_id: 7500, service_id: 15 },
-  { ymm_id: 9688, service_id: 6 }, { ymm_id: 9688, service_id: 7 }, { ymm_id: 9688, service_id: 8 }, { ymm_id: 9688, service_id: 10 }, { ymm_id: 9688, service_id: 14 }, { ymm_id: 9688, service_id: 15 },
-  { ymm_id: 4616, service_id: 6 }, { ymm_id: 4616, service_id: 7 }, { ymm_id: 4616, service_id: 8 }, { ymm_id: 4616, service_id: 10 }, { ymm_id: 4616, service_id: 14 }, { ymm_id: 4616, service_id: 15 },
-  { ymm_id: 7061, service_id: 6 }, { ymm_id: 7061, service_id: 7 }, { ymm_id: 7061, service_id: 8 }, { ymm_id: 7061, service_id: 10 }, { ymm_id: 7061, service_id: 14 }, { ymm_id: 7061, service_id: 15 },
-  { ymm_id: 9668, service_id: 6 }, { ymm_id: 9668, service_id: 7 }, { ymm_id: 9668, service_id: 8 }, { ymm_id: 9668, service_id: 10 }, { ymm_id: 9668, service_id: 14 }, { ymm_id: 9668, service_id: 15 },
-  { ymm_id: 8803, service_id: 6 }, { ymm_id: 8803, service_id: 7 }, { ymm_id: 8803, service_id: 8 }, { ymm_id: 8803, service_id: 10 }, { ymm_id: 8803, service_id: 14 }, { ymm_id: 8803, service_id: 15 },
-];
-
-const airbagRequirementsData: RequirementInsertBase[] = [
-  { ymm_id: 6062, service_id: 9 },
-  { ymm_id: 6977, service_id: 9 },
-  { ymm_id: 8034, service_id: 9 },
-  { ymm_id: 7970, service_id: 9 },
-  { ymm_id: 8456, service_id: 9 },
-  { ymm_id: 4326, service_id: 9 },
-  { ymm_id: 4321, service_id: 9 },
-  { ymm_id: 6373, service_id: 9 },
-  { ymm_id: 9719, service_id: 9 },
-  { ymm_id: 4976, service_id: 9 },
-  { ymm_id: 8834, service_id: 9 },
-  { ymm_id: 9082, service_id: 9 },
-  { ymm_id: 1062, service_id: 9 },
-  { ymm_id: 8058, service_id: 9 },
-  { ymm_id: 7984, service_id: 9 },
-  { ymm_id: 6983, service_id: 9 },
-  { ymm_id: 6431, service_id: 9 },
-  { ymm_id: 9257, service_id: 9 },
-  { ymm_id: 7159, service_id: 9 },
-  { ymm_id: 8869, service_id: 9 },
-  { ymm_id: 6030, service_id: 9 },
-  { ymm_id: 1057, service_id: 9 },
-  { ymm_id: 8228, service_id: 9 },
-  { ymm_id: 9720, service_id: 9 },
-  { ymm_id: 9238, service_id: 9 },
-  { ymm_id: 5998, service_id: 9 },
-  { ymm_id: 6010, service_id: 9 },
-  { ymm_id: 4470, service_id: 9 },
-  { ymm_id: 6445, service_id: 9 },
-  { ymm_id: 7181, service_id: 9 },
-  { ymm_id: 6986, service_id: 9 },
-  { ymm_id: 8630, service_id: 9 },
-  { ymm_id: 8217, service_id: 9 },
-  { ymm_id: 9283, service_id: 9 },
-  { ymm_id: 7112, service_id: 9 },
-  { ymm_id: 4599, service_id: 9 },
-  { ymm_id: 4851, service_id: 9 },
-  { ymm_id: 7890, service_id: 9 },
-  { ymm_id: 5252, service_id: 9 },
-  { ymm_id: 7500, service_id: 9 },
-  { ymm_id: 9688, service_id: 9 },
-  { ymm_id: 4616, service_id: 9 },
-  { ymm_id: 7061, service_id: 9 },
-  { ymm_id: 9668, service_id: 9 },
-  { ymm_id: 8803, service_id: 9 },
-];
-
-const adasRequirementsData: AdasRequirementInsert[] = [
-  { ymm_id: 4321, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 4321, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 4321, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 4321, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 4326, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 4326, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 4326, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 4326, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 4470, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 4470, service_id: 2, equipment_model: 'AUTEL-CSC0601/06' }, { ymm_id: 4470, service_id: 3, equipment_model: 'AUTEL-CSC0802' }, { ymm_id: 4470, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 4599, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 4599, service_id: 2, equipment_model: 'AUTEL-CSC0601/11/01' }, { ymm_id: 4599, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 4599, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 4616, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 4616, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 4616, service_id: 3, equipment_model: 'AUTEL-CSC0602/08' }, { ymm_id: 4616, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 4851, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 4851, service_id: 2, equipment_model: 'AUTEL-CSC0601/12' }, { ymm_id: 4851, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 4851, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 4976, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 4976, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 4976, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 4976, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 5252, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 5252, service_id: 2, equipment_model: 'AUTEL-CSC0601/17' }, { ymm_id: 5252, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 5252, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 5998, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 5998, service_id: 2, equipment_model: 'N/A' }, { ymm_id: 5998, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 5998, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 6010, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 6010, service_id: 2, equipment_model: 'AUTEL-CSC0601/11' }, { ymm_id: 6010, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 6010, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 6030, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 6030, service_id: 2, equipment_model: 'N/A' }, { ymm_id: 6030, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 6030, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 6062, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 6062, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 6062, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 6062, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 6373, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 6373, service_id: 2, equipment_model: 'AUTEL-CSC0601/14' }, { ymm_id: 6373, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 6373, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 6431, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 6431, service_id: 2, equipment_model: 'AUTEL-CSC0601/24/01' }, { ymm_id: 6431, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 6431, service_id: 4, equipment_model: 'AUTEL-CSC1004/02' },
-  { ymm_id: 6445, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 6445, service_id: 2, equipment_model: 'N/A' }, { ymm_id: 6445, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 6445, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 6977, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 6977, service_id: 2, equipment_model: 'AUTEL-CSC0601/08' }, { ymm_id: 6977, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 6977, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 6983, service_id: 1, equipment_model: 'Dynamic Calibration' }, { ymm_id: 6983, service_id: 2, equipment_model: 'AUTEL-CSC0601/07' }, { ymm_id: 6983, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 6983, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 6986, service_id: 1, equipment_model: 'Dynamic Calibration' }, { ymm_id: 6986, service_id: 2, equipment_model: 'N/A' }, { ymm_id: 6986, service_id: 3, equipment_model: 'AUTEL-CSC0602/02' }, { ymm_id: 6986, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 7061, service_id: 1, equipment_model: 'Dynamic Calibration' }, { ymm_id: 7061, service_id: 2, equipment_model: 'AUTEL-CSC0611/03' }, { ymm_id: 7061, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 7061, service_id: 4, equipment_model: 'Dynamic Calibration' },
-  { ymm_id: 7112, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 7112, service_id: 2, equipment_model: 'AUTEL-CSC0601/03' }, { ymm_id: 7112, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 7112, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 7159, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 7159, service_id: 2, equipment_model: 'AUTEL-CSC0601/15' }, { ymm_id: 7159, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 7159, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 7181, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 7181, service_id: 2, equipment_model: 'N/A' }, { ymm_id: 7181, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 7181, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 7500, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 7500, service_id: 2, equipment_model: 'AUTEL-CSC0601/22' }, { ymm_id: 7500, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 7500, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 7890, service_id: 1, equipment_model: 'Dynamic Calibration' }, { ymm_id: 7890, service_id: 2, equipment_model: 'AUTEL-CSC0601/13' }, { ymm_id: 7890, service_id: 3, equipment_model: 'Dynamic Calibration' }, { ymm_id: 7890, service_id: 4, equipment_model: 'AUTEL-CSC1004/03' },
-  { ymm_id: 7970, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 7970, service_id: 2, equipment_model: 'AUTEL-CSC0601/15' }, { ymm_id: 7970, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 7970, service_id: 4, equipment_model: 'AUTEL-CSC1004/10' },
-  { ymm_id: 7984, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 7984, service_id: 2, equipment_model: 'AUTEL-CSC0601/15' }, { ymm_id: 7984, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 7984, service_id: 4, equipment_model: 'AUTEL-CSC1004/10' },
-  { ymm_id: 8034, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 8034, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 8034, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 8034, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 8058, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 8058, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 8058, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 8058, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 8217, service_id: 1, equipment_model: 'Dynamic Calibration' }, { ymm_id: 8217, service_id: 2, equipment_model: 'AUTEL-CSC0601/07' }, { ymm_id: 8217, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 8217, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 8228, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 8228, service_id: 2, equipment_model: 'AUTEL-CSC0601/07' }, { ymm_id: 8228, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 8228, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 8456, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 8456, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 8456, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 8456, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 8630, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 8630, service_id: 2, equipment_model: 'AUTEL-CSC0601/08' }, { ymm_id: 8630, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 8630, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 8719, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 8719, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 8719, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 8719, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' }, // Assuming 8719 follows Audi pattern
-  { ymm_id: 8869, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 8869, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 8869, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 8869, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 9082, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 9082, service_id: 2, equipment_model: 'AUTEL-CSC0601/07' }, { ymm_id: 9082, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 9082, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 9238, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 9238, service_id: 2, equipment_model: 'AUTEL-CSC0601/14' }, { ymm_id: 9238, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 9238, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 9257, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 9257, service_id: 2, equipment_model: 'AUTEL-CSC0601/15' }, { ymm_id: 9257, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 9257, service_id: 4, equipment_model: 'AUTEL-CSC1004/10' },
-  { ymm_id: 9283, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 9283, service_id: 2, equipment_model: 'AUTEL-CSC0601/02' }, { ymm_id: 9283, service_id: 3, equipment_model: 'Dynamic Calibration' }, { ymm_id: 9283, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 9668, service_id: 1, equipment_model: 'N/A' }, { ymm_id: 9668, service_id: 2, equipment_model: 'AUTEL-CSC0611/05' }, { ymm_id: 9668, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 9668, service_id: 4, equipment_model: 'AUTEL-CSC1014/17' },
-  { ymm_id: 9688, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 9688, service_id: 2, equipment_model: 'AUTEL-CSC0601/25' }, { ymm_id: 9688, service_id: 3, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 9688, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 9719, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 9719, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 9719, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 9719, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 9720, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 9720, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 9720, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 9720, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-  { ymm_id: 1057, service_id: 1, equipment_model: 'AUTEL-CSC0800' }, { ymm_id: 1057, service_id: 2, equipment_model: 'AUTEL-CSC0601/14' }, { ymm_id: 1057, service_id: 3, equipment_model: 'N/A' }, { ymm_id: 1057, service_id: 4, equipment_model: 'N/A' },
-  { ymm_id: 1062, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 1062, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 1062, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 1062, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
-];
-
-// --- Type Definitions ---
-
-// Ensure BaselineRefs interface exists or is added
-interface BaselineRefs {
-  technicianIds: string[];
-  vanIds: number[];
-  // Add other potentially useful references (address IDs, service IDs, etc.)
-  customerUserIds: string[];
-}
-
-
-// --- Main Seeding Function (Modify or Replace existing seedBaseline if present) ---
 
 /**
  * Seeds the staging database with baseline static data.
- * Corresponds to 05-merged-custom-test-data.sql and 06-equipment-requirements-test-data.sql.
  * @param supabaseAdmin Supabase client instance with service role privileges.
  * @param technicianCount The number of technicians (1-4) to include in the baseline.
- * @returns An object containing references (like IDs) to the created baseline entities.
+ * @returns An object containing references (actual IDs) to the created baseline entities.
  */
 export async function seedBaseline(
   supabaseAdmin: SupabaseClient<Database>,
@@ -643,12 +69,11 @@ export async function seedBaseline(
     throw new Error('Invalid technicianCount. Must be 1, 2, 3, or 4.');
   }
 
-  // 1. Call Cleanup (Implementation pending in cleanup-staging.ts)
-  logInfo('Cleaning up existing test data (Placeholder - relies on cleanup-staging.ts)...');
+  // 1. Call Cleanup
+  logInfo('Cleaning up existing test data...');
   try {
-    // Assume cleanupAllTestData exists and handles potential errors
     await cleanupAllTestData(supabaseAdmin);
-    logInfo('Cleanup function executed successfully (or skipped if no data).');
+    logInfo('Cleanup function executed successfully.');
   } catch (cleanupError) {
     logError('Error during cleanup phase. Halting seeding.', cleanupError);
     throw cleanupError;
@@ -656,26 +81,17 @@ export async function seedBaseline(
 
   // 2. Filter Data based on technicianCount
   logInfo(`Filtering data for ${technicianCount} technician(s)...`);
-
   const techUserSeedData = authUsersData
-      .filter(u => u.email.startsWith('tech'))
-      .slice(0, technicianCount);
-
-  const customerUserSeedData = authUsersData.filter(u => !u.email.startsWith('tech'));
-
+    .filter((u) => u.email.startsWith('tech'))
+    .slice(0, technicianCount);
+  const customerUserSeedData = authUsersData.filter((u) => !u.email.startsWith('tech'));
   const filteredAuthUserSeedData = [...techUserSeedData, ...customerUserSeedData];
-  const filteredAuthUserIds = filteredAuthUserSeedData.map(u => u.id);
-  const customerUserIds = customerUserSeedData.map(u => u.id);
-
-  // Use the correct PublicUser type from the top of the file
-  const filteredPublicUsers = publicUsersData.filter(u => filteredAuthUserIds.includes(u.id));
-  // Use the correct Technician type
-  const filteredTechnicians = techniciansData.filter(t => techUserSeedData.some(techUser => techUser.id === t.user_id));
-
-  // Correctly filter vans based on the filtered technicians' assigned vans
-  const techVanIds = filteredTechnicians.map(t => t.assigned_van_id).filter(id => id != null) as number[];
-  // Use the correct Van type
-  const filteredVans = vansData.filter(v => techVanIds.includes(v.id));
+  const filteredAuthUserIds = filteredAuthUserSeedData.map((u) => u.id);
+  const customerUserAuthIds = customerUserSeedData.map((u) => u.id);
+  const filteredPublicUsersInput: UserInsert[] = publicUsersData.filter((u) => filteredAuthUserIds.includes(u.id));
+  const filteredTechniciansInput: TechnicianInsert[] = techniciansData.filter((t) => techUserSeedData.some((techUser) => techUser.id === t.user_id));
+  const techVanIds = filteredTechniciansInput.map((t) => t.assigned_van_id).filter((id): id is number => id != null);
+  const filteredVansInput: VanInsert[] = vansData.filter((v) => techVanIds.includes(v.id));
 
 
   // 3. Insert Auth Users
@@ -683,61 +99,97 @@ export async function seedBaseline(
   const createdTechnicianAuthIds: string[] = [];
   for (const user of filteredAuthUserSeedData) {
     try {
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        // Find corresponding public user for metadata (optional but good practice)
-        user_metadata: { full_name: publicUsersData.find(pu => pu.id === user.id)?.full_name ?? 'Test User' },
+      const { error: authError } = await supabaseAdmin.auth.admin.createUser({
+        user_metadata: { full_name: publicUsersData.find((pu) => pu.id === user.id)?.full_name ?? 'Test User' },
         email: user.email,
-        password: user.password || 'password', // Use provided or default
-        email_confirm: true, // Auto-confirm email for testing
-        app_metadata: { provider: 'email' }, // Required by Supabase
-        id: user.id // Use predefined UUID
+        password: user.password || 'password',
+        email_confirm: true,
+        app_metadata: { provider: 'email' },
+        id: user.id,
       });
-
       if (authError) {
-        // Handle specific error for existing user gracefully
-        // Different Supabase versions might have slightly different error messages/codes
-        if (authError.message.includes('User already registered') || authError.message.includes('duplicate key value violates unique constraint') || (authError as any).code === 'user_already_exists') {
+        if ( authError.message.includes('User already registered') || authError.message.includes('duplicate key value violates unique constraint') || (authError as any).code === 'user_already_exists') {
           logInfo(`Auth user ${user.email} (ID: ${user.id}) already exists. Skipping creation.`);
         } else {
-          throw authError; // Re-throw other unexpected errors
+          // Log specific error but continue if possible, maybe just this user fails
+          logError(`Error creating auth user ${user.email}: ${authError.message}`, authError);
+          // Decide if this should be a fatal error: throw authError;
         }
       } else {
         logInfo(`Auth user ${user.email} created successfully.`);
       }
-      // Keep track of technician Auth IDs specifically
-      if (techUserSeedData.some(techUser => techUser.id === user.id)) {
-        createdTechnicianAuthIds.push(user.id);
+      // Collect successfully created/verified technician IDs
+      if (techUserSeedData.some((techUser) => techUser.id === user.id)) {
+        // We assume if no error or "already exists", the ID is valid
+         createdTechnicianAuthIds.push(user.id);
       }
     } catch (error) {
-      logError(`Failed to create or verify auth user ${user.email}: ${(error as Error).message}`, error);
-      throw error; // Stop seeding if critical auth user creation fails
+      logError(`Critical error during auth user processing for ${user.email}: ${(error as Error).message}`, error);
+      throw error; // Re-throw critical errors
     }
   }
+   // Validate if the number of collected technician IDs matches the requested count
+  if (createdTechnicianAuthIds.length !== technicianCount) {
+    logError(`Mismatch: Expected ${technicianCount} technicians, but only processed/verified ${createdTechnicianAuthIds.length} auth users.`);
+     // Decide if this should be fatal: throw new Error("Technician auth user count mismatch");
+  }
 
-  // 4. Insert Public Data (Order is important due to Foreign Keys)
+
+  // 4. Insert Public Data & Capture Actual IDs
+  const refs: Partial<BaselineRefs> = {
+    technicianIds: createdTechnicianAuthIds, // Use successfully processed IDs
+    customerIds: customerUserAuthIds, // Use IDs from filtered input data
+  };
+
   try {
     logInfo('Inserting public table data...');
-    await insertData(supabaseAdmin, 'addresses', addressesData, 'Static addresses');
-    await insertData(supabaseAdmin, 'equipment', equipmentData, 'Static equipment');
-    await insertData(supabaseAdmin, 'ymm_ref', ymmRefData, 'YMM references');
-    await insertData(supabaseAdmin, 'services', servicesData, 'Service definitions');
-    // Insert PUBLIC users (references auth users by ID)
-    await insertData(supabaseAdmin, 'users', filteredPublicUsers, `${filteredPublicUsers.length} Public user profiles`);
-    // Insert Vans (references addresses potentially, ensure addresses inserted first)
-    await insertData(supabaseAdmin, 'vans', filteredVans, `${filteredVans.length} Van(s)`);
-    // Insert Customer Vehicles (references ymm_ref)
-    await insertData(supabaseAdmin, 'customer_vehicles', customerVehiclesData, 'Customer vehicles');
-    // Insert Technicians (references users and vans)
-    await insertData(supabaseAdmin, 'technicians', filteredTechnicians, `${filteredTechnicians.length} Technician profile(s)`);
 
-    // Insert requirements data (references ymm_ref, services, equipment)
-    // Cast requirement data arrays to the expected insert type if necessary,
-    // or ensure the defined arrays match the DB schema exactly.
-    await insertData(supabaseAdmin, 'diag_equipment_requirements', diagRequirementsData, 'Diag requirements');
-    await insertData(supabaseAdmin, 'immo_equipment_requirements', immoRequirementsData, 'Immo requirements');
-    await insertData(supabaseAdmin, 'prog_equipment_requirements', progRequirementsData, 'Prog requirements');
-    await insertData(supabaseAdmin, 'airbag_equipment_requirements', airbagRequirementsData, 'Airbag requirements');
-    await insertData(supabaseAdmin, 'adas_equipment_requirements', adasRequirementsData, 'ADAS requirements');
+    const addressesResult = await insertData(supabaseAdmin, 'addresses', addressesData, 'Static addresses');
+    if (addressesResult.error) throw addressesResult.error;
+    refs.addressIds = addressesResult.data?.map((r) => r.id) ?? [];
+
+    const equipmentResult = await insertData(supabaseAdmin, 'equipment', equipmentData, 'Static equipment');
+    if (equipmentResult.error) throw equipmentResult.error;
+    refs.equipmentIds = equipmentResult.data?.map((r) => r.id) ?? [];
+
+    const ymmResult = await insertData(supabaseAdmin, 'ymm_ref', ymmRefData, 'YMM references');
+    if (ymmResult.error) throw ymmResult.error;
+    refs.ymmRefIds = ymmResult.data?.map((r) => r.ymm_id) ?? [];
+
+    const servicesResult = await insertData(supabaseAdmin, 'services', servicesData, 'Service definitions');
+    if (servicesResult.error) throw servicesResult.error;
+    refs.serviceIds = servicesResult.data?.map((r) => r.id) ?? [];
+
+    // Ensure the public user IDs being inserted actually exist in the auth table
+    const validPublicUsersInput = filteredPublicUsersInput.filter(user =>
+        customerUserAuthIds.includes(user.id) || createdTechnicianAuthIds.includes(user.id)
+    );
+    const usersResult = await insertData(supabaseAdmin, 'users', validPublicUsersInput, 'Public user profiles');
+    if (usersResult.error) throw usersResult.error;
+
+    const vehiclesResult = await insertData(supabaseAdmin, 'customer_vehicles', customerVehiclesData, 'Customer vehicles');
+    if (vehiclesResult.error) throw vehiclesResult.error;
+    refs.customerVehicleIds = vehiclesResult.data?.map((r) => r.id) ?? [];
+
+    const vansResult = await insertData(supabaseAdmin, 'vans', filteredVansInput, 'Van(s)');
+    if (vansResult.error) throw vansResult.error;
+    refs.vanIds = vansResult.data?.map((r) => r.id) ?? [];
+
+    // Ensure the technician user IDs being inserted actually exist
+     const validTechniciansInput = filteredTechniciansInput.filter(tech =>
+        createdTechnicianAuthIds.includes(tech.user_id!) // Ensure user_id is checked
+    );
+    // Cast might still be needed if filteredTechniciansInput is not strictly TechnicianInsert[]
+    const techniciansResult = await insertData(supabaseAdmin, 'technicians', validTechniciansInput as TechnicianInsert[], 'Technician profiles');
+    if (techniciansResult.error) throw techniciansResult.error;
+
+
+    // Insert requirements data (check errors, use 4 args)
+    await insertData(supabaseAdmin, 'diag_equipment_requirements', diagRequirementsData, 'Diag requirements').then(r => { if (r.error) throw r.error; });
+    await insertData(supabaseAdmin, 'immo_equipment_requirements', immoRequirementsData, 'Immo requirements').then(r => { if (r.error) throw r.error; });
+    await insertData(supabaseAdmin, 'prog_equipment_requirements', progRequirementsData, 'Prog requirements').then(r => { if (r.error) throw r.error; });
+    await insertData(supabaseAdmin, 'airbag_equipment_requirements', airbagRequirementsData, 'Airbag requirements').then(r => { if (r.error) throw r.error; });
+    await insertData(supabaseAdmin, 'adas_equipment_requirements', adasRequirementsData, 'ADAS requirements').then(r => { if (r.error) throw r.error; });
 
   } catch (error) {
     logError('Halting baseline seeding due to public table insertion error.', error);
@@ -746,43 +198,27 @@ export async function seedBaseline(
 
   logInfo('Baseline database seeding completed successfully.');
 
-  // Return references to the created entities
-  const refs: BaselineRefs = {
-    technicianIds: createdTechnicianAuthIds, // Return the Auth IDs of the technicians
-    vanIds: filteredVans.map(v => v.id),
-    customerUserIds: customerUserIds
+  // 5. Validate and Return Final Refs
+  const finalRefs: BaselineRefs = {
+    addressIds: refs.addressIds ?? [],
+    customerIds: refs.customerIds ?? [], // Use IDs from initial filter
+    technicianIds: refs.technicianIds ?? [], // Use IDs collected from auth loop
+    vanIds: refs.vanIds ?? [],
+    equipmentIds: refs.equipmentIds ?? [],
+    serviceIds: refs.serviceIds ?? [],
+    ymmRefIds: refs.ymmRefIds ?? [],
+    customerVehicleIds: refs.customerVehicleIds ?? [],
   };
-  return refs;
+
+  // Final validation
+  if (finalRefs.technicianIds.length !== technicianCount) {
+    logError(`Baseline seeding inconsistency: Expected ${technicianCount} technician IDs, but collected ${finalRefs.technicianIds.length}`);
+  }
+  if (!finalRefs.addressIds.length || !finalRefs.customerIds.length || !finalRefs.equipmentIds.length || !finalRefs.serviceIds.length) {
+      logInfo('Warning: Some baseline reference ID arrays are empty. This might affect scenario seeding.');
+  }
+
+  return finalRefs;
 }
 
-// --- (Keep existing Helper Functions if any, or ensure insertData is imported) ---
-// Remove the placeholder insertData if it was added here previously.
-
-// --- Helper Functions (TODO: Implement) ---
-
-async function insertData<T extends keyof Database['public']['Tables']>(
-    supabase: SupabaseClient<Database>,
-    tableName: T,
-    data: any[] // Use any[] here for simplicity, rely on data array typing
-) {
-    if (!data || data.length === 0) {
-        console.log(`Skipping insertion for ${tableName}: No data.`);
-        return;
-    }
-    console.log(`Inserting ${data.length} records into ${tableName}...`);
-    const { error } = await supabase.from(tableName).insert(data as any);
-
-    if (error) {
-        console.error(`Error inserting data into ${tableName}:`, error);
-        throw error;
-    }
-}
-
-// TODO: Implement filtering functions (filterAuthUsers, filterPublicUsers, etc.)
-// TODO: Implement cleanupBaselineData function if needed
-
-// Example filter (adjust based on actual data structure)
-// function filterTechnicians(data: Technician[], count: number): Technician[] {
-//   // Assuming technicians have an ID or predictable order
-//   return data.slice(0, count);
-// } 
+// NOTE: Assumes baseline-data.ts exists and exports all the required data arrays.

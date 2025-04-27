@@ -37,11 +37,12 @@ async function main() {
         logError('Scenario action requires a scenario name specified with --name=<scenario_name>');
         process.exit(1);
       }
-      // Seed baseline first before applying a scenario
+      // Seed baseline first and get the refs
       logInfo('Seeding baseline data before applying scenario...');
-      await seedBaseline(supabaseAdmin, technicianCount as 1 | 2 | 3 | 4);
+      const baselineRefs = await seedBaseline(supabaseAdmin, technicianCount as 1 | 2 | 3 | 4);
       logInfo('Applying scenario...');
-      await seedScenario(supabaseAdmin, scenarioName);
+      // Pass the baselineRefs to the scenario router
+      await seedScenario(supabaseAdmin, baselineRefs, scenarioName);
       logInfo(`Scenario '${scenarioName}' applied successfully.`);
     } else {
       logError(`Unknown action: ${action}. Use 'baseline' or 'scenario'.`);

@@ -13,7 +13,7 @@
     "test": "jest --config ../../jest.config.js",
     "test:e2e": "node ../../simulation/run-e2e-tests.js",
     "seed:generate": "node ../../simulation/generate-seed.js",
-    "db:generate-types": "supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public > src/types/database.types.ts"
+    "db:generate-types": "supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public > ../../simulation/scripts/db/seed/staged.database.types.ts"
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.1",
