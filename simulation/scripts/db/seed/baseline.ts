@@ -137,8 +137,8 @@ export async function seedBaseline(
 
   // 4. Insert Public Data & Capture Actual IDs
   const refs: Partial<BaselineRefs> = {
-    technicianIds: createdTechnicianAuthIds, // Use successfully processed IDs
-    customerIds: customerUserAuthIds, // Use IDs from filtered input data
+    technicianIds: createdTechnicianAuthIds,
+    customerIds: customerUserAuthIds,
   };
 
   try {
@@ -201,20 +201,24 @@ export async function seedBaseline(
   // 5. Validate and Return Final Refs
   const finalRefs: BaselineRefs = {
     addressIds: refs.addressIds ?? [],
-    customerIds: refs.customerIds ?? [], // Use IDs from initial filter
-    technicianIds: refs.technicianIds ?? [], // Use IDs collected from auth loop
+    customerIds: refs.customerIds ?? [],
+    technicianIds: refs.technicianIds ?? [],
     vanIds: refs.vanIds ?? [],
     equipmentIds: refs.equipmentIds ?? [],
     serviceIds: refs.serviceIds ?? [],
     ymmRefIds: refs.ymmRefIds ?? [],
     customerVehicleIds: refs.customerVehicleIds ?? [],
+    companyIds: [], // Assuming these are not set in baseline.ts currently
+    workingHoursIds: [],
+    technicianEquipmentIds: [],
+    technicianServiceAreaIds: [],
   };
 
-  // Final validation
-  if (finalRefs.technicianIds.length !== technicianCount) {
-    logError(`Baseline seeding inconsistency: Expected ${technicianCount} technician IDs, but collected ${finalRefs.technicianIds.length}`);
+  // Final validation with checks for undefined
+  if ((finalRefs.technicianIds?.length ?? 0) !== technicianCount) {
+    logError(`Baseline seeding inconsistency: Expected ${technicianCount} technician IDs, but collected ${finalRefs.technicianIds?.length ?? 0}`);
   }
-  if (!finalRefs.addressIds.length || !finalRefs.customerIds.length || !finalRefs.equipmentIds.length || !finalRefs.serviceIds.length) {
+  if (!(finalRefs.addressIds?.length) || !(finalRefs.customerIds?.length) || !(finalRefs.equipmentIds?.length) || !(finalRefs.serviceIds?.length)) {
       logInfo('Warning: Some baseline reference ID arrays are empty. This might affect scenario seeding.');
   }
 

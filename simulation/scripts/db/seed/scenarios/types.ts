@@ -1,29 +1,52 @@
+import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
+
 /**
  * Defines the structure for baseline data references passed to scenario scripts.
  * Contains IDs of key entities created during baseline seeding.
  */
 export interface BaselineRefs {
-  addressIds: number[];
-  customerIds: string[]; // Assuming UUIDs from auth.users
-  technicianIds: string[]; // Assuming UUIDs from auth.users
-  vanIds: number[];
-  equipmentIds: number[];
-  serviceIds: number[];
-  ymmRefIds: number[];
-  customerVehicleIds: number[];
+  customerIds?: string[];
+  addressIds?: number[];
+  customerVehicleIds?: number[];
+  serviceIds?: number[];
+  equipmentIds?: number[];
+  technicianIds?: string[];
+  vanIds?: number[];
+  ymmRefIds?: number[];
+  companyIds?: number[];
+  workingHoursIds?: number[];
+  technicianEquipmentIds?: number[];
+  technicianServiceAreaIds?: number[];
   // Add other relevant baseline IDs as needed
 }
 
 /**
- * Defines the structure for metadata returned by individual scenario scripts.
- * Contains IDs of records created specifically within that scenario for test verification.
- * This is a base interface; specific scenarios might extend it or use a more specific type.
+ * Standard structure for metadata returned by individual scenario seed scripts.
+ */
+export interface ScenarioSeedResult {
+  scenarioName: string; // e.g., "base_schedule", "equipment_conflict"
+  insertedIds: {
+    orders?: number[];
+    jobs?: number[];
+    equipment?: number[];
+    technician_availability_exceptions?: number[];
+    // Add other table names (as keys) and ID arrays (as values)
+    // relevant to the specific scenario being seeded.
+    [tableName: string]: number[] | undefined; // Allow dynamic table names
+  };
+  // Optional: Add any other relevant scenario-specific metadata if needed
+}
+
+/**
+ * Represents the metadata updates specific to a scenario run.
+ * @deprecated Prefer ScenarioSeedResult for standardization
  */
 export interface ScenarioMetadataUpdate {
-  // Example: If a scenario creates specific jobs or orders
-  // createdOrderIds?: number[];
-  // createdJobIds?: number[];
-  [key: string]: any; // Allows for flexible scenario-specific data
+  createdOrderIds?: number[];
+  createdJobIds?: number[];
+  createdEquipmentIds?: number[];
+  createdTechnicianAvailabilityExceptionIds?: number[];
+  // ... other specific IDs
 }
 
 // Add any other shared helper types needed by multiple scenario scripts below 
