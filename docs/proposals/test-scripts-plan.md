@@ -1,6 +1,6 @@
 # E2E Testing Framework & Workflow Plan (Staging DB)
 
-**Version:** 1.3
+**Version:** 1.4
 **Date:** 2024-09-06 (Updated)
 
 ## 1. Goal
@@ -11,9 +11,12 @@ To establish a robust and user-friendly End-to-End (E2E) testing framework for t
 2.  Connect these services to a designated **Staging Supabase instance** (credentials configured via `.env.test`).
 3.  Provide a command-line interface (CLI) for easy execution of test suites and utility scripts.
 4.  Enable developers to monitor logs from all running services during test execution.
-5.  Include a **two-phase mechanism** for seeding the Staging Supabase database: first applying a baseline (parameterized by technician count), then layering a specific test scenario.
-6.  Implement Playwright tests for core user workflows: Registration and Order Placement.
-7.  Provide a utility script for migrating data from Production to Staging (with appropriate safeguards).
+5.  Include mechanisms for seeding the Staging Supabase database for:
+    a. Backend scenario testing (validating scheduler logic).
+    b. UI E2E testing prerequisites.
+6.  Implement UI E2E tests (Playwright) for core user workflows: Registration and Order Placement.
+7.  Implement Backend Scenario tests (Jest) for scheduler/optimizer logic validation.
+8.  Provide utility scripts for DB cleanup and migration.
 
 ## 2. Core Technologies
 
@@ -26,6 +29,7 @@ To establish a robust and user-friendly End-to-End (E2E) testing framework for t
 *   **Data Generation:** `@faker-js/faker`
 *   **Environment Config:** `dotenv` (`.env.test`, `.env.prod` - managed securely).
 *   **Script Execution:** `ts-node`
+*   **Backend Testing:** Jest (`jest`, `ts-jest`) - For testing scheduler scenarios.
 
 **Required Dependencies:**
 *   Add as root workspace dev dependencies (`pnpm add -D -w`): `ts-node @types/node`, `@faker-js/faker @types/faker`, `inquirer @types/inquirer`, `dotenv`.
@@ -62,13 +66,19 @@ jam-auto/
 │   └── ... (Other simulation assets like README.md, init-scripts/ if still used for anything)
 │
 ├── tests/
-│   └── e2e/                   # Playwright tests remain here
-│       ├── specs/
-│       │   ├── registration.spec.ts
-│       │   └── order-placement.spec.ts
-│       ├── fixtures/
-│       ├── playwright.config.ts
-│       └── package.json         # Or managed at root
+│   ├── e2e/                   # Playwright UI E2E tests
+│   │   ├── specs/
+│   │   │   ├── registration.spec.ts
+│   │   │   └── order-placement.spec.ts
+│   │   └── fixtures/
+│   │   └── playwright.config.ts
+│   │   └── package.json         # Or managed at root
+│   └── integration/           # Backend scenario tests (Jest)
+│       ├── scheduler/         # Tests focused on scheduler logic
+│       │   ├── base_schedule.test.ts
+│       │   └── equipment_conflict.test.ts
+│       │   └── ... (Other scenario test files)
+│       └── jest.config.integration.js # Optional: Dedicated Jest config
 │
 ├── .env.test                  # Staging DB & local service config
 ├── .env.prod                  # Production DB config (NOT COMMITTED, handled securely)
@@ -90,11 +100,12 @@ jam-auto/
     *   Present a main menu with options:
         *   "Start Docker Services (Test Env)"
         *   "Stop Docker Services (Test Env)"
-        *   "View Docker Service Logs (Instructions)"
+        *   "View Docker Logs (Instructions)"
         *   "Seed Staging Database (Baseline + Scenario)"
         *   "Clean Staging Database (ALL Test Data)"
-        *   "Run All E2E Tests"
-        *   "Run Specific E2E Suite (e.g., Registration, Order Placement)" (Sub-menu or further prompt)
+        *   "Run ALL UI E2E Tests (Playwright)"
+        *   "Run Specific UI E2E Suite (Playwright)"
+        *   "Run Backend Scenario Test (Jest - Select Scenario)" (Sub-menu or prompt)
         *   "Migrate Production Data to Staging" (With strong warnings)
         *   "Exit"
     *   Use `child_process.spawn` to execute other scripts/commands.
@@ -106,6 +117,10 @@ jam-auto/
         4.  If a scenario is chosen (not 'None'), execute `simulation/scripts/db/seed/index.ts` with the selected scenario action.
     *   **Start Services Command:** Execute `docker-compose --env-file .env.test -f docker-compose.test.yml up -d --build`.
     *   **Stop Services Command:** Execute `docker-compose --env-file .env.test -f docker-compose.test.yml down -v --remove-orphans`.
+    *   **Run UI Tests Option:** Executes the Playwright command (e.g., `pnpm test:e2e:run`).
+    *   **Run Backend Test Option:**
+        1.  Prompts user to select a scenario (e.g., `base_schedule`, `equipment_conflict`, etc.).
+        2.  Executes the corresponding Jest test file (e.g., `pnpm jest tests/integration/scheduler/equipment_conflict.test.ts`).
 *   **`package.json` Script:**
     ```json
     // In root package.json
@@ -113,6 +128,7 @@ jam-auto/
       // ... other scripts ...
       "test:e2e:menu": "ts-node simulation/scripts/e2e-runner.ts",
       "test:e2e:run": "playwright test --config=tests/e2e/playwright.config.ts",
+      "test:integration": "jest --config=tests/integration/jest.config.integration.js", // Or use root Jest config with path
       "db:seed:staging": "ts-node simulation/scripts/db/seed/index.ts",
       "db:clean:staging": "ts-node simulation/scripts/db/cleanup-staging.ts",
       "db:migrate:prod-staging": "ts-node simulation/scripts/db/migrate-prod-to-staging.ts"
@@ -122,7 +138,7 @@ jam-auto/
 ### 4.2. Aggregated Docker Logs
 
 *   **Recommended Approach: Separate Terminal**
-    *   The CLI menu script, when selecting "View Docker Service Logs", should simply display instructions:
+    *   The CLI menu script, when selecting "View Docker Logs", should simply display instructions:
         ```
         To view live logs, please open a new terminal and run:
         docker-compose -f docker-compose.test.yml logs -f --tail=50
@@ -144,8 +160,7 @@ jam-auto/
     *   Inserts the specified number of technicians (data into `auth.users`, `public.users`, `public.technicians`). Use a consistent naming/email pattern (e.g., `e2e_tech_1@test.com`) to aid cleanup.
     *   Inserts baseline `vans` (linking to the created technicians).
 *   **Scenario Scripts (`simulation/scripts/db/seed/scenarios/*.ts`):**
-    *   Imports types from `../staged.database.types.ts`.
-    *   Responsibility: Add ONLY the dynamic data for a specific test condition (orders, jobs, specific `van_equipment` assignments, `technician_availability_exceptions`).
+    *   Responsibility: Add ONLY the dynamic data for a specific test condition **primarily intended for backend scenario tests**. (UI tests might use a simpler baseline or specific fixtures).
     *   Ensure data generated is relationally correct between orders, order_services, jobs, van_equipment, technician_availability_exceptions and their relevant entries in other tables.
     *   Assume the baseline data (with the correct number of techs) already exists.
     *   Use `@supabase/supabase-js` and `@faker-js/faker`.
@@ -200,9 +215,6 @@ jam-auto/
 9.   **`same_location_jobs`**: Explicitly create the scenario where multiple separate orders/jobs are requested for the exact same address ID on the same day. Verify how the optimizer/scheduler handles this (single visit vs. multiple).
 10.   **`long_duration_job`**: Include a job with an unusually long duration that might significantly impact a technician's capacity for the day, testing how it affects other job scheduling.
 
-
-
-
 ### 4.4. Staging DB Cleanup (`simulation/scripts/db/cleanup-staging.ts`)
 
 *   Located at `simulation/scripts/db/cleanup-staging.ts`.
@@ -214,13 +226,14 @@ jam-auto/
     *   It deletes data matching the pattern from all relevant tables, respecting foreign key constraints (delete jobs, order_services, orders, van_equipment, technician_availability_exceptions, customer_vehicles FIRST, then users/auth.users, addresses, technicians, vans, potentially equipment/services if they were test-specific).
     *   **Include multiple, explicit confirmation prompts** (`inquirer`) before executing deletions.
 
-### 4.5. Playwright Test Structure (`tests/e2e/`)
+### 4.5. Playwright UI E2E Test Structure (`tests/e2e/`)
 
+*   Focuses on testing user interactions via the browser.
 *   Use subdirectories within `tests/e2e/specs/` for different features (e.g., `auth`, `orders`, `jobs`).   
 *   Consider Playwright's global setup/teardown or project dependencies for tasks like logging in a prerequisite test user before running order placement tests. (`playwright.config.ts`).
 *   Store base URL (`E2E_BASE_URL`) in `.env.test` and use it in `playwright.config.ts`.
 
-### 4.6. Registration Test (`tests/e2e/specs/registration.spec.ts`)
+### 4.6. Registration Test (Playwright) (`tests/e2e/specs/registration.spec.ts`)
 
 *   **Functionality (Updated - No Email Confirmation):**
     *   Navigate to registration page.
@@ -231,7 +244,7 @@ jam-auto/
     *   *(Optional Bonus):* Immediately attempt login.
     *   *(Cleanup):* Rely on `db:clean:staging` script.
 
-### 4.7. Order Placement Tests (`tests/e2e/specs/order-placement.spec.ts`)
+### 4.7. Order Placement Tests (Playwright) (`tests/e2e/specs/order-placement.spec.ts`)
 
 *   **Prerequisite:** Requires a logged-in test user (non-admin). This should be handled via:
     *   Playwright's global setup to log in once.
@@ -276,17 +289,41 @@ jam-auto/
     }
     ```
 
+### 4.9. Backend Scheduling Scenario Tests (Jest) (`tests/integration/scheduler/`)
+
+*   **Technology:** Jest, TypeScript, `@supabase/supabase-js`, `axios` (or Node Fetch).
+*   **Location:** `tests/integration/scheduler/` (or similar).
+*   **Purpose:** Validate core scheduler logic under specific data conditions without UI interaction.
+*   **Workflow per Test File (e.g., `equipment_conflict.test.ts`):**
+    1.  **Setup (`beforeAll` or `beforeEach`):**
+        *   Ensure necessary Docker containers (`scheduler`, `optimiser`) are running (or start them via script if not managed by CLI runner).
+        *   Call the appropriate seeding script (`db:seed:staging` with relevant scenario args, e.g., `--scenario=equipment_conflict`).
+        *   Initialize Supabase client (with service role key).
+    2.  **Test Execution (`test` or `it` block):**
+        *   Make an HTTP POST request to the scheduler's `/run-replan` API endpoint using `axios` or `fetch`.
+        *   Wait for the replan process to likely complete (add a reasonable delay or implement a polling mechanism if the API is asynchronous).
+    3.  **Verification:**
+        *   Query the Staging Supabase DB using the Supabase client.
+        *   Fetch the specific jobs/orders related to the seeded scenario.
+        *   Use Jest's `expect` assertions to validate the final state (e.g., `expect(job.status).toBe('pending_review');`).
+    4.  **Cleanup:** **No automatic cleanup.** Cleanup is handled manually via the `db:clean:staging` script invoked from the CLI menu, allowing for post-test inspection.
+
 ## 5. Workflow Integration
 
 1.  **Setup:** Developer ensures Docker is running, installs deps (`pnpm i`), configures `.env.test` (Staging Supabase keys, `E2E_BASE_URL`, identifier pattern details).
 2.  **Run Menu:** Developer runs `pnpm test:e2e:menu`.
 3.  **Start Services:** Select "Start Docker Services".
 4.  **(Optional) View Logs:** Use "View Docker Logs (Instructions)".
-5.  **Seed Data:** Select "Seed Staging Database", choose technician count, then choose scenario.
-6.  **Run Tests:** Select "Run All E2E Tests" or specific suite.
-7.  **View Results:** Observe Playwright & script output.
-8.  **(Optional) Cleanup:** Select "Clean Staging Database" (strongly recommended).
-9.  **Stop Services:** Select "Stop Docker Services" when finished.
+5.  **Run Backend Test:**
+    *   Select "Seed Staging Database", choose tech count. Initial seed data populates DB. Select a Scenario (e.g., `equipment_conflict`). The test is run, populating the DB further and determining the results.
+    *   Observe Jest output.
+    *   *(Optional)* Manually inspect Staging DB state.
+6.  **Run UI Test:**
+    *   Select "Seed Staging Database" (potentially with a different baseline/scenario suitable for UI testing, or rely on prerequisite test steps).
+    *   Select "Run All UI E2E Tests" or a specific suite.
+    *   Observe Playwright output.
+7.  **(Manual) Cleanup:** Select "Clean Staging Database" when testing is complete.
+8.  **Stop Services:** Select "Stop Docker Services".
 
 ## 6. Security & Considerations
 
