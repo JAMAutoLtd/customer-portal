@@ -1,17 +1,15 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import { createClient, SupabaseClient, PostgrestError } from '@supabase/supabase-js';
+// import dotenv from 'dotenv'; // No longer needed here
 import path from 'path';
-import { Database } from '../db/seed/staged.database.types';
+// Explicitly import the types needed within this module
+import { Database, Tables, TablesInsert } from '../db/seed/staged.database.types';
 
-// Ensure environment variables are loaded from .env.test
-// Note: This assumes dotenv.config() is called early enough by the invoking script or test runner setup.
-// If running scripts directly, ensure dotenv is configured beforehand.
-dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
+// dotenv.config({ path: path.resolve(__dirname, '../../.env.test') }); // Removed: Handled by -r dotenv/config
 
 /**
  * Creates a Supabase client instance configured for the Staging environment.
- *
- * Reads connection details from environment variables defined in `.env.test`:
+ * Assumes environment variables are already loaded via preloading (-r dotenv/config).
+ * Reads connection details from environment variables:
  * - `NEXT_PUBLIC_SUPABASE_URL` (or `SUPABASE_URL` as fallback)
  * - `SUPABASE_SERVICE_ROLE_KEY` (if `useServiceRole` is true)
  * - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (if `useServiceRole` is false)
@@ -20,22 +18,23 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
  * @returns A configured Supabase client instance.
  * @throws Error if the required URL or key environment variables are missing.
  */
-export function createStagingSupabaseClient(useServiceRole = false): SupabaseClient {
+export function createStagingSupabaseClient(useServiceRole = false): SupabaseClient<Database> { // Add Database type generic
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = useServiceRole
     ? process.env.SUPABASE_SERVICE_ROLE_KEY
     : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl) {
-    throw new Error('Supabase URL is not defined. Ensure NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL is set in .env.test');
+    throw new Error('Supabase URL is not defined. Ensure NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL is set in the loaded .env file');
   }
 
   if (!supabaseKey) {
     const keyName = useServiceRole ? 'SUPABASE_SERVICE_ROLE_KEY' : 'NEXT_PUBLIC_SUPABASE_ANON_KEY';
-    throw new Error(`Supabase key (${keyName}) is not defined. Ensure it is set in .env.test`);
+    throw new Error(`Supabase key (${keyName}) is not defined. Ensure it is set in the loaded .env file`);
   }
 
-  return createClient(supabaseUrl, supabaseKey);
+  // Add the Database generic type for better type safety
+  return createClient<Database>(supabaseUrl, supabaseKey);
 }
 
 // --- Type Exports ---
@@ -60,25 +59,46 @@ export const logError = (message: string, error?: unknown): void => {
 /**
  * Generic helper to insert data into a specified table.
  * Handles potential errors during insertion.
+ * Uses generics to ensure the returned data array is correctly typed as the Row[] type for the specified table.
+ * @returns The result object `{ data, error }` where data is correctly typed as `Row[] | null`.
  */
-export async function insertData<T extends Record<string, any>>(
+export async function insertData<
+  TableName extends keyof Database['public']['Tables'] // Generic for the table name
+>(
   supabaseAdmin: SupabaseClient<Database>,
-  tableName: keyof Database['public']['Tables'],
-  data: T[],
+  tableName: TableName, // Use the generic TableName
+  // Use TablesInsert helper with the generic
+  data: TablesInsert<TableName>[],
   description: string
-): Promise<void> {
+): Promise<{
+  // Use Tables helper with the generic for the Row type
+  data: Tables<TableName>[] | null;
+  error: PostgrestError | null;
+}> {
   if (data.length === 0) {
     logInfo(`Skipping insertion into ${String(tableName)} - No data provided.`);
-    return;
+    return { data: [], error: null };
   }
 
   logInfo(`Inserting ${data.length} records into ${String(tableName)} (${description})...`);
-  // The type of tableName is already constrained to the correct keys, no need to cast to string
-  const table = supabaseAdmin.from(tableName);
-  const { error } = await table.insert(data as any); // Cast data as any, assuming caller ensures compatibility
 
-  if (error) {
-    logError(`Error inserting data into ${String(tableName)}: ${error.message}`, error);
-    throw error; // Re-throw to halt the seeding process if critical
+  const result = await supabaseAdmin
+    .from(tableName)
+    .insert(data as any) // Use type assertion here as Supabase types can be complex
+    .select();
+
+  // Log errors or success
+  if (result.error) {
+    logError(`Error inserting data into ${String(tableName)}: ${result.error.message}`, result.error);
+  } else if (!result.data) {
+      logInfo(`Successfully inserted into ${String(tableName)}, but no data was returned by select().`);
+  } else {
+      logInfo(`Successfully inserted ${result.data.length} records into ${String(tableName)}.`);
   }
+
+  // Cast the final return to the explicitly defined return type to satisfy TypeScript
+  return result as {
+    data: Tables<TableName>[] | null;
+    error: PostgrestError | null;
+  };
 } 

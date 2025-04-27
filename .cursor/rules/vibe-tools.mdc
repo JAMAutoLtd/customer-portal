@@ -6,6 +6,8 @@ alwaysApply: true
 vibe-tools is a CLI tool that allows you to interact with AI models and other tools.
 vibe-tools is installed on this machine and it is available to you to execute. You're encouraged to use it.
 
+Never use `| cat` in your queries. Always assume we're using Windows Powershell.
+
 <vibe-tools Integration>
 # Instructions
 Use the following commands to get AI assistance:

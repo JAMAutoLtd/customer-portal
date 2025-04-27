@@ -1,0 +1,142 @@
+# Product Requirements Document: E2E Testing Framework
+
+**Version:** 1.0
+**Date:** 2025-04-27
+
+## 1. Introduction
+
+This document outlines the requirements for an End-to-End (E2E) testing framework for the JAM Auto application suite (Web, Scheduler, Optimiser). The framework aims to provide developers with a reliable, configurable, and easy-to-use environment for validating application functionality against a staging database.
+
+## 2. Goals
+
+*   Establish a robust and user-friendly E2E testing workflow.
+*   Enable local execution of application services (`web`, `scheduler`, `optimiser`) using Docker Compose (`docker-compose.test.yml`).
+*   Connect local services to a dedicated Staging Supabase instance via environment configuration (`.env.test`).
+*   Provide a Command-Line Interface (CLI) for managing the test environment and executing tests.
+*   Facilitate database seeding with baseline and scenario-specific data for both backend logic and UI tests.
+*   Implement mechanisms for cleaning test data from the Staging database.
+*   Support running UI E2E tests (Playwright) and Backend Scenario tests (Jest).
+*   Include a utility for migrating anonymized data from Production to Staging for realistic testing.
+
+## 3. User Roles
+
+*   **Developer:** The primary user who will interact with the framework to set up the test environment, run tests, seed data, and troubleshoot issues.
+
+## 4. Functional Requirements
+
+### 4.1. Environment Setup & Management
+
+*   **FR1.1:** The framework MUST use `docker-compose.test.yml` and `.env.test` to configure and run local instances of the `web`, `scheduler`, and `optimiser` services.
+*   **FR1.2:** The framework MUST provide CLI commands (via the runner script) to start and stop the Docker services defined in `docker-compose.test.yml`.
+*   **FR1.3:** The framework MUST provide instructions via the CLI on how to view aggregated logs from the running Docker services.
+*   **FR1.4:** The framework MUST install all necessary dependencies (Node.js, TypeScript, Playwright, Jest, Supabase client, utility libraries) via `pnpm` in the root workspace.
+*   **FR1.5:** The framework MUST configure Playwright (`tests/e2e/playwright.config.ts`) to read the base URL from environment variables (`E2E_BASE_URL`).
+*   **FR1.6:** The framework MUST configure Jest (`tests/integration/jest.config.integration.js`) for running TypeScript integration tests, loading environment variables from `.env.test`.
+
+### 4.2. Database Management (Staging)
+
+*   **FR2.1:** The framework MUST provide a mechanism to connect to the Staging Supabase instance using credentials from `.env.test` (via `createStagingSupabaseClient` utility).
+*   **FR2.2 (Baseline Seeding):**
+    *   Provide a script (`simulation/scripts/db/seed/baseline.ts`) to seed the Staging DB with baseline data (addresses, equipment, services, YMM refs, users, technicians, vans, requirements) based on predefined static data arrays.
+    *   The baseline seeding script MUST accept a parameter for the number of technicians (1-4) to include.
+    *   The baseline seeding script MUST create corresponding `auth.users` using the Supabase Admin API and public user profiles.
+    *   The baseline seeding script MUST call the cleanup function before inserting data.
+    *   The script MUST handle potential "user already exists" errors gracefully during auth user creation.
+*   **FR2.3 (Scenario Seeding):**
+    *   Provide scripts (`simulation/scripts/db/seed/scenarios/*.ts`) for seeding specific test scenarios on top of the baseline data.
+    *   Initial scenarios MUST include:
+        1.  `base_schedule`: Standard scheduling flow.
+        2.  `equipment_conflict`: Job requires equipment no technician has.
+        3.  `bundle_equipment_conflict`: Multi-job order requires equipment split across techs.
+        4.  `fixed_time_today`: Job fixed for today.
+        5.  `fixed_time_future_overflow`: Job fixed for tomorrow.
+        6.  `technician_unavailable_today`: Tech unavailable for a block today.
+        7.  `availability_overflow_skip_day`: All techs unavailable tomorrow, jobs skip to Day+2.
+        8.  `priority_conflict`: High vs. Low priority jobs compete for limited capacity.
+        9.  `same_location_jobs`: Multiple jobs at one address.
+        10. `long_duration_job`: One very long job impacting capacity.
+    *   Scenario scripts MUST use IDs/references from the baseline seed run (passed as arguments) to maintain relational integrity.
+    *   Scenario scripts MUST generate dynamic data relevant to the specific test condition using libraries like `@faker-js/faker`.
+    *   Scenario scripts MUST return metadata (e.g., IDs of created records) for use in test verification.
+*   **FR2.4 (Seeding Entry Point):**
+    *   Provide a main seeding script (`simulation/scripts/db/seed/index.ts`) that parses CLI arguments to run baseline seeding or baseline + scenario seeding.
+    *   The entry point MUST generate a `seed-metadata.json` file containing information about the seed run (timestamp, counts, scenario IDs).
+*   **FR2.5 (Cleanup):**
+    *   Provide a script (`simulation/scripts/db/cleanup-staging.ts`) to remove **ALL** test data created by the seeding process.
+    *   Cleanup MUST identify test data based on a defined pattern (e.g., email domain, notes prefix).
+    *   Cleanup MUST delete data in the correct order to respect foreign key constraints.
+    *   Cleanup MUST include multiple explicit confirmation prompts before executing deletions.
+    *   Cleanup MUST use the Supabase Admin API to delete `auth.users`.
+
+### 4.3. Test Execution
+
+*   **FR3.1 (Backend Tests):**
+    *   The framework MUST support running Jest integration tests located in `tests/integration/scheduler/`.
+    *   Initial backend tests MUST correspond to and validate the outcomes of the 10 scenarios listed in FR2.3.
+    *   Jest tests MUST be designed to validate scheduler logic against specific database states prepared by scenario seeding.
+    *   Jest tests MUST trigger the scheduler's `/run-replan` API endpoint on the locally running service.
+    *   Jest tests MUST include mechanisms to wait for the asynchronous replan process to complete before verification.
+    *   Jest tests MUST query the Staging Supabase DB to verify the final state of relevant records using IDs from `seed-metadata.json`.
+*   **FR3.2 (UI Tests):**
+    *   The framework MUST support running Playwright E2E tests located in `tests/e2e/specs/`.
+    *   Initial UI tests MUST cover:
+        1.  **User Registration:** Successful registration, attempted registration with existing email, attempted registration with invalid input.
+        2.  **Order Placement:** Successful order placement by a logged-in user (static and semi-random data), attempted order placement with missing fields.
+    *   Playwright tests MUST simulate user interactions with the locally running `web` service UI.
+    *   Playwright tests MUST cover core flows like user registration and order placement.
+    *   Playwright tests MUST use locators to interact with UI elements and assertions to verify UI state/navigation.
+    *   The framework SHOULD support the use of Page Object Models (POM) for maintainability.
+
+### 4.4. CLI Runner
+
+*   **FR4.1:** The framework MUST provide an interactive CLI script (`simulation/scripts/e2e-runner.ts`) using `inquirer`.
+*   **FR4.2:** The CLI MUST present options to:
+    *   Clean Staging DB (`pnpm db:clean:staging`).
+    *   Seed Baseline Data (prompting for technician count, running `pnpm db:seed:staging -- --action baseline ...`).
+    *   Seed Specific Scenario (prompting for scenario name and tech count, running `pnpm db:seed:staging -- --action scenario ...`).
+    *   Run Backend Integration Tests (`pnpm test:integration`).
+    *   Run UI E2E Tests (`pnpm test:e2e:run`).
+    *   Run Full Scenario Test (Clean -> Seed -> Jest -> Playwright).
+    *   Exit.
+*   **FR4.3:** The CLI MUST execute the corresponding `pnpm` scripts or utility functions for each selected action.
+*   **FR4.4:** The CLI MUST handle errors gracefully during script execution.
+
+### 4.5. Production to Staging Migration Utility
+
+*   **FR5.1:** The framework MUST provide a script (`simulation/scripts/db/migrate-prod-to-staging.ts`) to migrate data from Production Supabase to Staging Supabase.
+*   **FR5.2:** The migration script MUST connect to Production Supabase using separate, securely managed credentials (e.g., `PROD_SUPABASE_URL`, `PROD_SUPABASE_SERVICE_ROLE_KEY`).
+*   **FR5.3:** The migration script MUST include **extreme warnings** and multiple confirmation prompts before execution.
+*   **FR5.4:** The migration script MUST fetch data (read-only) from Production tables.
+*   **FR5.5:** The migration script MUST **anonymize/mask** Personally Identifiable Information (PII) before inserting into Staging (e.g., user names, emails, phones, addresses, VINs, notes) using `@faker-js/faker`.
+*   **FR5.6:** The migration script MUST maintain relational integrity by mapping original Production FKs to new Staging FKs during anonymization.
+*   **FR5.7:** The migration script MUST insert the anonymized data into the Staging database.
+*   **FR5.8:** The migration script SHOULD offer an option to clean the Staging database before migration.
+
+## 5. Non-Functional Requirements
+
+*   **NFR1 (Usability):** The CLI runner should be intuitive and provide clear feedback to the developer.
+*   **NFR2 (Reliability):** Seeding and cleanup scripts should be robust and handle potential errors (e.g., existing data, network issues).
+*   **NFR3 (Configurability):** Database connections, base URLs, and identifier patterns should be configurable via environment variables (`.env.test`).
+*   **NFR4 (Maintainability):** Code should follow standard TypeScript/Node.js best practices. Test structure (POM for Playwright) should promote maintainability.
+*   **NFR5 (Security):** Production credentials MUST NOT be committed to the repository and should be handled securely.
+
+## 6. Technical Requirements
+
+*   Node.js / TypeScript
+*   pnpm Workspaces
+*   Docker / Docker Compose
+*   Playwright (`@playwright/test`)
+*   Jest (`jest`, `ts-jest`)
+*   Supabase Client (`@supabase/supabase-js`)
+*   Inquirer (`inquirer`)
+*   Faker (`@faker-js/faker`)
+*   Dotenv (`dotenv`)
+
+## 7. Future Considerations
+
+*   Integration into CI/CD pipelines.
+*   More complex seeding scenarios.
+*   Broader test coverage (admin views, job actions).
+*   Visual regression testing.
+*   Improved log aggregation.
+*   More robust waiting mechanisms for async operations in tests (polling vs. fixed delay). 
