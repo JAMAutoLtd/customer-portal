@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { faker } from '@faker-js/faker';
 // Import types and utils from the central utils file
 import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
-import type { BaselineRefs, ScenarioMetadataUpdate } from './types';
+import type { BaselineRefs, ScenarioSeedResult } from './types';
 import { insertData, logInfo, logError } from '../../../utils';
 
 // Define types using the standard Supabase helpers
@@ -26,13 +26,14 @@ function getRandomElement<T>(arr: T[]): T {
  *
  * @param supabaseAdmin - The Supabase client with admin privileges.
  * @param baselineRefs - References to the baseline data (IDs).
- * @returns Metadata about the created scenario records.
+ * @returns Metadata object conforming to ScenarioSeedResult.
  */
 export async function seedScenario_base_schedule(
   supabaseAdmin: SupabaseClient<Database>,
   baselineRefs: BaselineRefs
-): Promise<ScenarioMetadataUpdate> {
+): Promise<ScenarioSeedResult> {
   logInfo('Starting scenario seeding: base_schedule');
+  const scenarioName = 'base_schedule';
 
   if (
     !baselineRefs.customerIds?.length ||
@@ -103,7 +104,7 @@ export async function seedScenario_base_schedule(
     logInfo(`Warning: Expected ${numberOfOrders} orders to be inserted, but received ${insertedOrders.length}`);
   }
 
-  const createdOrderIds = insertedOrders.map(o => o.id);
+  const createdOrderIds = insertedOrders.map(o => o.id).filter(id => id !== undefined && id !== null) as number[];
 
   // --- Construct and Insert Jobs using the returned Order IDs ---
   const jobsToCreate: JobInsert[] = [];
@@ -150,16 +151,19 @@ export async function seedScenario_base_schedule(
     logInfo('No job data returned after insert call (potentially expected if no jobs were created).');
   }
 
-  // Filter out potential null/undefined IDs just in case
+  // Filter out potential null/undefined IDs
   const createdJobIds = insertedJobs.map(j => j.id).filter(id => id !== undefined && id !== null) as number[];
 
   logInfo(
-    `Finished scenario seeding: base_schedule. Created ${createdOrderIds.length} orders and ${createdJobIds.length} jobs.`
+    `Finished scenario seeding: ${scenarioName}. Created ${createdOrderIds.length} orders and ${createdJobIds.length} jobs.`
   );
 
-  // Return actual metadata for test verification
+  // Return metadata conforming to the standard interface
   return {
-    createdOrderIds,
-    createdJobIds,
+    scenarioName: scenarioName,
+    insertedIds: {
+      orders: createdOrderIds,
+      jobs: createdJobIds,
+    },
   };
 }

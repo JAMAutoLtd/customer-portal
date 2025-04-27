@@ -2,25 +2,26 @@ import { SupabaseClient } from '@supabase/supabase-js';
 // Use central utils import for DB types and loggers
 import { Database, logInfo, logError } from '../../../utils';
 // Import scenario-specific types directly
-import type { BaselineRefs } from './types';
+import type { BaselineRefs, ScenarioSeedResult } from './types';
 
 // Define the expected signature for scenario seeding functions
 type ScenarioSeeder = (
   supabaseAdmin: SupabaseClient<Database>,
   baselineRefs: BaselineRefs
-) => Promise<any>; // Return type can be more specific if needed (ScenarioMetadataUpdate)
+) => Promise<ScenarioSeedResult>;
 
 /**
  * Dynamically loads and executes the specified scenario seeding script.
  * @param supabaseAdmin - Supabase client with admin privileges.
  * @param baselineRefs - References to the baseline data (IDs).
  * @param scenarioName - The name of the scenario file (without .ts extension).
+ * @returns The result object from the executed scenario function.
  */
 export async function seedScenario(
   supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs, // Expect baselineRefs as input now
+  baselineRefs: BaselineRefs,
   scenarioName: string
-): Promise<void> {
+): Promise<ScenarioSeedResult> {
   logInfo(`Attempting to seed scenario: ${scenarioName}`);
 
   try {
@@ -32,10 +33,14 @@ export async function seedScenario(
     if (typeof scenarioModule[functionName] === 'function') {
       const scenarioFunction: ScenarioSeeder = scenarioModule[functionName];
       logInfo(`Executing scenario function: ${functionName}...`);
-      // Pass supabaseAdmin and baselineRefs to the specific scenario function
+
+      // Execute the scenario function and store its result
       const scenarioResult = await scenarioFunction(supabaseAdmin, baselineRefs);
+
       logInfo(`Scenario '${scenarioName}' completed.`);
-      // TODO: Potentially log or use scenarioResult (contains created IDs)
+
+      // Return the result object
+      return scenarioResult;
     } else {
       throw new Error(`Scenario function ${functionName} not found in module ${scenarioName}.ts`);
     }
