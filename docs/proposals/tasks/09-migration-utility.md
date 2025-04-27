@@ -8,20 +8,20 @@
 
 **Tasks:**
 
--   [ ] **Create Migration Script:**
+-   [ ] **Create Migration Script:** // Not started
     -   Create `simulation/scripts/db/migrate-prod-to-staging.ts`.
--   [ ] **Import Dependencies:**
+-   [ ] **Import Dependencies:** // Not started
     -   Import `SupabaseClient` from `@supabase/supabase-js`.
     *   Import `createStagingSupabaseClient` from `../utils/index.ts`.
     *   Import `@faker-js/faker`.
     *   Import `inquirer` for confirmation prompts.
     *   Import types (`Database`, `Tables`) from the **Staging** types file.
     *   Define types for **Production** data if schemas differ significantly (consider generating prod types separately).
--   [ ] **Implement Production Supabase Client Factory:**
+-   [ ] **Implement Production Supabase Client Factory:** // Not started
     -   Similar to `createStagingSupabaseClient`, create `createProdSupabaseClient(useServiceRole = true)` in `utils/index.ts` or within the migration script.
     -   This function **must** read separate environment variables for the Production Supabase instance (e.g., `PROD_SUPABASE_URL`, `PROD_SUPABASE_SERVICE_ROLE_KEY`).
     -   **Emphasize:** Use the Service Role key for reading necessary data (like `auth.users`).
--   [ ] **Implement Main Migration Function (`migrateProdToStaging`):**
+-   [ ] **Implement Main Migration Function (`migrateProdToStaging`):** // Not started
     -   Define `async function migrateProdToStaging(): Promise<void>`.
     -   **Initialize Clients:** Create both `prodSupabaseAdmin` and `stagingSupabaseAdmin` clients.
     -   **EXTREME WARNING & Confirmation:**
@@ -48,8 +48,9 @@
         -   Insert public data into Staging tables in the correct order using the `insertData` helper, ensuring all FKs reference the *new* Staging IDs.
     -   Add comprehensive logging for fetching, anonymizing, and inserting data for each table.
     -   Wrap the entire process in a `try...catch` block.
--   [ ] **Add Script Entry Point:**
+-   [ ] **Add Script Entry Point:** // Not started
     -   Add logic to run `migrateProdToStaging` when the script is executed directly.
--   [ ] **Add `db:migrate:prod-staging` Script:**
+-   [ ] **Add `db:migrate:prod-staging` Script:** // Not started
     -   Add script to root `package.json`: `"db:migrate:prod-staging": "ts-node simulation/scripts/db/migrate-prod-to-staging.ts"`
--   [ ] **Update `.env.test`:** Add the required `PROD_SUPABASE_URL` and `PROD_SUPABASE_SERVICE_ROLE_KEY` variables (ensure these are kept secure). 
+-   [ ] **Update `.env.test`:** // Requires manual user action
+ Add the required `PROD_SUPABASE_URL` and `PROD_SUPABASE_SERVICE_ROLE_KEY` variables (ensure these are kept secure).

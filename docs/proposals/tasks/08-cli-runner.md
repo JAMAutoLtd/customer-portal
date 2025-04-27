@@ -32,7 +32,7 @@
         -   Call `execSync(\`pnpm db:seed:staging -- --action baseline --technicians \${count}\`, { stdio: 'inherit' })`.
         -   *(Alternative: Import and call `seedBaseline` directly).* 
     -   **Seed Specific Scenario:**
-        -   List available scenario `.ts` files from `simulation/scripts/db/seed/scenarios/` (excluding `_baseline.ts`).
+        -   List available scenario `.ts` files from `simulation/scripts/db/seed/scenarios/` (excluding `baseline.ts`).
         -   Prompt user to select a scenario using `inquirer` (`type: 'list'`).
         -   Prompt for technician count.
         -   Call `execSync(\`pnpm db:seed:staging -- --action scenario --scenario \${scenarioName} --technicians \${count}\`, { stdio: 'inherit' })`.
