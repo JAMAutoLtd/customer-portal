@@ -6,9 +6,9 @@
                             
 **Tasks:**
 
--   [ ] **Create Test Directory:**
+-   [ ] **Create Test Directory:** // Directory created
     -   Ensure `tests/integration/scheduler/` exists.
--   [ ] **Implement Test Files (`*.test.ts`):**
+-   [ ] **Implement Test Files (`*.test.ts`):** // Placeholder files created, logic pending
     -   Create a `.test.ts` file for each scenario implemented in Stage 5 (e.g., `equipment_conflict.test.ts`, `fixed_time_today.test.ts`).
                                 *   **Structure (per file):**
         *   Import necessary modules (`SupabaseClient`, `createClient`, types, `axios`/`fetch`, `fs`, `path`).

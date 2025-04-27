@@ -53,6 +53,7 @@ coverage/
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example # Allow example env file
 
 # Downloaded Logs (Ignore all)
 downloaded-logs-*.json
@@ -70,8 +71,6 @@ next-env.d.ts
 
 .vercel
 
-# supabase
-supabase
 
 # vibe tools
 .repomix-output.txt
@@ -83,3 +82,6 @@ repomix.config.json
 .cursor
 
 PLAN.md
+
+# Simulation/Test artifacts
+simulation/seed-metadata.json
