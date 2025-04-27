@@ -17,7 +17,7 @@
         -   Validates that the required URL and key are present. Throw an error if missing.
         -   Uses `@supabase/supabase-js`'s `createClient` to instantiate and return a Supabase client instance configured for the Staging DB.
 -   [ ] **Add Type Exports:**
-    -   Re-export necessary types from the consolidated generated types file (from Stage 3) for easier access by scripts (e.g., `export * from '../db/seed/staged.database.types';`).
+    -   Re-export necessary types from the consolidated generated types file for easier access by scripts (e.g., `export * from '../db/seed/staged.database.types';`).
 -   [ ] **(Optional) Implement Logging Utility:**
     -   Create a simple shared logging function (e.g., `logInfo`, `logError`) that standardizes console output format for scripts.
                             

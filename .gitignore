@@ -1,6 +1,7 @@
 # Environment variables
 .env
 .env.*
+!.env.example # Allow example env file
 
 # Node / TypeScript
 node_modules/
@@ -51,16 +52,11 @@ yarn-error.log*
 coverage/
 .coverage
 
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example # Allow example env file
-
 # Downloaded Logs (Ignore all)
 downloaded-logs-*.json
 
 # Sensitive configuration / documentation
 .cursor/mcp.json
-# docs/developer-info.md # Removed, should likely be tracked
 
 # vercel
 .vercel
@@ -68,9 +64,6 @@ downloaded-logs-*.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-.vercel
-
 
 # vibe tools
 .repomix-output.txt
@@ -80,7 +73,6 @@ vibe-tools.config.json
 repomix.config.json
 .repomixignore
 .cursor
-
 PLAN.md
 
 # Simulation/Test artifacts

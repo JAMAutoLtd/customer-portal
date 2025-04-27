@@ -4,6 +4,8 @@ import { Database, Tables } from './staged.database.types.ts'; // Adjust path if
 // Import types for the AUTH schema if available separately
 // import { Database as AuthDatabase } from '../auth.types.ts'; // Example path
 
+
+
 // --- Use Generated Types (Public Schema) ---
 type Address = Tables<'addresses'>;
 type PublicUser = Tables<'users'>;
@@ -610,103 +612,151 @@ const adasRequirementsData: AdasRequirementInsert[] = [
   { ymm_id: 1062, service_id: 1, equipment_model: 'AUTEL-CSC0605/01' }, { ymm_id: 1062, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' }, { ymm_id: 1062, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' }, { ymm_id: 1062, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
 ];
 
+// --- Type Definitions ---
+
+// Ensure BaselineRefs interface exists or is added
+interface BaselineRefs {
+  technicianIds: string[];
+  vanIds: number[];
+  // Add other potentially useful references (address IDs, service IDs, etc.)
+  customerUserIds: string[];
+}
+
+
+// --- Main Seeding Function (Modify or Replace existing seedBaseline if present) ---
+
 /**
- * Seeds the database with baseline data (addresses, users, vehicles, equipment, etc.)
- * corresponding to 05-merged-custom-test-data.sql and 06-equipment-requirements-test-data.sql.
- * Parameterized by the number of technicians to create.
- *
- * @param supabase The Supabase client instance.
+ * Seeds the staging database with baseline static data.
+ * Corresponds to 05-merged-custom-test-data.sql and 06-equipment-requirements-test-data.sql.
+ * @param supabaseAdmin Supabase client instance with service role privileges.
  * @param technicianCount The number of technicians (1-4) to include in the baseline.
+ * @returns An object containing references (like IDs) to the created baseline entities.
  */
 export async function seedBaseline(
-  supabase: SupabaseClient<Database>, // Use the generated Database interface for public schema
+  supabaseAdmin: SupabaseClient<Database>,
   technicianCount: 1 | 2 | 3 | 4
-): Promise<void> {
-  console.log(`Seeding baseline data with ${technicianCount} technicians...`);
+): Promise<BaselineRefs> {
+  logInfo(`Starting baseline database seeding with ${technicianCount} technician(s)...`);
 
-  if (technicianCount < 1 || technicianCount > 4) {
-    throw new Error('Technician count must be between 1 and 4.');
+  if (![1, 2, 3, 4].includes(technicianCount)) {
+    logError('Invalid technicianCount. Must be 1, 2, 3, or 4.');
+    throw new Error('Invalid technicianCount. Must be 1, 2, 3, or 4.');
   }
 
-  // Data arrays are defined above this function
-
+  // 1. Call Cleanup (Implementation pending in cleanup-staging.ts)
+  logInfo('Cleaning up existing test data (Placeholder - relies on cleanup-staging.ts)...');
   try {
-    // 1. Cleanup Logic Placeholder
-    console.log('Cleaning previous baseline data (Placeholder - Not Implemented)...');
-    // TODO: Implement or import and call the actual cleanup function here.
-    // Example: await cleanupAllTestData(supabase);
+    // Assume cleanupAllTestData exists and handles potential errors
+    await cleanupAllTestData(supabaseAdmin);
+    logInfo('Cleanup function executed successfully (or skipped if no data).');
+  } catch (cleanupError) {
+    logError('Error during cleanup phase. Halting seeding.', cleanupError);
+    throw cleanupError;
+  }
 
-    // 2. Filter technician-related data
-    console.log(`Filtering data for ${technicianCount} technicians...`);
-    const techUserSeedData = authUsersData
+  // 2. Filter Data based on technicianCount
+  logInfo(`Filtering data for ${technicianCount} technician(s)...`);
+
+  const techUserSeedData = authUsersData
       .filter(u => u.email.startsWith('tech'))
       .slice(0, technicianCount);
 
-    const customerUserSeedData = authUsersData.filter(u => !u.email.startsWith('tech'));
+  const customerUserSeedData = authUsersData.filter(u => !u.email.startsWith('tech'));
 
-    const filteredAuthUserSeedData = [...techUserSeedData, ...customerUserSeedData];
-    const filteredAuthUserIds = filteredAuthUserSeedData.map(u => u.id);
+  const filteredAuthUserSeedData = [...techUserSeedData, ...customerUserSeedData];
+  const filteredAuthUserIds = filteredAuthUserSeedData.map(u => u.id);
+  const customerUserIds = customerUserSeedData.map(u => u.id);
 
-    const filteredPublicUsers = publicUsersData.filter(u => filteredAuthUserIds.includes(u.id));
-    const filteredTechnicians = techniciansData.filter(t => filteredAuthUserIds.includes(t.user_id!));
-    const techVanIds = filteredTechnicians.map(t => t.assigned_van_id!).filter(id => id !== null) as number[];
-    const filteredVans = vansData.filter(v => techVanIds.includes(v.id));
+  // Use the correct PublicUser type from the top of the file
+  const filteredPublicUsers = publicUsersData.filter(u => filteredAuthUserIds.includes(u.id));
+  // Use the correct Technician type
+  const filteredTechnicians = techniciansData.filter(t => techUserSeedData.some(techUser => techUser.id === t.user_id));
 
-    // 3. Insertion Logic
-    console.log('Inserting baseline data...');
+  // Correctly filter vans based on the filtered technicians' assigned vans
+  const techVanIds = filteredTechnicians.map(t => t.assigned_van_id).filter(id => id != null) as number[];
+  // Use the correct Van type
+  const filteredVans = vansData.filter(v => techVanIds.includes(v.id));
 
-    // Insert independent public tables first
-    await insertData(supabase, 'addresses', addressesData);
-    await insertData(supabase, 'equipment', equipmentData);
-    await insertData(supabase, 'ymm_ref', ymmRefData);
-    await insertData(supabase, 'services', servicesData);
 
-    // Insert Auth Users using Admin Client
-    console.log(`Creating ${filteredAuthUserSeedData.length} auth users...`);
-    // IMPORTANT: Ensure the Supabase client was initialized with the SERVICE_ROLE_KEY
-    for (const userSeed of filteredAuthUserSeedData) {
-      const { data: { user }, error } = await supabase.auth.admin.createUser({
-          id: userSeed.id, // Use the predefined UUID from seed data
-          email: userSeed.email,
-          password: userSeed.password || 'password123', // Use defined or default password
-          email_confirm: true, // Auto-confirm users since email verification is off for staging
-          // Optionally add user_metadata here if needed
+  // 3. Insert Auth Users
+  logInfo(`Creating/Verifying ${filteredAuthUserSeedData.length} auth users...`);
+  const createdTechnicianAuthIds: string[] = [];
+  for (const user of filteredAuthUserSeedData) {
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        // Find corresponding public user for metadata (optional but good practice)
+        user_metadata: { full_name: publicUsersData.find(pu => pu.id === user.id)?.full_name ?? 'Test User' },
+        email: user.email,
+        password: user.password || 'password', // Use provided or default
+        email_confirm: true, // Auto-confirm email for testing
+        app_metadata: { provider: 'email' }, // Required by Supabase
+        id: user.id // Use predefined UUID
       });
 
-      if (error) {
-          // Handle potential errors, e.g., user already exists
-          // Check each condition separately
-          if (error.message.includes('duplicate key value violates unique constraint "users_pkey"') || error.message.includes('User already exists')) {
-               console.warn(`Auth user ${userSeed.email} (ID: ${userSeed.id}) already exists. Skipping creation.`);
-          } else {
-              console.error(`Error creating auth user ${userSeed.email}:`, error);
-              throw error;
-          }
+      if (authError) {
+        // Handle specific error for existing user gracefully
+        // Different Supabase versions might have slightly different error messages/codes
+        if (authError.message.includes('User already registered') || authError.message.includes('duplicate key value violates unique constraint') || (authError as any).code === 'user_already_exists') {
+          logInfo(`Auth user ${user.email} (ID: ${user.id}) already exists. Skipping creation.`);
+        } else {
+          throw authError; // Re-throw other unexpected errors
+        }
       } else {
-          console.log(`Created/verified auth user: ${user?.email}`);
+        logInfo(`Auth user ${user.email} created successfully.`);
       }
+      // Keep track of technician Auth IDs specifically
+      if (techUserSeedData.some(techUser => techUser.id === user.id)) {
+        createdTechnicianAuthIds.push(user.id);
+      }
+    } catch (error) {
+      logError(`Failed to create or verify auth user ${user.email}: ${(error as Error).message}`, error);
+      throw error; // Stop seeding if critical auth user creation fails
     }
+  }
 
-    // Now insert corresponding public user profiles
-    await insertData(supabase, 'users', filteredPublicUsers);
+  // 4. Insert Public Data (Order is important due to Foreign Keys)
+  try {
+    logInfo('Inserting public table data...');
+    await insertData(supabaseAdmin, 'addresses', addressesData, 'Static addresses');
+    await insertData(supabaseAdmin, 'equipment', equipmentData, 'Static equipment');
+    await insertData(supabaseAdmin, 'ymm_ref', ymmRefData, 'YMM references');
+    await insertData(supabaseAdmin, 'services', servicesData, 'Service definitions');
+    // Insert PUBLIC users (references auth users by ID)
+    await insertData(supabaseAdmin, 'users', filteredPublicUsers, `${filteredPublicUsers.length} Public user profiles`);
+    // Insert Vans (references addresses potentially, ensure addresses inserted first)
+    await insertData(supabaseAdmin, 'vans', filteredVans, `${filteredVans.length} Van(s)`);
+    // Insert Customer Vehicles (references ymm_ref)
+    await insertData(supabaseAdmin, 'customer_vehicles', customerVehiclesData, 'Customer vehicles');
+    // Insert Technicians (references users and vans)
+    await insertData(supabaseAdmin, 'technicians', filteredTechnicians, `${filteredTechnicians.length} Technician profile(s)`);
 
-    // Insert Vans, Vehicles, Technicians, Requirements
-    await insertData(supabase, 'vans', filteredVans);
-    await insertData(supabase, 'customer_vehicles', customerVehiclesData);
-    await insertData(supabase, 'technicians', filteredTechnicians);
-    await insertData(supabase, 'diag_equipment_requirements', diagRequirementsData);
-    await insertData(supabase, 'immo_equipment_requirements', immoRequirementsData);
-    await insertData(supabase, 'prog_equipment_requirements', progRequirementsData);
-    await insertData(supabase, 'airbag_equipment_requirements', airbagRequirementsData);
-    await insertData(supabase, 'adas_equipment_requirements', adasRequirementsData);
-
-    console.log(`✅ Baseline data seeded successfully with ${technicianCount} technicians.`);
+    // Insert requirements data (references ymm_ref, services, equipment)
+    // Cast requirement data arrays to the expected insert type if necessary,
+    // or ensure the defined arrays match the DB schema exactly.
+    await insertData(supabaseAdmin, 'diag_equipment_requirements', diagRequirementsData, 'Diag requirements');
+    await insertData(supabaseAdmin, 'immo_equipment_requirements', immoRequirementsData, 'Immo requirements');
+    await insertData(supabaseAdmin, 'prog_equipment_requirements', progRequirementsData, 'Prog requirements');
+    await insertData(supabaseAdmin, 'airbag_equipment_requirements', airbagRequirementsData, 'Airbag requirements');
+    await insertData(supabaseAdmin, 'adas_equipment_requirements', adasRequirementsData, 'ADAS requirements');
 
   } catch (error) {
-    console.error('❌ Error seeding baseline data:', error);
-    throw error; // Re-throw error to be caught by the caller
+    logError('Halting baseline seeding due to public table insertion error.', error);
+    throw error;
   }
+
+  logInfo('Baseline database seeding completed successfully.');
+
+  // Return references to the created entities
+  const refs: BaselineRefs = {
+    technicianIds: createdTechnicianAuthIds, // Return the Auth IDs of the technicians
+    vanIds: filteredVans.map(v => v.id),
+    customerUserIds: customerUserIds
+  };
+  return refs;
 }
+
+// --- (Keep existing Helper Functions if any, or ensure insertData is imported) ---
+// Remove the placeholder insertData if it was added here previously.
 
 // --- Helper Functions (TODO: Implement) ---
 
