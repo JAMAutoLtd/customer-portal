@@ -53,7 +53,7 @@ jam-auto/
 │   │   │   │   ├── scenarios/   # Directory for scenario logic files
 │   │   │   │   │   ├── base_schedule.ts
 │   │   │   │   │   └── ... (equipment_conflict.ts, etc.)
-│   │   │   │   ├── _baseline.ts # Logic for baseline data (parameterized)
+│   │   │   │   ├── baseline.ts # Logic for baseline data (parameterized)
 │   │   │   │   └── staged.database.types.ts # CONSOLIDATED Generated Supabase types
 │   │   │   ├── cleanup-staging.ts # Script to clean test data from Staging DB
 │   │   │   └── migrate-prod-to-staging.ts # Utility script for Prod -> Staging migration
@@ -148,10 +148,10 @@ jam-auto/
 
 *   **Technology:** Node.js, TypeScript, `@supabase/supabase-js`, `@faker-js/faker`.
 *   **`index.ts`:** Orchestrates seeding. Takes arguments (e.g., `baseline --techs=3`, `scenario --name=equipment_conflict`) or runs interactively via `e2e-runner.ts`.
-*   **`scenarios/_baseline.ts`:**
-    *   Located at `simulation/scripts/db/seed/scenarios/_baseline.ts`.
+*   **`seed/baseline.ts`:**
+    *   Located at `simulation/scripts/db/seed/baseline.ts`.
     *   Responsibility: Create baseline dataset corresponding to `05-merged-custom-test-data.sql` and `06-equipment-requirements-test-data.sql`.
-    *   Imports types from `../staged.database.types.ts`.
+    *   Imports types from `staged.database.types.ts`.
     *   Calls cleanup logic from `../../cleanup-staging.ts`.
     *   Accepts `technicianCount` (1-4) as input.
     *   Connects to Staging Supabase.
@@ -221,7 +221,7 @@ jam-auto/
 *   Imports types from `./seed/staged.database.types.ts`.
 *   **Responsibility:** Remove **ALL** data created by the seeding process (both baseline and scenario) to ensure a clean state.
 *   **Strategy: Identifier Pattern**
-    *   Define a clear pattern for identifying test data (e.g., emails ending in `@e2etest.jam-auto.com`, names/notes prefixed with `[E2E_TEST]`). This pattern must be consistently applied in `_baseline.ts` and all scenario scripts.
+    *   Define a clear pattern for identifying test data (e.g., emails ending in `@e2etest.jam-auto.com`, names/notes prefixed with `[E2E_TEST]`). This pattern must be consistently applied in `baseline.ts` and all scenario scripts.
     *   The script connects to Staging Supabase.
     *   It deletes data matching the pattern from all relevant tables, respecting foreign key constraints (delete jobs, order_services, orders, van_equipment, technician_availability_exceptions, customer_vehicles FIRST, then users/auth.users, addresses, technicians, vans, potentially equipment/services if they were test-specific).
     *   **Include multiple, explicit confirmation prompts** (`inquirer`) before executing deletions.
@@ -315,7 +315,8 @@ jam-auto/
 3.  **Start Services:** Select "Start Docker Services".
 4.  **(Optional) View Logs:** Use "View Docker Logs (Instructions)".
 5.  **Run Backend Test:**
-    *   Select "Seed Staging Database", choose tech count. Initial seed data populates DB. Select a Scenario (e.g., `equipment_conflict`). The test is run, populating the DB further and determining the results.
+    *   Select "Seed Staging Database", choose tech count. Initial seed data populates DB.
+    *   Select a Scenario (e.g., `equipment_conflict`). The test is run, populating the DB further and determining the results.
     *   Observe Jest output.
     *   *(Optional)* Manually inspect Staging DB state.
 6.  **Run UI Test:**

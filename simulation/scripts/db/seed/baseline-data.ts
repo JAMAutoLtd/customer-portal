@@ -199,10 +199,10 @@ export const publicUsersData: PublicUser[] = [
 ];
 
 export const vansData: Van[] = [
-  { id: 1, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_1', lat: 51.0301, lng: -114.0719 },
-  { id: 2, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_2', lat: 51.0852, lng: -114.1303 },
-  { id: 3, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_3', lat: 51.0123, lng: -114.0387 },
-  { id: 4, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_4', lat: 51.0624, lng: -114.0412 },
+  { id: 1, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_1', lat: 51.0301, lng: -114.0719, onestepgps_device_id: 'OSGPS_VAN_1' },
+  { id: 2, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_2', lat: 51.0852, lng: -114.1303, onestepgps_device_id: 'OSGPS_VAN_2' },
+  { id: 3, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_3', lat: 51.0123, lng: -114.0387, onestepgps_device_id: 'OSGPS_VAN_3' },
+  { id: 4, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_4', lat: 51.0624, lng: -114.0412, onestepgps_device_id: 'OSGPS_VAN_4' },
 ];
 
 export const equipmentData: Equipment[] = [
@@ -597,4 +597,21 @@ export const adasRequirementsData: AdasRequirementInsert[] = [
   { ymm_id: 4616, service_id: 2, equipment_model: 'AUTEL-CSC0601/01' },
   { ymm_id: 4616, service_id: 3, equipment_model: 'AUTEL-CSC0602/01' },
   { ymm_id: 4616, service_id: 4, equipment_model: 'AUTEL-CSC0806/01' },
+];
+
+// Define default equipment assignments for baseline vans
+export const vanEquipmentData: { van_id: number; equipment_id: number }[] = [
+  // Van 1: Diag, Prog
+  { van_id: 1, equipment_id: 6 }, // Diag
+  { van_id: 1, equipment_id: 8 }, // Prog
+  // Van 2: Immo, Airbag
+  { van_id: 2, equipment_id: 7 }, // Immo
+  { van_id: 2, equipment_id: 5 }, // Airbag
+  // Van 3: Diag, Immo
+  { van_id: 3, equipment_id: 6 }, // Diag
+  { van_id: 3, equipment_id: 7 }, // Immo
+  // Van 4: Prog, Airbag
+  { van_id: 4, equipment_id: 8 }, // Prog
+  { van_id: 4, equipment_id: 5 }, // Airbag
+  // Note: No ADAS equipment assigned by default
 ];

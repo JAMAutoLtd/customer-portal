@@ -28,6 +28,7 @@ import {
   progRequirementsData,
   airbagRequirementsData,
   adasRequirementsData,
+  vanEquipmentData,
 } from './baseline-data';
 
 // --- Use Type Aliases from Imported Helpers ---
@@ -54,50 +55,37 @@ interface AuthUserSeedData {
 
 /**
  * Seeds the staging database with baseline static data.
+ * Seeds NO technicians, but seeds all vans and default van equipment.
  * @param supabaseAdmin Supabase client instance with service role privileges.
- * @param technicianCount The number of technicians (1-4) to include in the baseline.
- * @returns An object containing references (actual IDs) to the created baseline entities.
+ * @returns An object containing references (actual IDs) to the created baseline entities (excluding technicians).
  */
 export async function seedBaseline(
-  supabaseAdmin: SupabaseClient<Database>,
-  technicianCount: 1 | 2 | 3 | 4
+  supabaseAdmin: SupabaseClient<Database>
 ): Promise<BaselineRefs> {
-  logInfo(`Starting baseline database seeding with ${technicianCount} technician(s)...`);
-
-  if (![1, 2, 3, 4].includes(technicianCount)) {
-    logError('Invalid technicianCount. Must be 1, 2, 3, or 4.');
-    throw new Error('Invalid technicianCount. Must be 1, 2, 3, or 4.');
-  }
+  logInfo(`Starting baseline database seeding (NO technicians, seeding vans + equipment)...`);
 
   // 1. Call Cleanup
   logInfo('Cleaning up existing test data...');
   try {
-    await cleanupAllTestData(supabaseAdmin);
+    // Pass true to skip the internal confirmation prompts in the cleanup function
+    await cleanupAllTestData(supabaseAdmin, true); 
     logInfo('Cleanup function executed successfully.');
   } catch (cleanupError) {
     logError('Error during cleanup phase. Halting seeding.', cleanupError);
     throw cleanupError;
   }
 
-  // 2. Filter Data based on technicianCount
-  logInfo(`Filtering data for ${technicianCount} technician(s)...`);
-  const techUserSeedData = authUsersData
-    .filter((u) => u.email.startsWith('tech'))
-    .slice(0, technicianCount);
+  // 2. Prepare Data (No technician filtering needed)
+  logInfo(`Using baseline customer users, addresses, vehicles, vans, equipment, services, requirements...`);
   const customerUserSeedData = authUsersData.filter((u) => !u.email.startsWith('tech'));
-  const filteredAuthUserSeedData = [...techUserSeedData, ...customerUserSeedData];
-  const filteredAuthUserIds = filteredAuthUserSeedData.map((u) => u.id);
   const customerUserAuthIds = customerUserSeedData.map((u) => u.id);
-  const filteredPublicUsersInput: UserInsert[] = publicUsersData.filter((u) => filteredAuthUserIds.includes(u.id));
-  const filteredTechniciansInput: TechnicianInsert[] = techniciansData.filter((t) => techUserSeedData.some((techUser) => techUser.id === t.user_id));
-  const techVanIds = filteredTechniciansInput.map((t) => t.assigned_van_id).filter((id): id is number => id != null);
-  const filteredVansInput: VanInsert[] = vansData.filter((v) => techVanIds.includes(v.id));
+  const filteredPublicUsersInput: UserInsert[] = publicUsersData.filter((u) => customerUserAuthIds.includes(u.id));
+  // Use ALL vans
+  const filteredVansInput: VanInsert[] = vansData; 
 
-
-  // 3. Insert Auth Users
-  logInfo(`Creating/Verifying ${filteredAuthUserSeedData.length} auth users...`);
-  const createdTechnicianAuthIds: string[] = [];
-  for (const user of filteredAuthUserSeedData) {
+  // 3. Insert Customer Auth Users ONLY
+  logInfo(`Creating/Verifying ${customerUserSeedData.length} customer auth users...`);
+  for (const user of customerUserSeedData) {
     try {
       const { error: authError } = await supabaseAdmin.auth.admin.createUser({
         user_metadata: { full_name: publicUsersData.find((pu) => pu.id === user.id)?.full_name ?? 'Test User' },
@@ -111,38 +99,25 @@ export async function seedBaseline(
         if ( authError.message.includes('User already registered') || authError.message.includes('duplicate key value violates unique constraint') || (authError as any).code === 'user_already_exists') {
           logInfo(`Auth user ${user.email} (ID: ${user.id}) already exists. Skipping creation.`);
         } else {
-          // Log specific error but continue if possible, maybe just this user fails
           logError(`Error creating auth user ${user.email}: ${authError.message}`, authError);
-          // Decide if this should be a fatal error: throw authError;
         }
       } else {
         logInfo(`Auth user ${user.email} created successfully.`);
-      }
-      // Collect successfully created/verified technician IDs
-      if (techUserSeedData.some((techUser) => techUser.id === user.id)) {
-        // We assume if no error or "already exists", the ID is valid
-         createdTechnicianAuthIds.push(user.id);
       }
     } catch (error) {
       logError(`Critical error during auth user processing for ${user.email}: ${(error as Error).message}`, error);
       throw error; // Re-throw critical errors
     }
   }
-   // Validate if the number of collected technician IDs matches the requested count
-  if (createdTechnicianAuthIds.length !== technicianCount) {
-    logError(`Mismatch: Expected ${technicianCount} technicians, but only processed/verified ${createdTechnicianAuthIds.length} auth users.`);
-     // Decide if this should be fatal: throw new Error("Technician auth user count mismatch");
-  }
-
 
   // 4. Insert Public Data & Capture Actual IDs
+  // REMOVED technicianIds from initial refs
   const refs: Partial<BaselineRefs> = {
-    technicianIds: createdTechnicianAuthIds,
     customerIds: customerUserAuthIds,
   };
 
   try {
-    logInfo('Inserting public table data...');
+    logInfo('Inserting public table data (excluding technicians)...');
 
     const addressesResult = await insertData(supabaseAdmin, 'addresses', addressesData, 'Static addresses');
     if (addressesResult.error) throw addressesResult.error;
@@ -160,9 +135,9 @@ export async function seedBaseline(
     if (servicesResult.error) throw servicesResult.error;
     refs.serviceIds = servicesResult.data?.map((r) => r.id) ?? [];
 
-    // Ensure the public user IDs being inserted actually exist in the auth table
+    // Ensure the public user IDs being inserted actually exist in the auth table (Customers only now)
     const validPublicUsersInput = filteredPublicUsersInput.filter(user =>
-        customerUserAuthIds.includes(user.id) || createdTechnicianAuthIds.includes(user.id)
+        customerUserAuthIds.includes(user.id)
     );
     const usersResult = await insertData(supabaseAdmin, 'users', validPublicUsersInput, 'Public user profiles');
     if (usersResult.error) throw usersResult.error;
@@ -171,25 +146,20 @@ export async function seedBaseline(
     if (vehiclesResult.error) throw vehiclesResult.error;
     refs.customerVehicleIds = vehiclesResult.data?.map((r) => r.id) ?? [];
 
+    // Insert ALL vans
     const vansResult = await insertData(supabaseAdmin, 'vans', filteredVansInput, 'Van(s)');
     if (vansResult.error) throw vansResult.error;
     refs.vanIds = vansResult.data?.map((r) => r.id) ?? [];
 
-    // Ensure the technician user IDs being inserted actually exist
-     const validTechniciansInput = filteredTechniciansInput.filter(tech =>
-        createdTechnicianAuthIds.includes(tech.user_id!) // Ensure user_id is checked
-    );
-    // Cast might still be needed if filteredTechniciansInput is not strictly TechnicianInsert[]
-    const techniciansResult = await insertData(supabaseAdmin, 'technicians', validTechniciansInput as TechnicianInsert[], 'Technician profiles');
-    if (techniciansResult.error) throw techniciansResult.error;
-
-
-    // Insert requirements data (check errors, use 4 args)
+    // Insert requirements data
     await insertData(supabaseAdmin, 'diag_equipment_requirements', diagRequirementsData, 'Diag requirements').then(r => { if (r.error) throw r.error; });
     await insertData(supabaseAdmin, 'immo_equipment_requirements', immoRequirementsData, 'Immo requirements').then(r => { if (r.error) throw r.error; });
     await insertData(supabaseAdmin, 'prog_equipment_requirements', progRequirementsData, 'Prog requirements').then(r => { if (r.error) throw r.error; });
     await insertData(supabaseAdmin, 'airbag_equipment_requirements', airbagRequirementsData, 'Airbag requirements').then(r => { if (r.error) throw r.error; });
     await insertData(supabaseAdmin, 'adas_equipment_requirements', adasRequirementsData, 'ADAS requirements').then(r => { if (r.error) throw r.error; });
+
+    // Insert default van equipment associations
+    await insertData(supabaseAdmin, 'van_equipment', vanEquipmentData, 'Default van equipment').then(r => { if (r.error) throw r.error; });
 
   } catch (error) {
     logError('Halting baseline seeding due to public table insertion error.', error);
@@ -198,28 +168,23 @@ export async function seedBaseline(
 
   logInfo('Baseline database seeding completed successfully.');
 
-  // 5. Validate and Return Final Refs
+  // 5. Validate and Return Final Refs (Technician IDs removed)
   const finalRefs: BaselineRefs = {
     addressIds: refs.addressIds ?? [],
     customerIds: refs.customerIds ?? [],
-    technicianIds: refs.technicianIds ?? [],
     vanIds: refs.vanIds ?? [],
     equipmentIds: refs.equipmentIds ?? [],
     serviceIds: refs.serviceIds ?? [],
     ymmRefIds: refs.ymmRefIds ?? [],
     customerVehicleIds: refs.customerVehicleIds ?? [],
-    companyIds: [], // Assuming these are not set in baseline.ts currently
-    workingHoursIds: [],
-    technicianEquipmentIds: [],
-    technicianServiceAreaIds: [],
   };
 
-  // Final validation with checks for undefined
-  if ((finalRefs.technicianIds?.length ?? 0) !== technicianCount) {
-    logError(`Baseline seeding inconsistency: Expected ${technicianCount} technician IDs, but collected ${finalRefs.technicianIds?.length ?? 0}`);
+  // Final validation
+  if (!(finalRefs.vanIds?.length)) {
+    logError(`Baseline seeding inconsistency: No Van IDs collected.`);
   }
   if (!(finalRefs.addressIds?.length) || !(finalRefs.customerIds?.length) || !(finalRefs.equipmentIds?.length) || !(finalRefs.serviceIds?.length)) {
-      logInfo('Warning: Some baseline reference ID arrays are empty. This might affect scenario seeding.');
+      logInfo('Warning: Some essential baseline reference ID arrays are empty. This might affect scenario seeding.');
   }
 
   return finalRefs;

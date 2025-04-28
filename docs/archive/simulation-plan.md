@@ -126,8 +126,8 @@ networks:
 # --- Staging Supabase Config ---
 SUPABASE_URL=https://<your-staging-project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_URL=https://<your-staging-project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<your_staging_supabase_anon_key>
-SUPABASE_SERVICE_ROLE_KEY=<your_staging_supabase_service_role_key>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your_SUPABASE_anon_key>
+SUPABASE_SERVICE_ROLE_KEY=<your_SUPABASE_service_role_key>
 
 # --- Local Service URLs (Internal Docker Network) ---
 OPTIMIZATION_SERVICE_URL=http://optimiser:8080

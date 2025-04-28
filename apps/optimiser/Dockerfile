@@ -3,6 +3,7 @@
 FROM python:3.10-slim-bullseye
 
 # Install curl for healthchecks
+# EXPERIMENTAL:Doing this might break everything!
 RUN apt-get update && apt-get install -y curl --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 

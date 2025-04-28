@@ -3,50 +3,54 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database, logInfo, logError } from '../../../utils';
 // Import scenario-specific types directly
 import type { BaselineRefs, ScenarioSeedResult } from './types';
+// Import scenario functions
+import { seedScenario_base_schedule } from './base_schedule';
+import { seedScenario_equipment_conflict } from './equipment_conflict';
+import { seedScenario_technician_unavailable_today } from './technician_unavailable_today';
+// Import other scenario functions as they are created
 
-// Define the expected signature for scenario seeding functions
-type ScenarioSeeder = (
+// Type definition for the map
+type ScenarioSeederFunction = (
   supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  baselineRefs: BaselineRefs,
+  technicianCount: number // Added parameter
 ) => Promise<ScenarioSeedResult>;
 
+// Map scenario names to their seeding functions
+const scenarioSeeders: Record<string, ScenarioSeederFunction> = {
+  base_schedule: seedScenario_base_schedule,
+  equipment_conflict: seedScenario_equipment_conflict,
+  // Add other scenarios here as they are implemented
+  technician_unavailable_today: seedScenario_technician_unavailable_today,
+  // long_duration_job: seedScenario_long_duration_job, // Example placeholder
+};
+
 /**
- * Dynamically loads and executes the specified scenario seeding script.
- * @param supabaseAdmin - Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data (IDs).
- * @param scenarioName - The name of the scenario file (without .ts extension).
- * @returns The result object from the executed scenario function.
+ * Dynamically calls the appropriate scenario seeding function based on the name.
  */
 export async function seedScenario(
   supabaseAdmin: SupabaseClient<Database>,
   baselineRefs: BaselineRefs,
-  scenarioName: string
+  scenarioName: string,
+  technicianCount: number // Added parameter
 ): Promise<ScenarioSeedResult> {
-  logInfo(`Attempting to seed scenario: ${scenarioName}`);
+  logInfo(`Attempting to seed scenario: ${scenarioName} with ${technicianCount} technicians`);
 
-  try {
-    // Dynamically import the scenario module
-    const scenarioModule = await import(`./${scenarioName}.ts`);
-    const functionName = `seedScenario_${scenarioName}`;
+  const seederFunction = scenarioSeeders[scenarioName];
 
-    // Check if the expected function exists in the module
-    if (typeof scenarioModule[functionName] === 'function') {
-      const scenarioFunction: ScenarioSeeder = scenarioModule[functionName];
-      logInfo(`Executing scenario function: ${functionName}...`);
-
-      // Execute the scenario function and store its result
-      const scenarioResult = await scenarioFunction(supabaseAdmin, baselineRefs);
-
+  if (seederFunction) {
+    try {
+      // Pass technicianCount to the specific scenario function
+      const result = await seederFunction(supabaseAdmin, baselineRefs, technicianCount);
       logInfo(`Scenario '${scenarioName}' completed.`);
-
-      // Return the result object
-      return scenarioResult;
-    } else {
-      throw new Error(`Scenario function ${functionName} not found in module ${scenarioName}.ts`);
+      return result;
+    } catch (error) {
+      logError(`Error seeding scenario '${scenarioName}':`, error);
+      throw error; // Re-throw the error to be caught by the main index.ts
     }
-  } catch (error) {
-    logError(`Error seeding scenario '${scenarioName}':`, error);
-    // Re-throw the error so the main seeding script can catch it
-    throw error;
+  } else {
+    const errorMsg = `Unknown scenario name: ${scenarioName}. Available scenarios: ${Object.keys(scenarioSeeders).join(', ')}`;
+    logError(errorMsg);
+    throw new Error(errorMsg);
   }
 }

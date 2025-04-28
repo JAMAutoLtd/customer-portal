@@ -6,6 +6,7 @@ import {
   logError,
   logInfo,
   type Enums,
+  seedScenarioTechnicians
 } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
 
@@ -34,44 +35,58 @@ function formatTime(date: Date): string {
  *                   Jobs should be assigned to other technicians or rescheduled.
  *
  * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data.
+ * @param baselineRefs - References to the baseline data (excluding technicians).
+ * @param technicianCount - Number of technicians to create for this scenario.
  * @returns A promise resolving to the ScenarioSeedResult object.
  */
 export async function seedScenario_technician_unavailable_today(
   supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  baselineRefs: BaselineRefs,
+  technicianCount: number
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'technician_unavailable_today';
   const insertedIds: ScenarioSeedResult['insertedIds'] = {
     orders: [],
     jobs: [],
     technician_availability_exceptions: [],
+    technicianIds: [],
+    vanIds: [],
   };
 
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Starting scenario seeding: ${scenarioName} with ${technicianCount} technicians...`);
 
   try {
     // --- Prerequisite Checks ---
-    if (!baselineRefs.technicianIds || baselineRefs.technicianIds.length === 0) {
-      throw new Error('No technician IDs found in baseline references.');
+    if (!baselineRefs.customerIds?.length || 
+        !baselineRefs.serviceIds?.length || 
+        !baselineRefs.addressIds?.length || 
+        !baselineRefs.vanIds?.length) {
+      throw new Error('BaselineRefs is missing required data (customers, services, addresses, vans) for scenario.');
     }
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    if (![1, 2, 3, 4].includes(technicianCount)) {
+        throw new Error(`Invalid technicianCount (${technicianCount}). Must be 1, 2, 3, or 4.`);
     }
-    if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length === 0) {
-      throw new Error('No service IDs found in baseline references.');
+
+    // --- Seed Technicians using Utility ---
+    const techResult = await seedScenarioTechnicians(
+        supabaseAdmin,
+        technicianCount,
+        baselineRefs.vanIds
+    );
+    insertedIds.technicianIds = techResult.createdTechnicianAuthIds;
+    insertedIds.technicianDbIds = techResult.createdTechnicianDbIds;
+    insertedIds.vanIds = techResult.assignedVanIds;
+
+    // Use the FIRST created technician DB ID for the exception
+    if (techResult.createdTechnicianDbIds.length === 0) {
+        throw new Error('Failed to seed any technicians or get their DB IDs for the scenario.');
     }
-    if (!baselineRefs.addressIds || baselineRefs.addressIds.length === 0) {
-      throw new Error('No address IDs found in baseline references.');
-    }
-    const targetTechnicianId = parseInt(baselineRefs.technicianIds[0], 10); // Use the first tech
+    const targetTechnicianId = techResult.createdTechnicianDbIds[0];
+
+    // Use baseline refs for other entities
     const userId = baselineRefs.customerIds[0];
     const serviceId = baselineRefs.serviceIds[0];
     const addressId = baselineRefs.addressIds[0];
-
-    if (isNaN(targetTechnicianId)) {
-      throw new Error('Invalid technician ID found in baseline references.');
-    }
 
     // --- 1. Calculate Unavailability Time for Today ---
     const today = new Date();

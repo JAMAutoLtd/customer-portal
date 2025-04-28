@@ -3,13 +3,17 @@ import { faker } from '@faker-js/faker';
 // Import types and utils from the central utils file
 import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
-import { insertData, logInfo, logError } from '../../../utils';
+import { insertData, logInfo, logError, seedScenarioTechnicians } from '../../../utils';
+// Import baseline data needed for tech creation
+import { authUsersData, publicUsersData, techniciansData } from '../baseline-data'; 
 
 // Define types using the standard Supabase helpers
 type OrderRow = Tables<'orders'>;
 type JobRow = Tables<'jobs'>;
 type OrderInsert = TablesInsert<'orders'>;
 type JobInsert = TablesInsert<'jobs'>;
+type UserInsert = TablesInsert<'users'>;
+type TechnicianInsert = TablesInsert<'technicians'>;
 
 // Helper to pick a random element from an array
 function getRandomElement<T>(arr: T[]): T {
@@ -19,44 +23,62 @@ function getRandomElement<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Explicitly define IDs for generally available, non-ADAS services
+const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
+
 /**
  * Seeds data for the 'base_schedule' scenario.
- * Creates standard orders and associated jobs with normal priority, duration, and service linkage,
- * ensuring they are schedulable with the available technicians from the baseline data.
+ * Creates technicians based on count using utility function, then standard orders and associated jobs.
  *
  * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data (IDs).
+ * @param baselineRefs - References to the baseline data (excluding technicians).
+ * @param technicianCount - The number of technicians to create for this scenario.
  * @returns Metadata object conforming to ScenarioSeedResult.
  */
 export async function seedScenario_base_schedule(
   supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  baselineRefs: BaselineRefs,
+  technicianCount: number // Parameter remains
 ): Promise<ScenarioSeedResult> {
-  logInfo('Starting scenario seeding: base_schedule');
+  logInfo(`Starting scenario seeding: base_schedule with ${technicianCount} technicians`);
   const scenarioName = 'base_schedule';
 
+  // Validate technicianCount (can be kept here or solely in utility)
+  if (![1, 2, 3, 4].includes(technicianCount)) {
+     throw new Error(`Invalid technicianCount (${technicianCount}). Must be 1, 2, 3, or 4.`);
+  }
+
+  // Validate baseline refs needed for this scenario (keep vanIds check)
   if (
     !baselineRefs.customerIds?.length ||
     !baselineRefs.addressIds?.length ||
     !baselineRefs.customerVehicleIds?.length ||
     !baselineRefs.serviceIds?.length ||
-    !baselineRefs.equipmentIds?.length ||
-    !baselineRefs.technicianIds?.length
+    !baselineRefs.equipmentIds?.length || 
+    !baselineRefs.vanIds?.length // Need van IDs from baseline
   ) {
     throw new Error(
-      'BaselineRefs is missing required data for base_schedule scenario. Ensure baseline seed returns all necessary IDs.'
+      'BaselineRefs is missing required data (customers, addresses, vehicles, services, equipment, vans) for base_schedule scenario.'
     );
   }
 
+  // --- Seed Technicians using Utility Function --- 
+  const techResult = await seedScenarioTechnicians(
+      supabaseAdmin,
+      technicianCount,
+      baselineRefs.vanIds // Pass available van IDs from baseline
+  );
+
+  // --- Seed Orders and Jobs (using baseline customers/addresses/vehicles) --- 
   const ordersToCreate: OrderInsert[] = [];
   const jobTemplates: Omit<JobInsert, 'order_id'>[] = [];
-  const numberOfOrders = 10;
+  const numberOfOrders = 10; // Or make dynamic based on techCount?
 
   for (let i = 0; i < numberOfOrders; i++) {
     const customerId = getRandomElement(baselineRefs.customerIds);
     const addressId = getRandomElement(baselineRefs.addressIds);
     const vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
-    const serviceId = getRandomElement(baselineRefs.serviceIds);
+    const serviceId = getRandomElement(BASIC_SERVICE_IDS);
 
     const order: OrderInsert = {
       user_id: customerId,
@@ -155,15 +177,18 @@ export async function seedScenario_base_schedule(
   const createdJobIds = insertedJobs.map(j => j.id).filter(id => id !== undefined && id !== null) as number[];
 
   logInfo(
-    `Finished scenario seeding: ${scenarioName}. Created ${createdOrderIds.length} orders and ${createdJobIds.length} jobs.`
+    `Finished scenario seeding: ${scenarioName}. Created ${techResult.createdTechnicianAuthIds.length} techs, ${createdOrderIds.length} orders, ${createdJobIds.length} jobs.`
   );
 
-  // Return metadata conforming to the standard interface
+  // Return metadata including created technician IDs and DB IDs
   return {
     scenarioName: scenarioName,
     insertedIds: {
       orders: createdOrderIds,
       jobs: createdJobIds,
+      technicianIds: techResult.createdTechnicianAuthIds, // Auth IDs
+      technicianDbIds: techResult.createdTechnicianDbIds, // DB IDs from utility result
+      vanIds: techResult.assignedVanIds,
     },
   };
 }

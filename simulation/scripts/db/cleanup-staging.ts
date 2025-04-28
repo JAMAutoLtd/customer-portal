@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient, AuthApiError } from '@supabase/supabase-js';
 import inquirer from 'inquirer';
 // Import types and utils from the central utils file
 import { Database, createStagingSupabaseClient, logInfo, logError } from '../utils';
@@ -10,22 +10,32 @@ import { authUsersData } from './seed/baseline-data';
 const TEST_DATA_NOTE_PREFIX = '[E2E_TEST]';
 
 /**
+ * Parses command line arguments for the cleanup script.
+ */
+function getCleanupArgs() {
+    const args = process.argv.slice(2);
+    const skipConfirmation = args.includes('--skip-confirm');
+    return { skipConfirmation };
+}
+
+/**
  * Cleans up ALL test data created by baseline seeding process from the staging database.
  * WARNING: This is destructive and irreversible.
  *
  * @param supabaseAdmin - A Supabase client initialized with SERVICE_ROLE_KEY.
- * @param skipConfirmation - If true, bypasses the confirmation prompts.
+ * @param internalSkipConfirmation - If true, bypasses the confirmation prompts (used internally or via CLI arg).
  */
 export async function cleanupAllTestData(
   supabaseAdmin: SupabaseClient<Database>,
-  skipConfirmation = false
+  internalSkipConfirmation = false // Default to false
 ): Promise<void> {
   logInfo('Starting test data cleanup...');
 
   // Use environment variable for confirmation message URL
   const supabaseUrlForConfirm = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'Unknown';
 
-  if (!skipConfirmation) {
+  // Check the parameter passed to the function first
+  if (!internalSkipConfirmation) {
     const { confirm1 } = await inquirer.prompt([
       {
         type: 'confirm',
@@ -53,6 +63,8 @@ export async function cleanupAllTestData(
       return;
     }
     logInfo('Confirmation received. Proceeding with deletion...');
+  } else {
+      logInfo('Confirmation skipped via flag/parameter.');
   }
 
   try {
@@ -174,21 +186,28 @@ export async function cleanupAllTestData(
     
     for (const table of staticTables) {
         let deleteError: any = null;
-        if (table === 'ymm_ref') {
-            // ymm_ref uses ymm_id as primary key
-            const { error } = await supabaseAdmin.from(table).delete().gte('ymm_id', 0);
-            deleteError = error;
-        } else {
-            // Assume other tables use 'id' as primary key (or a numeric PK >= 0)
-            const { error } = await supabaseAdmin.from(table).delete().gte('id', 0);
-            deleteError = error;
-        }
-        
-        if (deleteError) {
-            logError(`Error deleting data from ${table}:`, deleteError);
-            // Log and continue
-        } else {
-            logInfo(`Deleted all data from ${table}.`);
+        let deleteResult: any = null; // Variable to store result
+        try {
+            if (table === 'ymm_ref') {
+                // ymm_ref uses ymm_id as primary key
+                deleteResult = await supabaseAdmin.from(table).delete().gte('ymm_id', 0);
+                deleteError = deleteResult.error;
+            } else {
+                // Assume other tables use 'id' as primary key (or a numeric PK >= 0)
+                deleteResult = await supabaseAdmin.from(table).delete().gte('id', 0);
+                deleteError = deleteResult.error;
+            }
+            
+            if (deleteError) {
+                logError(`Error deleting data from ${table}:`, deleteError);
+                // Log and continue
+            } else {
+                // Log the count of deleted rows (might be available in result, depends on Supabase version/config)
+                const deletedCount = deleteResult.data?.length ?? deleteResult.count ?? 'unknown'; 
+                logInfo(`Deleted ${deletedCount} records from ${table}.`);
+            }
+        } catch(catchError) {
+             logError(`Exception during deletion from ${table}:`, catchError);
         }
     }
 
@@ -200,13 +219,19 @@ export async function cleanupAllTestData(
           try {
             const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
             if (authError) {
-              // Log specific error but continue
-              logError(`Error deleting auth user ${userId}: ${authError.message}`, authError);
+              // Only log errors that are NOT 'User not found' (status 404)
+              if (!(authError instanceof AuthApiError && authError.status === 404)) {
+                logError(`Error deleting auth user ${userId}: ${authError.message}`, authError);
+              } else {
+                // Optional: Log that deletion was skipped because user didn't exist
+                // logInfo(`Auth user ${userId} not found, skipping deletion.`); 
+              }
             } else {
               authDeletionCount++;
               // logInfo(`Deleted auth user ${userId}`); // Potentially too verbose
             }
           } catch (indivError) {
+            // Catch other potential exceptions during the call itself
             logError(`Caught exception deleting auth user ${userId}:`, indivError);
           }
         }
@@ -227,8 +252,10 @@ export async function cleanupAllTestData(
 // Allows running the script directly using `ts-node`
 async function runCleanup() {
   try {
+    const { skipConfirmation } = getCleanupArgs(); // Parse CLI args
     const supabaseAdmin = createStagingSupabaseClient(true); // Use service role
-    await cleanupAllTestData(supabaseAdmin);
+    // Pass the parsed CLI flag to the main function
+    await cleanupAllTestData(supabaseAdmin, skipConfirmation);
   } catch (error) {
     logError('Cleanup script failed:', error);
     process.exit(1);

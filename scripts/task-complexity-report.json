@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "generatedAt": "2025-04-28T00:41:00.286Z",
+    "tasksAnalyzed": 5,
+    "thresholdScore": 5,
+    "projectName": "Your Project Name",
+    "usedResearch": false
+  },
+  "complexityAnalysis": [
+    {
+      "taskId": 9,
+      "taskTitle": "Implement UI E2E tests with Playwright",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the implementation of UI E2E tests with Playwright into specific subtasks covering setup, Page Object Model creation, test implementation for user registration flows, test implementation for order placement flows, and test utilities for authentication and data cleanup.",
+      "reasoning": "This task involves creating comprehensive E2E tests with Playwright, requiring Page Object Models, multiple test scenarios, authentication handling, and data cleanup. The complexity comes from needing to understand both the testing framework and the application's UI flows."
+    },
+    {
+      "taskId": 10,
+      "taskTitle": "Implement backend integration tests with Jest",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the implementation of backend integration tests with Jest into specific subtasks covering test infrastructure setup, metadata handling utilities, API interaction helpers, waiting mechanism for async processes, database verification utilities, and individual test scenario implementations.",
+      "reasoning": "This task has high complexity due to the need to interact with multiple systems (API, database), handle asynchronous processes, work with metadata files, and implement 10 different test scenarios. It requires deep understanding of both the testing framework and the scheduler business logic."
+    },
+    {
+      "taskId": 11,
+      "taskTitle": "Implement CLI runner script",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the implementation of the CLI runner script into specific subtasks covering inquirer setup and menu structure, command execution utilities, metadata file management, error handling and logging, and integration with existing scripts.",
+      "reasoning": "This task involves creating an interactive CLI that orchestrates multiple operations. The complexity comes from managing file paths, executing various commands with proper parameters, and providing a user-friendly interface with proper error handling."
+    },
+    {
+      "taskId": 12,
+      "taskTitle": "Implement Production to Staging migration utility",
+      "complexityScore": 9,
+      "recommendedSubtasks": 7,
+      "expansionPrompt": "Break down the implementation of the Production to Staging migration utility into specific subtasks covering database connection setup, confirmation UI implementation, data extraction strategy, PII anonymization utilities, foreign key mapping and integrity maintenance, efficient data insertion, and validation/verification of migrated data.",
+      "reasoning": "This task has high complexity due to the sensitive nature of migrating production data, the need for comprehensive anonymization, maintaining relational integrity across tables, and handling potentially large datasets efficiently. It requires careful design to prevent data corruption or leakage."
+    },
+    {
+      "taskId": 15,
+      "taskTitle": "Create comprehensive documentation",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the creation of comprehensive documentation into specific subtasks covering overview and setup documentation, component-specific documentation, troubleshooting guide creation, example scenarios documentation, and best practices documentation.",
+      "reasoning": "While not technically complex, this task requires comprehensive understanding of all other tasks to create clear, accurate documentation. The challenge is in organizing information logically, providing clear instructions, and anticipating user questions and issues."
+    }
+  ]
+}

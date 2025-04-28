@@ -1449,6 +1449,7 @@ export type Database = {
           lat: number | null
           lng: number | null
           next_service: string | null
+          onestepgps_device_id: string | null
           vin: string | null
         }
         Insert: {
@@ -1457,6 +1458,7 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           next_service?: string | null
+          onestepgps_device_id?: string | null
           vin?: string | null
         }
         Update: {
@@ -1465,6 +1467,7 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           next_service?: string | null
+          onestepgps_device_id?: string | null
           vin?: string | null
         }
         Relationships: [
