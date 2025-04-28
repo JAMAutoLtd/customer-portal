@@ -10,13 +10,10 @@ export interface BaselineRefs {
   customerVehicleIds?: number[];
   serviceIds?: number[];
   equipmentIds?: number[];
-  technicianIds?: string[];
   vanIds?: number[];
   ymmRefIds?: number[];
-  companyIds?: number[];
-  workingHoursIds?: number[];
-  technicianEquipmentIds?: number[];
-  technicianServiceAreaIds?: number[];
+  technicianDefaultHoursIds?: number[];
+  technicianAvailabilityExceptionIds?: number[];
   // Add other relevant baseline IDs as needed
 }
 
@@ -30,9 +27,12 @@ export interface ScenarioSeedResult {
     jobs?: number[];
     equipment?: number[];
     technician_availability_exceptions?: number[];
+    technicianIds?: string[];
+    technicianDbIds?: number[];
+    vanIds?: number[];
     // Add other table names (as keys) and ID arrays (as values)
     // relevant to the specific scenario being seeded.
-    [tableName: string]: number[] | undefined; // Allow dynamic table names
+    [tableName: string]: (number[] | string[]) | undefined;
   };
   // Optional: Add any other relevant scenario-specific metadata if needed
 }

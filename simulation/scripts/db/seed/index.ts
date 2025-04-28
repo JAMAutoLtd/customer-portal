@@ -5,26 +5,67 @@ import { createStagingSupabaseClient, logInfo, logError } from '../../utils';
 import { seedScenario } from './scenarios'; // Scenario router
 import { ScenarioSeedResult, BaselineRefs } from './scenarios/types';
 
-// Define default paths for metadata files
-const DEFAULT_BASELINE_METADATA_PATH = path.resolve(__dirname, '../../../tests/integration/.baseline-metadata.json');
-const DEFAULT_SCENARIO_METADATA_PATH = path.resolve(__dirname, '../../../tests/integration/.current-scenario-metadata.json');
+// Define default paths for metadata files, resolving from the correct root
+const DEFAULT_BASELINE_METADATA_PATH = path.resolve(__dirname, '../../../../tests/integration/.baseline-metadata.json');
+const DEFAULT_SCENARIO_METADATA_PATH = path.resolve(__dirname, '../../../../tests/integration/.current-scenario-metadata.json');
 
-/** Helper to parse command line arguments */
+/** Helper to parse command line arguments passed via pnpm script -- -- args */
 function getArgs() {
-    const args = process.argv.slice(2);
-    const action = args.find(arg => !arg.startsWith('--')) || 'baseline'; // Default action
-    const techCountArg = args.find(arg => arg.startsWith('--techs='));
-    const scenarioNameArg = args.find(arg => arg.startsWith('--name='));
-    const baselineMetaPathArg = args.find(arg => arg.startsWith('--baseline-metadata='));
-    const outputMetaPathArg = args.find(arg => arg.startsWith('--output-metadata='));
+    // Raw arguments passed to the script
+    const rawArgs = process.argv.slice(2);
 
-    const technicianCount = techCountArg ? parseInt(techCountArg.split('=')[1], 10) : 4;
-    const scenarioName = scenarioNameArg ? scenarioNameArg.split('=')[1] : undefined;
-    const baselineMetadataPath = baselineMetaPathArg ? baselineMetaPathArg.split('=')[1] : DEFAULT_BASELINE_METADATA_PATH;
-    const outputMetadataPath = outputMetaPathArg ? outputMetaPathArg.split('=')[1] : (action === 'baseline' ? DEFAULT_BASELINE_METADATA_PATH : DEFAULT_SCENARIO_METADATA_PATH);
+    // Find the pnpm separator '--' to isolate script-specific args
+    const separatorIndex = rawArgs.indexOf('--');
+    const scriptArgs = separatorIndex !== -1 ? rawArgs.slice(separatorIndex + 1) : rawArgs;
 
-    if (![1, 2, 3, 4].includes(technicianCount)) {
-        throw new Error('Invalid technician count specified with --techs. Must be 1, 2, 3, or 4.');
+    // Initialize default values
+    let action: string = 'baseline';
+    let technicianCount: number = 4;
+    let scenarioName: string | undefined = undefined;
+    let baselineMetadataPath: string = DEFAULT_BASELINE_METADATA_PATH;
+    let outputMetadataPath: string | undefined = undefined; // Determined later based on action
+
+    // Simple manual parsing for --key value format
+    for (let i = 0; i < scriptArgs.length; i++) {
+        const arg = scriptArgs[i];
+        const value = scriptArgs[i + 1]; // Potential value
+
+        if (arg === '--action' && value) {
+            action = value;
+            i++; // Skip the value
+        } else if (arg === '--techs' && value) {
+            // Only process --techs if action is 'scenario'
+            if (action === 'scenario') { 
+                const count = parseInt(value, 10);
+                if (!isNaN(count) && [1, 2, 3, 4].includes(count)) {
+                    technicianCount = count;
+                } else {
+                    console.warn(`Invalid value for --techs: ${value}. Using default ${technicianCount}.`);
+                }
+            }
+            i++; // Skip the value
+        } else if (arg === '--name' && value) {
+            scenarioName = value;
+            i++; // Skip the value
+        } else if (arg === '--baseline-metadata' && value) {
+            baselineMetadataPath = value; // Use the provided path directly
+            i++; // Skip the value
+        } else if (arg === '--output-metadata' && value) {
+            outputMetadataPath = value; // Use the provided path directly
+            i++; // Skip the value
+        } else if (!arg.startsWith('--')) {
+            // If it's the first non-flag argument, treat it as the action (legacy support?)
+            // Be careful with this - relies on action being first if not specified with --action
+             if (i === 0 && (arg === 'baseline' || arg === 'scenario')) {
+                 console.warn('DEPRECATION WARNING: Specifying action as the first argument is deprecated. Use --action <value> instead.');
+                 action = arg;
+             }
+        }
+    }
+
+    // Determine default output path if not provided
+    if (!outputMetadataPath) {
+        outputMetadataPath = action === 'baseline' ? DEFAULT_BASELINE_METADATA_PATH : DEFAULT_SCENARIO_METADATA_PATH;
     }
 
     return {
@@ -66,7 +107,7 @@ async function main() {
     if (action === 'baseline') {
       // Seed baseline and write BaselineRefs metadata
       logInfo('Running baseline seeding...');
-      const baselineRefs: BaselineRefs = await seedBaseline(supabaseAdmin, technicianCount as 1 | 2 | 3 | 4);
+      const baselineRefs: BaselineRefs = await seedBaseline(supabaseAdmin);
       logInfo('Baseline seeding complete.');
 
       try {
@@ -88,19 +129,14 @@ async function main() {
         logInfo(`Reading baseline metadata from ${baselineMetadataPath}...`);
         const baselineData = await fs.readFile(baselineMetadataPath, 'utf-8');
         baselineRefs = JSON.parse(baselineData) as BaselineRefs;
-        // Optional: Add validation for baselineRefs structure here
-        if (!baselineRefs?.technicianIds) {
-             throw new Error('Baseline metadata file is missing essential data (e.g., technicianIds).')
-        }
         logInfo('Baseline metadata read successfully.');
       } catch (readError) {
         logError(`Failed to read or parse baseline metadata from ${baselineMetadataPath}. Cannot proceed with scenario seeding.`, readError);
         process.exit(1);
       }
 
-      // Only run scenario seed, passing the read baselineRefs
-      logInfo(`Applying scenario: ${scenarioName}... (Using provided baseline metadata)`);
-      const scenarioResult: ScenarioSeedResult = await seedScenario(supabaseAdmin, baselineRefs, scenarioName);
+      logInfo(`Applying scenario: ${scenarioName}... (Using provided baseline metadata and ${technicianCount} techs)`);
+      const scenarioResult: ScenarioSeedResult = await seedScenario(supabaseAdmin, baselineRefs, scenarioName, technicianCount);
       logInfo(`Scenario '${scenarioName}' applied successfully.`);
 
       // Write the ScenarioSeedResult to the output file

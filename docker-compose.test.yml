@@ -18,7 +18,7 @@ services:
     healthcheck:
       # Added -v for verbose output, --connect-timeout, --max-time
       test: ["CMD", "curl", "-v", "-f", "--connect-timeout", "5", "--max-time", "10", "http://localhost:8080/health"]
-      interval: 15s
+      interval: 120s
       timeout: 10s  # Increased from 5s
       retries: 10   # Increased from 5
       start_period: 30s
@@ -29,7 +29,9 @@ services:
       context: . # Build from root for pnpm workspace access
       dockerfile: apps/scheduler/Dockerfile
     container_name: test_scheduler
-    # No external port needed unless direct API calls are tested
+    # Expose port 3001 on the host, mapping to 8080 inside the container
+    ports:
+      - "3001:8080"
     env_file:
       - ./.env.test # Uses SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPTIMIZATION_SERVICE_URL, etc.
     depends_on:

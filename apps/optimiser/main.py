@@ -30,7 +30,7 @@ from typing import List, Literal
 
 def iso_to_seconds(iso_str: str) -> int:
     """Converts ISO 8601 string to seconds since the Unix epoch (UTC)."""
-    print(f"DEBUG iso_to_seconds received: '{iso_str}' (Type: {type(iso_str)})") 
+    # print(f"DEBUG iso_to_seconds received: '{iso_str}' (Type: {type(iso_str)})") 
     
     # Replace 'Z' with '+00:00' for better compatibility with fromisoformat
     if iso_str.endswith('Z'):
@@ -38,7 +38,7 @@ def iso_to_seconds(iso_str: str) -> int:
     else:
         processed_iso_str = iso_str
         
-    print(f"DEBUG iso_to_seconds processing: '{processed_iso_str}'") # Log processed string
+    # print(f"DEBUG iso_to_seconds processing: '{processed_iso_str}'") # Log processed string
     
     # Parse the potentially modified string
     dt = datetime.fromisoformat(processed_iso_str)
@@ -92,6 +92,11 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
     try:
         # Log payload summary (avoid logging full large payload unless necessary)
         print(f"Received optimization request with {len(payload.items)} items, {len(payload.technicians)} technicians.")
+        # Log details of incoming items
+        if payload.items:
+            print("Incoming items:")
+            for item in payload.items:
+                print(f"  - ID: {item.id}, Duration: {item.durationSeconds}s, Priority: {item.priority}, LocationIdx: {item.locationIndex}, EligibleTechs: {item.eligibleTechnicianIds}")
         
         if not payload.items:
             print("No items provided, returning success.")
@@ -281,39 +286,50 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
 
         # Item Constraints (Fixed Time AND Earliest Start Time)
         print("Applying Item Time Constraints (Fixed & Earliest Start)...")
+        found_time_constraints = False # Flag to track if any constraints were applied/attempted
         for item_payload_idx, item in enumerate(payload.items):
             item_loc_index = item.locationIndex
+            # Skip if item has no valid location index
+            if not (0 <= item_loc_index < num_locations):
+                 print(f"Warning: Item {item.id} has invalid locationIndex {item.locationIndex}. Skipping constraints.")
+                 continue
+
             try:
                 solver_index = manager.NodeToIndex(item_loc_index)
                 if solver_index == -1:
                     print(f"Warning: Could not get solver index for item {item.id} at loc {item_loc_index}. Skipping constraints.")
                     continue
                 
-                # Apply Earliest Start Time constraint if present
-                if item.earliestStartTimeISO:
+                # Apply Earliest Start Time constraint ONLY if present
+                if hasattr(item, 'earliestStartTimeISO') and item.earliestStartTimeISO:
+                    found_time_constraints = True # Mark that we found at least one
                     try:
                         earliest_start_abs = iso_to_seconds(item.earliestStartTimeISO)
                         earliest_start_rel = max(0, earliest_start_abs - planning_epoch_seconds)
-                        # Apply lower bound to the start time cumulative variable
                         time_dimension.CumulVar(solver_index).SetMin(earliest_start_rel)
-                        # print(f"Applied earliest start for item {item.id} (solver idx {solver_index}) at {earliest_start_rel}s rel") # Less verbose
                     except ValueError as e:
-                        print(f"Warning: Invalid earliestStartTimeISO '{item.earliestStartTimeISO}' for item {item.id}. Skipping constraint. Error: {e}")
+                        # Log error ONLY if parsing the existing value fails
+                        print(f"Error applying earliest start for item {item.id}: Invalid ISO format '{item.earliestStartTimeISO}'. Error: {e}")
                 
-                # Check for Fixed Time Constraint specifically for THIS item
+                # Apply Fixed Time Constraint if present
                 fixed_constraint = next((fc for fc in payload.fixedConstraints if fc.itemId == item.id), None)
                 if fixed_constraint:
+                    found_time_constraints = True # Mark that we found at least one
                     try:
                         fixed_time_seconds_abs = iso_to_seconds(fixed_constraint.fixedTimeISO)
                         fixed_time_seconds_rel = max(0, fixed_time_seconds_abs - planning_epoch_seconds)
-                        # SetRange enforces BOTH min and max to be the fixed time
                         time_dimension.CumulVar(solver_index).SetRange(fixed_time_seconds_rel, fixed_time_seconds_rel)
-                        # print(f"Applied fixed time for item {item.id} (solver idx {solver_index}) at {fixed_time_seconds_rel}s rel") # Less verbose
                     except ValueError as e:
-                         print(f"Warning: Invalid fixedTimeISO '{fixed_constraint.fixedTimeISO}' for item {item.id}. Skipping constraint. Error: {e}")
+                        # Log error ONLY if parsing the existing value fails
+                        print(f"Error applying fixed time for item {item.id}: Invalid ISO format '{fixed_constraint.fixedTimeISO}'. Error: {e}")
 
             except Exception as e:
-                print(f"Error applying time constraints for item {item.id}: {e}")
+                # Catch other potential errors during solver index lookup etc.
+                print(f"General error applying time constraints for item {item.id}: {e}")
+        
+        # Log if no time constraints were found at all
+        if not found_time_constraints:
+            print("No applicable earliest start or fixed time constraints found for any items.")
 
         # Technician Eligibility (Disjunctions) & Priority Penalties
         # Get lists of all start and end location indices for depot check
