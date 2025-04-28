@@ -266,16 +266,35 @@ export async function cleanupScenarioLeftovers(
       logInfo('No existing technicians found to remove.');
     }
 
-    // --- Also Clean Up Orders (Not directly linked to technicians, but scenario-specific) ---
-    // Keep this part to ensure orders from previous runs are gone
-    logInfo('Deleting ALL remaining order related data (scenario leftovers)...');
+    // --- Also Clean Up Orders and Jobs (Not directly linked to technicians, but scenario-specific) ---
+    // Keep this part to ensure orders/jobs from previous runs are gone
+    logInfo('Deleting ALL remaining job and order related data (scenario leftovers)...');
     // Order matters: delete dependent tables first
+
+    // Delete Jobs first (depends on Orders)
+    const { error: jobDelError } = await supabaseAdmin.from('jobs').delete().gte('id', 0); // Delete all jobs
+    if (jobDelError) {
+      logError('Error deleting leftover jobs:', jobDelError);
+      // If jobs fail to delete, we cannot safely delete orders. Consider stopping.
+      throw new Error('Failed to delete leftover jobs, cannot proceed with order cleanup.');
+    } else {
+      logInfo('Deleted all leftover jobs.');
+    }
+
+    // Delete Order Services (depends on Orders)
     const { error: osError } = await supabaseAdmin.from('order_services').delete().gte('order_id', 0); // Delete all
     if (osError) logError('Error deleting leftover order_services:', osError);
+    else logInfo('Deleted leftover order_services.');
+
+    // Delete Order Uploads (depends on Orders)
     const { error: uploadError } = await supabaseAdmin.from('order_uploads').delete().gte('order_id', 0); // Delete all
     if (uploadError) logError('Error deleting leftover order_uploads:', uploadError);
+    else logInfo('Deleted leftover order_uploads.');
+
+    // Now delete Orders (should succeed as jobs are gone)
     const { error: orderDelError } = await supabaseAdmin.from('orders').delete().gte('id', 0); // Delete all orders
-    if (orderDelError) logError('Error deleting leftover orders:', orderDelError); else logInfo('Deleted all orders and associated data.');
+    if (orderDelError) logError('Error deleting leftover orders:', orderDelError);
+    else logInfo('Deleted all leftover orders.');
 
     // IMPORTANT: Do NOT delete static tables (services, equipment, addresses, etc.)
     logInfo('Skipping deletion of static baseline table data.');

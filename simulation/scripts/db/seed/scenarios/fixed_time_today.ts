@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   type Database,
@@ -12,114 +13,91 @@ import type { BaselineRefs, ScenarioSeedResult } from './types';
 /**
  * Seeds the database for the 'fixed_time_today' scenario.
  *
- * Scenario: Creates a single job that must be scheduled at a specific
- *           time today (e.g., 10:00 AM).
+ * Goal: Create a job that must be scheduled at a specific time today,
+ * testing the scheduler's handling of fixed time constraints.
  *
- * Expected Outcome: The scheduler should schedule this job exactly at the
- *                   specified `fixed_schedule_time` for today,
- *                   respecting the `fixed_assignment` flag.
- *
- * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data.
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param supabase The Supabase client instance.
+ * @param baselineRefs References to baseline data (IDs, etc.).
+ * @param technicianDbIds Accept DB IDs, even if unused here
+ * @returns A ScenarioSeedResult object containing the IDs of the created records.
  */
 export async function seedScenario_fixed_time_today(
-  supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  supabase: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[] // Accept DB IDs, even if unused here
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'fixed_time_today';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    orders: [],
-    jobs: [],
-  };
-
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
 
   try {
     // --- Prerequisite Checks ---
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    if (!baselineRefs.customerIds?.length) {
+      throw new Error('BaselineRefs missing required customerIds');
     }
-    if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length === 0) {
-      throw new Error('No service IDs found in baseline references.');
+    if (!baselineRefs.addressIds?.length) {
+      throw new Error('BaselineRefs missing required addressIds');
     }
-    if (!baselineRefs.addressIds || baselineRefs.addressIds.length === 0) {
-      throw new Error('No address IDs found in baseline references.');
+    if (!baselineRefs.serviceIds?.length) {
+        throw new Error('BaselineRefs missing required serviceIds');
     }
-    const userId = baselineRefs.customerIds[0];
     const serviceId = baselineRefs.serviceIds[0];
-    const addressId = baselineRefs.addressIds[0];
+    const customerUserId = baselineRefs.customerIds[0];
+    const customerAddressId = baselineRefs.addressIds[0];
 
-    // --- 1. Create the Order ---
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        address_id: addressId,
-        notes: `Order for ${scenarioName} scenario.`,
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
-      'orders',
-      orderData,
-      'Order for fixed time job'
-    );
-
-    if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
+    // --- 1. Create Order ---
+    const orderRecord: TablesInsert<'orders'> = {
+        user_id: customerUserId,
+        address_id: customerAddressId,
+        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
+        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(), // Available starting within the next day
+        notes: `Order for ${scenarioName}.`
+    };
+    const { data: orderData, error: orderError } = await insertData<'orders'>(supabase, 'orders', [orderRecord], 'id');
+    if (orderError || !orderData || orderData.length === 0) {
+      throw new Error(`Failed to insert order: ${orderError?.message}`);
     }
-    const orderId = newOrders[0].id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId}`);
+    const orderId = orderData[0].id;
+    logInfo(`Created order (ID: ${orderId}) for ${scenarioName}.`);
 
-    // --- 2. Calculate Fixed Time for Today ---
-    const today = new Date();
-    today.setHours(10, 0, 0, 0); // Set time to 10:00:00.000 today
-    const fixedTimeTodayISO = today.toISOString();
-    logInfo(`Calculated fixed time for today: ${fixedTimeTodayISO}`);
+    // --- 2. Create Fixed Time Job ---
+    const fixedTime = new Date();
+    fixedTime.setHours(10, 0, 0, 0); // Set fixed time to 10:00 AM today
+    if (fixedTime.getHours() >= 17) {
+        // If it's already past work hours, set for tomorrow 10 AM
+        fixedTime.setDate(fixedTime.getDate() + 1);
+    }
 
-    // --- 3. Create the Fixed Time Job ---
-    const jobData: TablesInsert<'jobs'>[] = [
-      {
+    const jobRecord: TablesInsert<'jobs'> = {
         order_id: orderId,
+        address_id: customerAddressId,
         service_id: serviceId,
-        address_id: addressId,
-        status: 'fixed_time' as Enums<'job_status'>, // Use 'fixed_time' status
-        priority: 1, // Example priority
-        job_duration: 90,
-        fixed_assignment: true,
-        fixed_schedule_time: fixedTimeTodayISO,
-        notes: `Job must be done exactly at ${fixedTimeTodayISO}`,
-      },
-    ];
+        status: 'fixed_time', // Status indicating it has a fixed time
+        priority: 10, // High priority
+        job_duration: 90, // Example duration
+        fixed_schedule_time: fixedTime.toISOString(), // Set the fixed time constraint
+        fixed_assignment: false, // Scheduler assigns technician
+        notes: `Job for ${scenarioName}, fixed for ${fixedTime.toLocaleString()}`
+    };
 
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
-      'jobs',
-      jobData,
-      'Fixed time job for today'
-    );
-
-    if (jobError || !newJobs || newJobs.length === 0) {
-      throw new Error(
-        `Failed to insert fixed time job: ${jobError?.message || 'No data returned'}`
-      );
+    const { data: jobData, error: jobError } = await insertData<'jobs'>(supabase, 'jobs', [jobRecord], 'id');
+    if (jobError || !jobData || jobData.length === 0) {
+      throw new Error(`Failed to insert fixed time job: ${jobError?.message}`);
     }
-    insertedIds.jobs = newJobs.map(job => job.id);
-    logInfo(`Created fixed time job with ID: ${insertedIds.jobs[0]}`);
+    const jobId = jobData[0].id;
+    logInfo(`Created fixed time job (ID: ${jobId}) for ${scenarioName} at ${fixedTime.toLocaleString()}.`);
 
-    // --- Completion ---
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
+    // --- 3. Return Result ---
+    logInfo(`Successfully seeded scenario: ${scenarioName}`);
     return {
       scenarioName,
-      insertedIds,
+      insertedIds: {
+        orders: [orderId],
+        jobs: [jobId],
+      },
     };
 
   } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    throw error; // Re-throw for the main script
+    logError(`Error seeding scenario ${scenarioName}:`, error);
+    throw error;
   }
 }

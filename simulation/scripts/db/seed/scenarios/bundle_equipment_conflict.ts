@@ -13,122 +13,103 @@ import type { BaselineRefs, ScenarioSeedResult } from './types';
 /**
  * Seeds the database for the 'bundle_equipment_conflict' scenario.
  *
- * Scenario: Creates a single order with multiple jobs where the equipment
- *           required for each job (implied by service_id) is available
- *           in the baseline, but split across different technicians/vans.
+ * Goal: Create a multi-job order where the required equipment for the jobs
+ * is split across different technicians, making it impossible for a single
+ * technician to handle the entire order/bundle.
  *
- * Expected Outcome: The scheduler should face difficulty scheduling these jobs
- *                   as a single bundle to one technician due to equipment constraints.
- *                   It might need to split the bundle or schedule jobs sequentially.
- *
- * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data.
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param supabase The Supabase client instance.
+ * @param baselineRefs References to baseline data (IDs, etc.).
+ * @param technicianDbIds Accept DB IDs, even if unused here
+ * @returns A ScenarioSeedResult object containing the IDs of the created records.
  */
 export async function seedScenario_bundle_equipment_conflict(
-  supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  supabase: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[] // Accept DB IDs, even if unused here
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'bundle_equipment_conflict';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    orders: [],
-    jobs: [],
-  };
-
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
 
   try {
     // --- Prerequisite Checks ---
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    if (!baselineRefs.customerIds?.length) {
+      throw new Error('BaselineRefs missing required customerIds');
     }
-    // We need at least two services that imply different equipment
-    // assigned to different vans/technicians in the baseline.
-    // This script *assumes* the first two service IDs in baselineRefs
-    // meet this criteria based on how baseline was seeded.
+    if (!baselineRefs.addressIds?.length) {
+      throw new Error('BaselineRefs missing required addressIds');
+    }
+    // Need at least two distinct services that imply different equipment types.
+    // We'll assume the first two service IDs meet this criteria based on baseline.
     if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length < 2) {
-      throw new Error('Insufficient service IDs (< 2) found in baseline references for this scenario.');
+        throw new Error('BaselineRefs missing required serviceIds (need >= 2)');
     }
-    const userId = baselineRefs.customerIds[0];
-    const serviceId1 = baselineRefs.serviceIds[0];
-    const serviceId2 = baselineRefs.serviceIds[1];
-    // We also assume an address is available
-    if (!baselineRefs.addressIds || baselineRefs.addressIds.length === 0) {
-        throw new Error('No address IDs found in baseline references.');
+    const serviceId1 = baselineRefs.serviceIds[0]; // Implies Equipment Type A
+    const serviceId2 = baselineRefs.serviceIds[1]; // Implies Equipment Type B
+    const customerUserId = baselineRefs.customerIds[0];
+    const customerAddressId = baselineRefs.addressIds[0];
+
+    // --- 1. Create Order ---
+    const orderRecord: TablesInsert<'orders'> = {
+        user_id: customerUserId,
+        address_id: customerAddressId,
+        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
+        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(),
+        notes: `Order for ${scenarioName}. Requires services ${serviceId1} & ${serviceId2}.`
+    };
+    const { data: orderData, error: orderError } = await insertData<'orders'>(supabase, 'orders', [orderRecord], 'id');
+    if (orderError || !orderData || orderData.length === 0) {
+      throw new Error(`Failed to insert order: ${orderError?.message}`);
     }
-    const addressId = baselineRefs.addressIds[0];
+    const orderId = orderData[0].id;
+    logInfo(`Created order (ID: ${orderId}) for ${scenarioName}.`);
 
-    // --- 1. Create the Order ---
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        address_id: addressId, // Use a common address for the jobs
-        notes: `Order for ${scenarioName} scenario. Requires services ${serviceId1} & ${serviceId2}.`,
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
-      'orders',
-      orderData,
-      'Order for bundle conflict'
-    );
-
-    if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
-    }
-    const orderId = newOrders[0].id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId}`);
-
-    // --- 2. Create Multiple Jobs for the Order ---
-    const jobData: TablesInsert<'jobs'>[] = [
-      {
+    // --- 2. Create Jobs with Conflicting Equipment Needs ---
+    // Job 1 requires Service 1 (implying Equipment Type A)
+    const jobRecord1: TablesInsert<'jobs'> = {
         order_id: orderId,
-        service_id: serviceId1, // Requires equipment set 1 (assumed from baseline)
-        address_id: addressId, // Same address as order
-        status: 'queued',
-        priority: 2,
-        job_duration: 60,
-        notes: `Job 1 for bundle conflict, service ${serviceId1}`,
-      },
-      {
+        address_id: customerAddressId,
+        service_id: serviceId1,
+        status: 'pending_review',
+        priority: 5,
+        job_duration: 45,
+        notes: `Job 1 for ${scenarioName}, requires equip for service ${serviceId1}`
+    };
+
+    // Job 2 requires Service 2 (implying Equipment Type B)
+    const jobRecord2: TablesInsert<'jobs'> = {
         order_id: orderId,
-        service_id: serviceId2, // Requires equipment set 2 (assumed from baseline)
-        address_id: addressId, // Same address as order
-        status: 'queued',
-        priority: 2,
-        job_duration: 75, // Slightly different duration
-        notes: `Job 2 for bundle conflict, service ${serviceId2}`,
-      },
-    ];
+        address_id: customerAddressId,
+        service_id: serviceId2,
+        status: 'pending_review',
+        priority: 5,
+        job_duration: 55,
+        notes: `Job 2 for ${scenarioName}, requires equip for service ${serviceId2}`
+    };
 
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
-      'jobs',
-      jobData,
-      'Jobs for bundle conflict'
-    );
-
-    if (jobError || !newJobs || newJobs.length < jobData.length) {
-      throw new Error(
-        `Failed to insert all jobs: ${jobError?.message || 'Incorrect data returned'}`
-      );
+    // Insert both jobs
+    const { data: jobData, error: jobError } = await insertData<'jobs'>(supabase, 'jobs', [jobRecord1, jobRecord2], 'id');
+    if (jobError || !jobData || jobData.length < 2) {
+      throw new Error(`Failed to insert jobs: ${jobError?.message || 'Did not insert expected number of jobs'}`);
     }
-    insertedIds.jobs = newJobs.map(job => job.id);
-    logInfo(`Created jobs with IDs: ${insertedIds.jobs.join(', ')}`);
+    const jobIds = jobData.map(j => j.id);
+    logInfo(`Created jobs (IDs: ${jobIds.join(', ')}) for ${scenarioName}.`);
 
-    // --- Completion ---
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
+    // --- 3. Return Result ---
+    // Note: This script relies on the external technician seeding (`seedScenarioTechnicians`)
+    // ensuring that equipment implied by serviceId1 and serviceId2 is assigned to
+    // DIFFERENT technicians/vans, creating the conflict.
+    logInfo(`Successfully seeded scenario: ${scenarioName}`);
     return {
       scenarioName,
-      insertedIds,
+      insertedIds: {
+        orders: [orderId],
+        jobs: jobIds,
+        // No equipment or technicians created directly by this script
+      },
     };
 
   } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    throw error; // Re-throw for the main script
+    logError(`Error seeding scenario ${scenarioName}:`, error);
+    throw error;
   }
 }

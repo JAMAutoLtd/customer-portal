@@ -6,7 +6,6 @@ import {
   logError,
   logInfo,
   type Enums,
-  seedScenarioTechnicians
 } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
 
@@ -36,52 +35,40 @@ function formatTime(date: Date): string {
  *
  * @param supabaseAdmin - The Supabase client with admin privileges.
  * @param baselineRefs - References to the baseline data (excluding technicians).
- * @param technicianCount - Number of technicians to create for this scenario.
+ * @param technicianDbIds - The DB IDs of the technicians seeded for this run.
  * @returns A promise resolving to the ScenarioSeedResult object.
  */
 export async function seedScenario_technician_unavailable_today(
   supabaseAdmin: SupabaseClient<Database>,
   baselineRefs: BaselineRefs,
-  technicianCount: number
+  technicianDbIds: number[] // Accept DB IDs
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'technician_unavailable_today';
   const insertedIds: ScenarioSeedResult['insertedIds'] = {
     orders: [],
     jobs: [],
     technician_availability_exceptions: [],
-    technicianIds: [],
-    vanIds: [],
+    // technicianIds (Auth IDs) are not needed/returned by this scenario script itself
+    // vanIds are not needed/returned by this scenario script itself
+    technicianDbIds: technicianDbIds, // Store passed-in IDs for potential return/verification
   };
 
-  logInfo(`Starting scenario seeding: ${scenarioName} with ${technicianCount} technicians...`);
+  logInfo(`Starting scenario seeding: ${scenarioName} with ${technicianDbIds.length} technicians (already seeded)...`);
 
   try {
     // --- Prerequisite Checks ---
     if (!baselineRefs.customerIds?.length || 
         !baselineRefs.serviceIds?.length || 
-        !baselineRefs.addressIds?.length || 
-        !baselineRefs.vanIds?.length) {
-      throw new Error('BaselineRefs is missing required data (customers, services, addresses, vans) for scenario.');
+        !baselineRefs.addressIds?.length) {
+      throw new Error('BaselineRefs is missing required data (customers, services, addresses) for scenario.');
     }
-    if (![1, 2, 3, 4].includes(technicianCount)) {
-        throw new Error(`Invalid technicianCount (${technicianCount}). Must be 1, 2, 3, or 4.`);
+    if (technicianDbIds.length === 0) {
+        throw new Error(`No technician DB IDs provided for ${scenarioName} scenario.`);
     }
 
-    // --- Seed Technicians using Utility ---
-    const techResult = await seedScenarioTechnicians(
-        supabaseAdmin,
-        technicianCount,
-        baselineRefs.vanIds
-    );
-    insertedIds.technicianIds = techResult.createdTechnicianAuthIds;
-    insertedIds.technicianDbIds = techResult.createdTechnicianDbIds;
-    insertedIds.vanIds = techResult.assignedVanIds;
+    // --- Use the FIRST provided technician DB ID for the exception ---
 
-    // Use the FIRST created technician DB ID for the exception
-    if (techResult.createdTechnicianDbIds.length === 0) {
-        throw new Error('Failed to seed any technicians or get their DB IDs for the scenario.');
-    }
-    const targetTechnicianId = techResult.createdTechnicianDbIds[0];
+    const targetTechnicianId = technicianDbIds[0];
 
     // Use baseline refs for other entities
     const userId = baselineRefs.customerIds[0];
@@ -109,9 +96,10 @@ export async function seedScenario_technician_unavailable_today(
         exception_type: 'time_off' as Enums<'availability_exception_type'>,
         date: exceptionDate,
         is_available: false,
-        start_time: exceptionStartTime,
-        end_time: exceptionEndTime,
-        reason: 'Scenario: Technician Unavailable Today',
+        // start_time and end_time MUST be NULL when is_available is false per check constraint
+        // start_time: exceptionStartTime, // REMOVED
+        // end_time: exceptionEndTime, // REMOVED
+        reason: `Scenario: ${scenarioName} - Unavailable ALL DAY`,
       }
     ];
 

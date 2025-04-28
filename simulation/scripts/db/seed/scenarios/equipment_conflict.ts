@@ -13,125 +13,112 @@ import type { BaselineRefs, ScenarioSeedResult } from './types';
 /**
  * Seeds the database for the 'equipment_conflict' scenario.
  *
- * Scenario: Creates a job that requires a piece of equipment
- *           that no technician possesses in the baseline data.
+ * Goal: Create a job that requires a piece of equipment that no technician possesses,
+ * forcing the scheduler to handle an unsolvable equipment constraint.
  *
- * Expected Outcome: The scheduler should identify this job as unschedulable
- *                   due to the equipment constraint.
- *
- * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data (e.g., customer IDs).
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param supabase The Supabase client instance.
+ * @param baselineRefs References to baseline data (IDs, etc.).
+ * @param technicianDbIds Accept DB IDs, even if unused here
+ * @returns A ScenarioSeedResult object containing the IDs of the created records.
  */
 export async function seedScenario_equipment_conflict(
-  supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  supabase: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[] // Accept DB IDs, even if unused here
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'equipment_conflict';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    equipment: [],
-    orders: [],
-    jobs: [],
-  };
-
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
 
   try {
-    // 1. Create a new equipment type not assigned to any technician
-    const newEquipmentData: TablesInsert<'equipment'>[] = [
-      {
-        model: `Conflict Generator ${faker.commerce.productAdjective()} ${faker.commerce.productMaterial()}`,
-      },
-    ];
+    // --- 1. Create Unique Equipment ---
+    const newEquipmentName = `Conflict Equipment ${faker.string.uuid().substring(0, 4)}`;
+    // For simplicity, assume the first service ID from baseline implies a need for 'diag' equipment.
+    // A more robust approach would query service details or have richer baseline refs.
+    const targetServiceId = baselineRefs.serviceIds?.[0];
+    if (!targetServiceId) {
+      throw new Error('Baseline data missing required service IDs.');
+    }
 
-    const { data: newEquipment, error: equipmentError } = await insertData(
-      supabaseAdmin,
-      'equipment',
-      newEquipmentData,
-      'New conflict equipment'
+    // Assume the service requires 'diag' type equipment for this scenario
+    const newEquipmentRecord: TablesInsert<'equipment'> = {
+        model: newEquipmentName,
+        equipment_type: 'diag' // This type MUST NOT be assigned to any baseline technician's van equipment
+    };
+    const { data: newEquipmentData, error: equipmentError } = await insertData<'equipment'>( // Corrected Generic
+        supabase,
+        'equipment',
+        [newEquipmentRecord],
+        'id' // Return the id
     );
-
-    if (equipmentError || !newEquipment || newEquipment.length === 0) {
-      throw new Error(
-        `Failed to insert conflict equipment: ${equipmentError?.message || 'No data returned'}`
-      );
+    if (equipmentError || !newEquipmentData || newEquipmentData.length === 0) {
+        throw new Error(`Failed to insert unique equipment: ${equipmentError?.message}`);
     }
-    const conflictEquipmentId = newEquipment[0].id;
-    insertedIds.equipment!.push(conflictEquipmentId);
-    logInfo(`Created conflict equipment with ID: ${conflictEquipmentId}`);
+    const uniqueEquipmentId = newEquipmentData[0].id;
+    logInfo(`Created unique equipment '${newEquipmentName}' (ID: ${uniqueEquipmentId}) not assigned to vans.`);
 
-    // Ensure we have a user ID (assuming customerIds are user UUIDs)
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    // --- 2. Create Order ---
+    const customerUserId = baselineRefs.customerIds?.[0]; // Corrected property name
+    const customerAddressId = baselineRefs.addressIds?.[0]; // Corrected property name
+     if (!customerUserId || !customerAddressId) {
+      throw new Error('Baseline data missing required customer user ID or address ID.');
     }
-    const userId = baselineRefs.customerIds[0]; // Use the first user/customer ID
-
-    // 2. Create an Order for the job
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        notes: 'Order for the equipment conflict scenario.',
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
+    const orderRecord: TablesInsert<'orders'> = {
+        user_id: customerUserId,
+        address_id: customerAddressId,
+        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
+        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(), // Corrected Date format
+        notes: `Order for equipment conflict scenario.`
+    };
+     const { data: orderData, error: orderError } = await insertData<'orders'>( // Corrected Generic
+      supabase,
       'orders',
-      orderData,
-      'Order for conflict job'
+      [orderRecord],
+      'id' // Return the id
     );
-
-     if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
+    if (orderError || !orderData || orderData.length === 0) {
+      throw new Error(`Failed to insert order: ${orderError?.message}`);
     }
-    const orderId = (newOrders[0] as any).id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId}`);
+    const orderId = orderData[0].id;
+    logInfo(`Created order (ID: ${orderId}) for conflict scenario.`);
 
 
-    // 3. Create a job
-    // Note: The requirement for specific equipment is handled by the scheduler/optimizer,
-    // not by a direct field in the jobs table according to the current types.
-    // This scenario relies on the service_id potentially implying equipment needs,
-    // or the test setup asserting the conflict based on the created equipment ID.
-    const newJobData: TablesInsert<'jobs'>[] = [
-      {
+    // --- 3. Create Job Requiring Unique Equipment ---
+    // This job uses the service ID which implies a need for the unique equipment type
+    const jobRecord: TablesInsert<'jobs'> = {
         order_id: orderId,
-        service_id: baselineRefs.serviceIds?.[0], // This service might implicitly require equipment
-        status: 'queued',
-        priority: 2,
-        job_duration: 60,
-        notes: 'Job intended for equipment conflict scenario.',
-      },
-    ];
-
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
+        address_id: customerAddressId, // Job is at the order address
+        service_id: targetServiceId, // Use the service ID requiring the unique equipment type
+        status: 'pending_review', // Initial status - should remain this way if scheduler works correctly
+        priority: 5, // Example priority
+        job_duration: 60, // Example duration in minutes
+        notes: `Job requiring equipment type 'diag' (via service ${targetServiceId}) which no technician has.`
+        // Ensure vehicle_id is set on the order or job if required by FK constraints or scheduler logic
+    };
+     const { data: jobData, error: jobError } = await insertData<'jobs'>( // Corrected Generic
+      supabase,
       'jobs',
-      newJobData,
-      'Job requiring conflict equipment'
+      [jobRecord],
+      'id' // Return the id
     );
-
-    if (jobError || !newJobs || newJobs.length === 0) {
-      throw new Error(
-        `Failed to insert conflict job: ${jobError?.message || 'No data returned'}`
-      );
+    if (jobError || !jobData || jobData.length === 0) {
+      throw new Error(`Failed to insert job: ${jobError?.message}`);
     }
-    insertedIds.jobs!.push(newJobs[0].id);
-    logInfo(`Created conflict job with ID: ${newJobs[0].id}`);
+    const jobId = jobData[0].id;
+    logInfo(`Created job (ID: ${jobId}) requiring unique equipment.`);
 
-
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
+    // --- 4. Return Result ---
+    logInfo(`Successfully seeded scenario: ${scenarioName}`);
     return {
       scenarioName,
-      insertedIds,
+      insertedIds: {
+        equipment: [uniqueEquipmentId],
+        orders: [orderId],
+        jobs: [jobId],
+      },
     };
   } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    // Re-throw the error to be caught by the main seeding script
-    throw error;
+    logError(`Error seeding scenario ${scenarioName}:`, error);
+    throw error; // Re-throw the error to be caught by the main seeding script
   }
 }
 
