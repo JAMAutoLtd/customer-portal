@@ -4,6 +4,7 @@ import { seedBaseline } from './baseline';
 import { createStagingSupabaseClient, logInfo, logError } from '../../utils';
 import { seedScenario } from './scenarios'; // Scenario router
 import { ScenarioSeedResult, BaselineRefs } from './scenarios/types';
+import { cleanupScenarioLeftovers } from '../cleanup-staging';
 
 // Define default paths for metadata files, resolving from the correct root
 const DEFAULT_BASELINE_METADATA_PATH = path.resolve(__dirname, '../../../../tests/integration/.baseline-metadata.json');
@@ -134,6 +135,12 @@ async function main() {
         logError(`Failed to read or parse baseline metadata from ${baselineMetadataPath}. Cannot proceed with scenario seeding.`, readError);
         process.exit(1);
       }
+
+      // *** Add pre-scenario cleanup step ***
+      logInfo('Running pre-scenario cleanup to remove leftovers...');
+      await cleanupScenarioLeftovers(supabaseAdmin);
+      logInfo('Pre-scenario cleanup complete.');
+      // **************************************
 
       logInfo(`Applying scenario: ${scenarioName}... (Using provided baseline metadata and ${technicianCount} techs)`);
       const scenarioResult: ScenarioSeedResult = await seedScenario(supabaseAdmin, baselineRefs, scenarioName, technicianCount);

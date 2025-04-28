@@ -22,7 +22,6 @@ import {
   ymmRefData,
   servicesData,
   customerVehiclesData,
-  techniciansData,
   diagRequirementsData,
   immoRequirementsData,
   progRequirementsData,

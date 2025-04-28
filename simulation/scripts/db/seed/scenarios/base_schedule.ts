@@ -4,8 +4,6 @@ import { faker } from '@faker-js/faker';
 import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
 import { insertData, logInfo, logError, seedScenarioTechnicians } from '../../../utils';
-// Import baseline data needed for tech creation
-import { authUsersData, publicUsersData, techniciansData } from '../baseline-data'; 
 
 // Define types using the standard Supabase helpers
 type OrderRow = Tables<'orders'>;
