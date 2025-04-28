@@ -19,232 +19,274 @@ function getCleanupArgs() {
 }
 
 /**
- * Cleans up ALL test data created by baseline seeding process from the staging database.
- * WARNING: This is destructive and irreversible.
+ * Purges ALL user-related and test-related data from the staging database using TRUNCATE.
+ * WARNING: This is highly destructive and irreversible. It will empty specified tables entirely.
  *
  * @param supabaseAdmin - A Supabase client initialized with SERVICE_ROLE_KEY.
- * @param internalSkipConfirmation - If true, bypasses the confirmation prompts (used internally or via CLI arg).
+ * @param internalSkipConfirmation - If true, bypasses the confirmation prompts.
  */
 export async function cleanupAllTestData(
   supabaseAdmin: SupabaseClient<Database>,
-  internalSkipConfirmation = false // Default to false
+  internalSkipConfirmation = false
 ): Promise<void> {
-  logInfo('Starting test data cleanup...');
+  logInfo('Starting STAGING DATABASE PURGE using TRUNCATE...');
 
-  // Use environment variable for confirmation message URL
   const supabaseUrlForConfirm = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'Unknown';
 
-  // Check the parameter passed to the function first
   if (!internalSkipConfirmation) {
+    // Keep confirmation prompts, adjusted message for TRUNCATE
     const { confirm1 } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'confirm1',
-        message: 'EXTREME WARNING: This will delete ALL test data (users, orders, jobs, etc. matching patterns) from the STAGING database. Are you absolutely sure?',
+        message: 'EXTREME WARNING: This will TRUNCATE (empty) core tables (users, technicians, orders, jobs, etc.) in the STAGING database. This is a destructive purge. Are you absolutely sure?',
         default: false,
       },
     ]);
-
-    if (!confirm1) {
-      logInfo('Cleanup cancelled by user.');
-      return;
-    }
+    if (!confirm1) { logInfo('Purge cancelled by user.'); return; }
 
     const { confirm2 } = await inquirer.prompt([
       {
         type: 'input',
         name: 'confirm2',
-        message: `Type 'DELETE TEST DATA' to confirm deletion from the STAGING database URL: ${supabaseUrlForConfirm}`,
+        message: `Type 'PURGE STAGING DATA' to confirm TRUNCATE operation on the STAGING database URL: ${supabaseUrlForConfirm}`,
       },
     ]);
-
-    if (confirm2 !== 'DELETE TEST DATA') {
-      logInfo('Confirmation text did not match. Cleanup cancelled.');
-      return;
-    }
-    logInfo('Confirmation received. Proceeding with deletion...');
+    if (confirm2 !== 'PURGE STAGING DATA') { logInfo('Confirmation text did not match. Purge cancelled.'); return; }
+    logInfo('Confirmation received. Proceeding with staging database purge...');
   } else {
-      logInfo('Confirmation skipped via flag/parameter.');
+    logInfo('Confirmation skipped via flag/parameter.');
   }
 
   try {
-    // Get ALL user IDs defined in the baseline seed data
-    const testUserIds = authUsersData.map(u => u.id);
-
-    if (!testUserIds || testUserIds.length === 0) {
-      logInfo('No user IDs found in baseline seed data. Skipping deletions.');
-      return;
+    // 1. Delete ALL Auth Users first
+    logInfo('Attempting to delete ALL auth users from staging...');
+    let allAuthUsers: any[] = [];
+    let page = 0;
+    const pageSize = 100; // Adjust page size as needed
+    while (true) {
+        const { data: usersPage, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+            page: page + 1, // API is 1-based
+            perPage: pageSize,
+        });
+        if (listError) {
+            logError('Error listing auth users:', listError);
+            throw listError; // Stop if we can't list users
+        }
+        if (usersPage && usersPage.users.length > 0) {
+            allAuthUsers = allAuthUsers.concat(usersPage.users);
+            page++;
+        } else {
+            break; // No more users
+        }
     }
-    logInfo(`Targeting ${testUserIds.length} user IDs defined in baseline seed data for deletion.`);
+    const allAuthUserIds = allAuthUsers.map(u => u.id);
 
-    // Fetch corresponding numeric Technician IDs (using the baseline user IDs)
-    logInfo('Fetching corresponding technician IDs...');
-    const { data: testTechnicians, error: techFetchError } = await supabaseAdmin
-      .from('technicians')
-      .select('id')
-      .in('user_id', testUserIds);
-    if (techFetchError) throw techFetchError;
-    const testTechnicianIds = testTechnicians?.map(t => t.id) || [];
-    logInfo(`Found ${testTechnicianIds.length} corresponding technician IDs.`);
-
-    // --- Deletion Steps (Order is CRUCIAL) ---
-
-    // 1. Delete Dependent Public Data
-    logInfo('Deleting dependent public data...');
-
-    // Remove deletion for non-existent 'job_equipment'
-    // logInfo('Skipping deletion for non-existent job_equipment table.');
-
-    // Fetch order IDs linked to test users
-    const { data: testOrders, error: orderFetchError } = await supabaseAdmin
-      .from('orders')
-      .select('id')
-      .in('user_id', testUserIds);
-    if (orderFetchError) throw orderFetchError;
-    const testOrderIds = testOrders?.map(o => o.id) || [];
-    logInfo(`Found ${testOrderIds.length} orders linked to test users.`);
-
-    if (testOrderIds.length > 0) {
-      logInfo('Deleting data linked to test orders...');
-      // Delete order_services
-      const { error: osError } = await supabaseAdmin.from('order_services').delete().in('order_id', testOrderIds);
-      if (osError) logError('Error deleting order_services:', osError); else logInfo('Deleted test order_services.');
-
-      // Delete jobs
-      const { error: jobError } = await supabaseAdmin.from('jobs').delete().in('order_id', testOrderIds);
-      if (jobError) logError('Error deleting jobs:', jobError); else logInfo('Deleted test jobs.');
-
-      // Delete order_uploads
-      const { error: uploadError } = await supabaseAdmin.from('order_uploads').delete().in('order_id', testOrderIds);
-      if (uploadError) logError('Error deleting order_uploads:', uploadError); else logInfo('Deleted test order_uploads.');
-
-      // Delete orders
-      const { error: orderDelError } = await supabaseAdmin.from('orders').delete().in('id', testOrderIds);
-      if (orderDelError) logError('Error deleting orders:', orderDelError); else logInfo('Deleted test orders.');
+    if (allAuthUserIds.length > 0) {
+        logInfo(`Found ${allAuthUserIds.length} auth users to delete...`);
+        let authDeletionCount = 0;
+        for (const userId of allAuthUserIds) {
+          try {
+            const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+            if (authError) {
+              if (!(authError instanceof AuthApiError && authError.status === 404)) {
+                logError(`Error deleting auth user ${userId}: ${authError.message}`, authError);
+                // Decide whether to continue or stop on error
+              }
+            } else {
+              authDeletionCount++;
+            }
+          } catch (indivError) {
+            logError(`Caught exception deleting auth user ${userId}:`, indivError);
+          }
+        }
+        logInfo(`Attempted deletion of ${allAuthUserIds.length} auth users. Success count: ${authDeletionCount}.`);
+    } else {
+      logInfo('No auth users found in staging to delete.');
     }
 
-    if (testTechnicianIds.length > 0) {
-        logInfo('Deleting data linked to test technicians...');
-        // Delete technician_availability_exceptions (use numeric technician IDs)
-        const { error: availError } = await supabaseAdmin.from('technician_availability_exceptions').delete().in('technician_id', testTechnicianIds);
-        if (availError) logError('Error deleting technician_availability_exceptions:', availError); else logInfo('Deleted test technician_availability_exceptions.');
+    // 2. TRUNCATE Public Tables
+    logInfo('Truncating public schema tables using CASCADE...');
 
-        // Delete technician_default_hours (use numeric technician IDs)
-        const { error: defaultHoursError } = await supabaseAdmin.from('technician_default_hours').delete().in('technician_id', testTechnicianIds);
-        if (defaultHoursError) logError('Error deleting technician_default_hours:', defaultHoursError); else logInfo('Deleted test technician_default_hours.');
-    }
-
-    // Delete technicians (references users, use user IDs)
-    if (testUserIds.length > 0) {
-        const { error: techDelError } = await supabaseAdmin.from('technicians').delete().in('user_id', testUserIds);
-        if (techDelError) logError('Error deleting technicians:', techDelError); else logInfo('Deleted test technicians.');
-    }
-
-    // Skipping van_equipment as before
-    logInfo('Skipping van_equipment deletion (requires clearer test van identification).');
-
-    // Delete user_addresses (junction table, use user IDs)
-    if (testUserIds.length > 0) {
-        const { error: uaError } = await supabaseAdmin.from('user_addresses').delete().in('user_id', testUserIds);
-        if (uaError) logError('Error deleting user_addresses:', uaError); else logInfo('Deleted test user_addresses.');
-    }
-
-    // 2. Delete Core Public Data
-    logInfo('Deleting core public data...');
-
-    // Delete technicians (references users, use user IDs)
-    if (testUserIds.length > 0) {
-        const { error: techDelError } = await supabaseAdmin.from('technicians').delete().in('user_id', testUserIds);
-        if (techDelError) logError('Error deleting technicians:', techDelError); else logInfo('Deleted test technicians.');
-    }
-
-    // Delete public users (use user IDs)
-    if (testUserIds.length > 0) {
-        const { error: publicUserError } = await supabaseAdmin.from('users').delete().in('id', testUserIds);
-        if (publicUserError) logError('Error deleting public users:', publicUserError); else logInfo('Deleted test public users.');
-    }
-    
-    // Now delete the static baseline data - assumes these tables ONLY contain baseline/test data
-    logInfo('Deleting static baseline table data...');
-    // Order MATTERS: Delete tables referencing others first.
-    const staticTables: (keyof Database["public"]["Tables"])[] = [
-        // 1. Requirement tables (reference services, ymm_ref, equipment)
+    // List all tables known to be populated by tests/baseline data.
+    // Order matters less with CASCADE, but good to list primary ones.
+    // Add any other tables that need clearing.
+    const tablesToTruncate: string[] = [
+        // Core data tables
+        'jobs',
+        'orders',
+        'technicians',
+        'users', // Public users table
+        'vans',
+        'customer_vehicles',
+        'addresses',
+        'equipment',
+        'services',
+        'keys',
+        'ymm_ref',
+        // Junction / Dependent tables (CASCADE should handle, but explicit is okay)
+        'order_services',
+        'order_uploads',
+        'technician_availability_exceptions',
+        'technician_default_hours',
+        'user_addresses',
+        'van_equipment',
+        // Requirement tables
         'diag_equipment_requirements',
         'immo_equipment_requirements',
         'prog_equipment_requirements',
         'airbag_equipment_requirements',
         'adas_equipment_requirements',
-        // 2. Vans (references customer_vehicles via VIN)
-        'vans',
-        // 3. Now safe to delete tables referenced above
-        'customer_vehicles',
-        'services',
-        'ymm_ref',
-        'equipment', // Referenced by van_equipment (skipped), but safe now
-        'addresses' // Referenced by users, orders - should be safe now
     ];
-    
-    for (const table of staticTables) {
-        let deleteError: any = null;
-        let deleteResult: any = null; // Variable to store result
-        try {
-            if (table === 'ymm_ref') {
-                // ymm_ref uses ymm_id as primary key
-                deleteResult = await supabaseAdmin.from(table).delete().gte('ymm_id', 0);
-                deleteError = deleteResult.error;
-            } else {
-                // Assume other tables use 'id' as primary key (or a numeric PK >= 0)
-                deleteResult = await supabaseAdmin.from(table).delete().gte('id', 0);
-                deleteError = deleteResult.error;
-            }
-            
-            if (deleteError) {
-                logError(`Error deleting data from ${table}:`, deleteError);
-                // Log and continue
-            } else {
-                // Log the count of deleted rows (might be available in result, depends on Supabase version/config)
-                const deletedCount = deleteResult.data?.length ?? deleteResult.count ?? 'unknown'; 
-                logInfo(`Deleted ${deletedCount} records from ${table}.`);
-            }
-        } catch(catchError) {
-             logError(`Exception during deletion from ${table}:`, catchError);
-        }
-    }
 
-    // 3. Delete Auth Users
-    if (testUserIds.length > 0) {
-        logInfo(`Deleting ${testUserIds.length} auth users...`);
-        let authDeletionCount = 0;
-        for (const userId of testUserIds) {
-          try {
-            const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-            if (authError) {
-              // Only log errors that are NOT 'User not found' (status 404)
-              if (!(authError instanceof AuthApiError && authError.status === 404)) {
-                logError(`Error deleting auth user ${userId}: ${authError.message}`, authError);
-              } else {
-                // Optional: Log that deletion was skipped because user didn't exist
-                // logInfo(`Auth user ${userId} not found, skipping deletion.`); 
-              }
-            } else {
-              authDeletionCount++;
-              // logInfo(`Deleted auth user ${userId}`); // Potentially too verbose
-            }
-          } catch (indivError) {
-            // Catch other potential exceptions during the call itself
-            logError(`Caught exception deleting auth user ${userId}:`, indivError);
-          }
-        }
-        logInfo(`Attempted deletion of ${testUserIds.length} auth users. Success count: ${authDeletionCount}.`);
+    // Construct the TRUNCATE command
+    // Important: Ensure the service role used by supabaseAdmin has TRUNCATE privileges.
+    const truncateCommand = `TRUNCATE TABLE ${tablesToTruncate.map(t => `public.${t}`).join(', ')} RESTART IDENTITY CASCADE;`;
+
+    logInfo(`Executing: ${truncateCommand}`);
+    const { error: truncateError } = await supabaseAdmin.rpc('execute_sql', { sql: truncateCommand });
+
+    if (truncateError) {
+      logError('Error executing TRUNCATE command:', truncateError);
+      throw truncateError;
     } else {
-      logInfo('Skipping auth user deletion as no test user IDs were found.');
+      logInfo('Successfully truncated public tables.');
     }
 
-    logInfo('Test data cleanup process finished.');
+    logInfo('STAGING DATABASE PURGE finished.');
 
   } catch (error) {
-    logError('Error during test data cleanup execution:', error);
+    logError('Error during staging database purge execution:', error);
     throw error; // Re-throw the error to indicate failure
+  }
+}
+
+/**
+ * Cleans up data potentially left over from previous scenario runs,
+ * preserving only the baseline data defined in baseline-data.ts.
+ * This is intended to run *after* baseline seeding and *before* scenario seeding.
+ * It does NOT require user confirmation.
+ *
+ * @param supabaseAdmin - A Supabase client initialized with SERVICE_ROLE_KEY.
+ */
+export async function cleanupScenarioLeftovers(
+  supabaseAdmin: SupabaseClient<Database>
+): Promise<void> {
+  logInfo('Starting scenario leftover data cleanup...');
+
+  try {
+    // --- Clean up Scenario-Specific Users/Technicians (Fetch IDs first) ---
+    logInfo('Identifying ALL technicians to remove...');
+
+    // Get ALL existing technicians and their user_ids
+    const { data: existingTechnicians, error: techFetchError } = await supabaseAdmin
+      .from('technicians')
+      .select('id, user_id');
+
+    if (techFetchError) {
+      logError('Error fetching existing technicians:', techFetchError);
+      throw techFetchError;
+    }
+
+    const technicianDbIdsToDelete = existingTechnicians?.map((t) => t.id) ?? [];
+    const technicianAuthIdsToDelete = existingTechnicians?.map((t) => t.user_id).filter((id): id is string => id !== null) ?? [];
+
+    if (technicianDbIdsToDelete.length > 0) {
+      logInfo(`Found ${technicianDbIdsToDelete.length} technicians (DB IDs: ${technicianDbIdsToDelete.join(', ')}) and associated users (Auth IDs: ${technicianAuthIdsToDelete.join(', ')}) to remove.`);
+
+      // --- STEP 1: Delete Dependent Records FIRST ---
+      logInfo('Deleting dependent records (jobs, availability, default hours) for identified technicians...');
+
+      // Delete jobs assigned to these technicians
+      const { error: jobDeleteError } = await supabaseAdmin
+        .from('jobs')
+        .delete()
+        .in('assigned_technician', technicianDbIdsToDelete);
+      if (jobDeleteError) logError('Error deleting dependent jobs:', jobDeleteError);
+      else logInfo('Deleted dependent jobs.');
+
+      // Delete availability exceptions for these technicians
+      const { error: availDeleteError } = await supabaseAdmin
+        .from('technician_availability_exceptions')
+        .delete()
+        .in('technician_id', technicianDbIdsToDelete);
+      if (availDeleteError) logError('Error deleting dependent availability exceptions:', availDeleteError);
+      else logInfo('Deleted dependent availability exceptions.');
+
+      // Delete default hours for these technicians
+      const { error: hoursDeleteError } = await supabaseAdmin
+        .from('technician_default_hours')
+        .delete()
+        .in('technician_id', technicianDbIdsToDelete);
+      if (hoursDeleteError) logError('Error deleting dependent default hours:', hoursDeleteError);
+      else logInfo('Deleted dependent default hours.');
+
+      // --- STEP 2: Delete Technicians, then Public Users, then Auth Users ---
+
+      // Delete from technicians table (should succeed now)
+      logInfo('Deleting technicians records...');
+      const { error: techDeleteError } = await supabaseAdmin
+        .from('technicians')
+        .delete()
+        .in('id', technicianDbIdsToDelete);
+      if (techDeleteError) logError('Error deleting technicians:', techDeleteError); // Still log, but might indicate other issues
+      else logInfo(`Deleted technicians with DB IDs: ${technicianDbIdsToDelete.join(', ')}`);
+
+      // Delete corresponding public users (should succeed now)
+      if (technicianAuthIdsToDelete.length > 0) { // Check if there are any UUIDs to delete
+          logInfo('Deleting public user profiles for technicians...');
+          const { error: publicUserDeleteError } = await supabaseAdmin
+            .from('users')
+            .delete()
+            .in('id', technicianAuthIdsToDelete);
+          if (publicUserDeleteError) logError('Error deleting public users:', publicUserDeleteError);
+          else logInfo(`Deleted public users with Auth IDs: ${technicianAuthIdsToDelete.join(', ')}`);
+
+          // Delete corresponding auth users (should succeed now)
+          logInfo('Deleting auth users for technicians...');
+          let deletedAuthCount = 0;
+          for (const userId of technicianAuthIdsToDelete) {
+            try {
+              const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+              if (authDeleteError && authDeleteError.message !== 'User not found') {
+                logError(`Error deleting auth user ${userId}:`, authDeleteError);
+              } else if (!authDeleteError) {
+                deletedAuthCount++;
+              }
+            } catch (err) {
+              logError(`Exception deleting auth user ${userId}:`, err);
+            }
+          }
+          logInfo(`Attempted deletion for ${technicianAuthIdsToDelete.length} auth users, successfully deleted: ${deletedAuthCount}`);
+      } else {
+          logInfo('No associated public/auth users to delete for the found technicians (this might indicate inconsistent data).');
+      }
+
+    } else {
+      logInfo('No existing technicians found to remove.');
+    }
+
+    // --- Also Clean Up Orders (Not directly linked to technicians, but scenario-specific) ---
+    // Keep this part to ensure orders from previous runs are gone
+    logInfo('Deleting ALL remaining order related data (scenario leftovers)...');
+    // Order matters: delete dependent tables first
+    const { error: osError } = await supabaseAdmin.from('order_services').delete().gte('order_id', 0); // Delete all
+    if (osError) logError('Error deleting leftover order_services:', osError);
+    const { error: uploadError } = await supabaseAdmin.from('order_uploads').delete().gte('order_id', 0); // Delete all
+    if (uploadError) logError('Error deleting leftover order_uploads:', uploadError);
+    const { error: orderDelError } = await supabaseAdmin.from('orders').delete().gte('id', 0); // Delete all orders
+    if (orderDelError) logError('Error deleting leftover orders:', orderDelError); else logInfo('Deleted all orders and associated data.');
+
+    // IMPORTANT: Do NOT delete static tables (services, equipment, addresses, etc.)
+    logInfo('Skipping deletion of static baseline table data.');
+
+    logInfo('Scenario leftover data cleanup process finished.');
+
+  } catch (error) {
+    logError('Error during scenario leftover data cleanup execution:', error);
+    // We might not want to hard fail the whole seeding process if cleanup fails,
+    // depending on desired behavior. For now, re-throw.
+    throw error;
   }
 }
 

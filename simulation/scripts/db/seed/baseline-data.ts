@@ -83,10 +83,6 @@ export const addressesData: Address[] = [
 ];
 
 export const authUsersData: AuthUserSeedData[] = [
-  { id: '00000000-0000-0000-0000-000000000001', email: 'tech1@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000002', email: 'tech2@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000003', email: 'tech3@example.com', password: 'password123' },
-  { id: '00000000-0000-0000-0000-000000000004', email: 'tech4@example.com', password: 'password123' },
   { id: '00000000-0000-0000-0000-000000000101', email: 'customer1@shop.com', password: 'password123' },
   { id: '00000000-0000-0000-0000-000000000102', email: 'customer2@shop.com', password: 'password123' },
   { id: '00000000-0000-0000-0000-000000000103', email: 'customer3@shop.com', password: 'password123' },
@@ -140,12 +136,6 @@ export const authUsersData: AuthUserSeedData[] = [
 ];
 
 export const publicUsersData: PublicUser[] = [
-  // Technicians (will be filtered)
-  { id: '00000000-0000-0000-0000-000000000001', full_name: 'Tech One', phone: '403-100-0001', home_address_id: 1, is_admin: true, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000002', full_name: 'Tech Two', phone: '403-100-0002', home_address_id: 2, is_admin: true, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000003', full_name: 'Tech Three', phone: '403-100-0003', home_address_id: 3, is_admin: true, customer_type: 'residential' },
-  { id: '00000000-0000-0000-0000-000000000004', full_name: 'Tech Four', phone: '403-100-0004', home_address_id: 4, is_admin: true, customer_type: 'residential' },
-  // Customers
   { id: '00000000-0000-0000-0000-000000000101', full_name: 'Superior Paint & Body Service Ltd', phone: '403-200-0101', home_address_id: 5, is_admin: false, customer_type: 'residential' },
   { id: '00000000-0000-0000-0000-000000000102', full_name: 'Center Street Auto Service', phone: '403-200-0102', home_address_id: 6, is_admin: false, customer_type: 'residential' },
   { id: '00000000-0000-0000-0000-000000000103', full_name: 'National Transmission', phone: '403-200-0103', home_address_id: 7, is_admin: false, customer_type: 'residential' },
@@ -359,13 +349,6 @@ export const customerVehiclesData: CustomerVehicle[] = [
   { id: 47, vin: 'VIN_VAN_2', make: 'Ford', model: 'Transit', year: 2022 },
   { id: 48, vin: 'VIN_VAN_3', make: 'Mercedes', model: 'Sprinter', year: 2021 },
   { id: 49, vin: 'VIN_VAN_4', make: 'Mercedes', model: 'Sprinter', year: 2021 },
-];
-
-export const techniciansData: Technician[] = [
-  { id: 1, user_id: '00000000-0000-0000-0000-000000000001', assigned_van_id: 1, workload: 100 },
-  { id: 2, user_id: '00000000-0000-0000-0000-000000000002', assigned_van_id: 2, workload: 100 },
-  { id: 3, user_id: '00000000-0000-0000-0000-000000000003', assigned_van_id: 3, workload: 80 },
-  { id: 4, user_id: '00000000-0000-0000-0000-000000000004', assigned_van_id: 4, workload: 100 },
 ];
 
 export const diagRequirementsData: RequirementInsertBase[] = [

@@ -4,7 +4,6 @@ import {
     waitForReplan,
     readCurrentScenarioMetadata,
     readBaselineMetadata,
-    cleanupScenarioData
 } from './utils';
 import { SupabaseClient } from '@supabase/supabase-js';
 // Do NOT import seeding functions here
@@ -112,15 +111,5 @@ describe('Scheduler Integration - Base Schedule', () => {
         }
 
         console.log('Base schedule verification successful.');
-    });
-
-    afterAll(async () => {
-        // Cleanup data created by this scenario run
-        if (currentScenarioResult && currentScenarioResult.insertedIds) {
-            console.log('--- Test Teardown: Cleaning up scenario data ---');
-            await cleanupScenarioData(currentScenarioResult.insertedIds);
-        } else {
-            console.log('--- Test Teardown: No scenario metadata found, skipping cleanup --- ');
-        }
     });
 }); 

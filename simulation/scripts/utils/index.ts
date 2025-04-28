@@ -3,10 +3,16 @@ import { createClient, SupabaseClient, PostgrestError } from '@supabase/supabase
 import path from 'path';
 // Explicitly import the types needed within this module
 import { Database, Tables, TablesInsert } from '../db/seed/staged.database.types';
-// Corrected import path for baseline data
-import { authUsersData, publicUsersData, techniciansData } from '../db/seed/baseline-data';
+// Corrected import path for baseline data - Removed techniciansData import
+import { authUsersData, publicUsersData } from '../db/seed/baseline-data';
 // Remove incorrect import of types.ts
 // import type { UserInsert, TechnicianInsert } from './db/seed/types';
+import {
+  technicianAuthUsersData,
+  technicianPublicUsersData,
+  technicianTechniciansData,
+  technicianVansData // Import van data from technician-data as well
+} from '../db/seed/technician-data';
 
 // dotenv.config({ path: path.resolve(__dirname, '../../.env.test') }); // Removed: Handled by -r dotenv/config
 
@@ -127,36 +133,29 @@ interface SeedTechniciansResult {
 export async function seedScenarioTechnicians(
     supabaseAdmin: SupabaseClient<Database>,
     technicianCount: number,
-    availableVanIds: number[]
+    availableVanIds: number[] | undefined
 ): Promise<SeedTechniciansResult> {
     logInfo(`Seeding ${technicianCount} technicians for scenario...`);
 
-    if (![1, 2, 3, 4].includes(technicianCount)) {
-        throw new Error(`Invalid technicianCount (${technicianCount}). Must be 1, 2, 3, or 4.`);
+    // Validate technician count against available definitions
+    if (technicianCount > technicianAuthUsersData.length) {
+        throw new Error(
+            `Requested technician count (${technicianCount}) exceeds available definitions (${technicianAuthUsersData.length}). Please add more technician definitions to technician-data.ts or request fewer technicians.`
+        );
     }
-    if (availableVanIds.length < technicianCount) {
-        throw new Error(`Not enough baseline vans (${availableVanIds.length}) available for ${technicianCount} technicians.`);
+    if (technicianCount > technicianVansData.length) {
+        throw new Error(
+            `Requested technician count (${technicianCount}) exceeds available van definitions (${technicianVansData.length}). Please add more van definitions to technician-data.ts or request fewer technicians.`
+        );
     }
+    // Select the required number of technician definitions
+    const authUsersToCreate = technicianAuthUsersData.slice(0, technicianCount);
+    const publicUsersToCreate = technicianPublicUsersData.slice(0, technicianCount);
+    const techniciansToCreate = technicianTechniciansData.slice(0, technicianCount);
+    const vansToUse = technicianVansData.slice(0, technicianCount); // Use vans from tech data
 
-    // Define types locally for clarity within the function scope
-    type AuthUser = typeof authUsersData[number];
-    type PublicUserSeed = TablesInsert<'users'>;
-    type TechnicianSeed = TablesInsert<'technicians'>;
-
-    // Filter necessary data based on technicianCount
-    const techUserSeedData = authUsersData
-        .filter((u: AuthUser) => u.email.startsWith('tech'))
-        .slice(0, technicianCount);
-    const techPublicUsersInput: PublicUserSeed[] = publicUsersData
-        .filter(u => techUserSeedData.some((t: AuthUser) => t.id === u.id)); 
-    const techTechniciansInputInitial: TechnicianSeed[] = techniciansData
-        .filter(t => techUserSeedData.some((techUser: AuthUser) => techUser.id === t.user_id))
-        .slice(0, technicianCount);
-
-    // --- STEP 1: Ensure all Auth users exist ---    
-    logInfo(`Ensuring ${techUserSeedData.length} auth users exist...`);
     const createdOrConfirmedAuthIds: string[] = [];
-    for (const user of techUserSeedData) {
+    for (const user of authUsersToCreate) {
         let userExists = false;
         try {
             // Attempt to fetch the user by ID
@@ -184,7 +183,7 @@ export async function seedScenarioTechnicians(
         if (!userExists) {
             try {
                 logInfo(`Auth user ${user.email} (ID: ${user.id}) not found. Creating...`);
-                const publicProfile = techPublicUsersInput.find(pu => pu.id === user.id);
+                const publicProfile = publicUsersToCreate.find(pu => pu.id === user.id);
                 const { data: createdUserData , error: authError } = await supabaseAdmin.auth.admin.createUser({
                     user_metadata: { full_name: publicProfile?.full_name ?? 'Test Tech' },
                     email: user.email,
@@ -220,21 +219,20 @@ export async function seedScenarioTechnicians(
     logInfo(`Finished processing ${createdOrConfirmedAuthIds.length} auth users.`);
     
     // Ensure we only proceed with users confirmed/created in auth
-    const finalPublicUsersInput = techPublicUsersInput.filter(pu => createdOrConfirmedAuthIds.includes(pu.id));
-    const finalTechniciansInput = techTechniciansInputInitial.filter(t => createdOrConfirmedAuthIds.includes(t.user_id!));
+    const finalPublicUsersInput = publicUsersToCreate.filter(pu => createdOrConfirmedAuthIds.includes(pu.id));
+    const finalTechniciansInput = techniciansToCreate.map((tech, index) => {
+        // Use van IDs from the filtered technicianVansData
+        const assignedVanId = vansToUse[index].id;
+        if (assignedVanId === undefined) {
+            throw new Error(`Ran out of available vans to assign to technicians.`);
+        }
+        return {
+            ...tech,
+            assigned_van_id: assignedVanId
+        };
+    });
 
-    // --- STEP 2: Assign Vans --- 
-    const assignedVanIds: number[] = [];
-    if (availableVanIds.length < finalTechniciansInput.length) {
-        throw new Error(`Not enough baseline vans (${availableVanIds.length}) available for ${finalTechniciansInput.length} technicians.`);
-    }
-    for (let i = 0; i < finalTechniciansInput.length; i++) {
-        const vanId = availableVanIds[i];
-        finalTechniciansInput[i].assigned_van_id = vanId;
-        assignedVanIds.push(vanId);
-    }
-    
-    // --- STEP 3: Insert Public Users --- 
+    // --- STEP 2: Insert Public Users --- 
     logInfo(`Inserting ${finalPublicUsersInput.length} technician public user profiles...`);
     const techPublicUsersResult = await insertData(supabaseAdmin, 'users', finalPublicUsersInput, 'Technician public user profiles');
     if (techPublicUsersResult.error) {
@@ -242,7 +240,7 @@ export async function seedScenarioTechnicians(
         throw techPublicUsersResult.error;
     }
 
-    // --- STEP 4: Insert Technicians --- 
+    // --- STEP 3: Insert Technicians --- 
     logInfo(`Inserting ${finalTechniciansInput.length} technician profiles...`);
     const techniciansResult = await insertData(supabaseAdmin, 'technicians', finalTechniciansInput, 'Technician profiles');
     if (techniciansResult.error) {
@@ -265,7 +263,7 @@ export async function seedScenarioTechnicians(
 
     return {
         createdTechnicianAuthIds: createdOrConfirmedAuthIds,
-        assignedVanIds,
+        assignedVanIds: finalTechniciansInput.map(t => t.assigned_van_id),
         createdTechnicianDbIds
     };
 } 
