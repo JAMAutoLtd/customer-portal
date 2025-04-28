@@ -142,14 +142,43 @@ async function main() {
       logInfo('Pre-scenario cleanup complete.');
       // **************************************
 
-      logInfo(`Applying scenario: ${scenarioName}... (Using provided baseline metadata and ${technicianCount} techs)`);
-      const scenarioResult: ScenarioSeedResult = await seedScenario(supabaseAdmin, baselineRefs, scenarioName, technicianCount);
+      // *** Seed Technicians for this Scenario Run ***
+      logInfo(`Seeding ${technicianCount} technicians for scenario '${scenarioName}'...`);
+      const { seedScenarioTechnicians } = await import('../../utils'); // Dynamically import to avoid circular dependency issues if any
+      if (!baselineRefs.vanIds || baselineRefs.vanIds.length < technicianCount) {
+        throw new Error(`BaselineRefs missing required vanIds or not enough vans (${baselineRefs.vanIds?.length}) for the requested technician count (${technicianCount}).`);
+      }
+      const techResult = await seedScenarioTechnicians(supabaseAdmin, technicianCount, baselineRefs.vanIds);
+      logInfo(`Seeded ${techResult.createdTechnicianDbIds.length} technicians. DB IDs: ${techResult.createdTechnicianDbIds.join(', ')}`);
+      // ********************************************
+
+      logInfo(`Applying scenario: ${scenarioName}...`);
+      // Pass the newly created technician DB IDs to the scenario function via the router
+      const scenarioResult: ScenarioSeedResult = await seedScenario(
+          supabaseAdmin,
+          baselineRefs, // Pass original baseline refs
+          scenarioName,
+          techResult.createdTechnicianDbIds // Pass the actual DB IDs
+          // technicianCount is no longer needed here
+      );
       logInfo(`Scenario '${scenarioName}' applied successfully.`);
 
-      // Write the ScenarioSeedResult to the output file
+      // Add technician IDs to the final output metadata
+      const finalOutputMetadata = {
+        ...scenarioResult,
+        // Ensure insertedIds exists, and add technicianDbIds to it
+        insertedIds: {
+          ...(scenarioResult.insertedIds || {}),
+          technicianDbIds: techResult.createdTechnicianDbIds,
+          technicianAuthIds: techResult.createdTechnicianAuthIds,
+          assignedVanIds: techResult.assignedVanIds
+        }
+      };
+
+      // Write the combined ScenarioSeedResult + Tech IDs to the output file
       try {
         logInfo(`Writing scenario metadata to ${outputMetadataPath}...`);
-        await fs.writeFile(outputMetadataPath, JSON.stringify(scenarioResult, null, 2));
+        await fs.writeFile(outputMetadataPath, JSON.stringify(finalOutputMetadata, null, 2));
         logInfo('Scenario metadata file written successfully.');
       } catch (writeError) {
         logError('Failed to write scenario metadata file.', writeError);

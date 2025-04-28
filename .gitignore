@@ -94,4 +94,7 @@ dev-debug.log
 # OS specific
 # Task files
 tasks.json
-tasks/ 
+tasks/
+
+# Accidental commits
+doghole 

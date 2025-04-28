@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   type Database,
@@ -12,147 +13,112 @@ import type { BaselineRefs, ScenarioSeedResult } from './types';
 /**
  * Seeds the database for the 'fixed_time_future_overflow' scenario.
  *
- * Scenario: Creates several regular jobs for tomorrow and one additional
- *           job fixed for a specific time tomorrow (e.g., 11:00 AM).
- *           Aims to test scheduler behavior when capacity is constrained
- *           and a fixed-time job is introduced.
+ * Goal: Create several jobs for tomorrow, including one with a fixed time,
+ * potentially causing scheduling overflow or conflicts due to capacity constraints.
  *
- * Expected Outcome: The scheduler should prioritize the fixed-time job at its
- *                   specified time. Other jobs for tomorrow might be pushed
- *                   back or rescheduled based on capacity and the fixed constraint.
- *
- * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data.
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param supabase The Supabase client instance.
+ * @param baselineRefs References to baseline data (IDs, etc.).
+ * @param technicianDbIds Accept DB IDs, even if unused here
+ * @returns A ScenarioSeedResult object containing the IDs of the created records.
  */
 export async function seedScenario_fixed_time_future_overflow(
-  supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  supabase: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[] // Accept DB IDs, even if unused here
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'fixed_time_future_overflow';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    orders: [],
-    jobs: [],
-  };
-
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
 
   try {
     // --- Prerequisite Checks ---
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    if (!baselineRefs.customerIds?.length) {
+      throw new Error('BaselineRefs missing required customerIds');
     }
-    // Need multiple services to create diverse jobs
+    if (!baselineRefs.addressIds?.length) {
+      throw new Error('BaselineRefs missing required addressIds');
+    }
+    // Need several service IDs for variety
     if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length < 3) {
-      throw new Error('Insufficient service IDs (< 3) found in baseline references for this scenario.');
+        throw new Error('BaselineRefs missing required serviceIds (need >= 3)');
     }
-    if (!baselineRefs.addressIds || baselineRefs.addressIds.length === 0) {
-      throw new Error('No address IDs found in baseline references.');
-    }
-    const userId = baselineRefs.customerIds[0];
+    const customerUserId = baselineRefs.customerIds[0];
+    const customerAddressId = baselineRefs.addressIds[0];
     const serviceId1 = baselineRefs.serviceIds[0];
     const serviceId2 = baselineRefs.serviceIds[1];
-    const serviceId3 = baselineRefs.serviceIds[2]; // For the fixed job
-    const addressId = baselineRefs.addressIds[0];
+    const serviceId3 = baselineRefs.serviceIds[2]; // For the fixed time job
 
-    // --- 1. Create the Order ---
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        address_id: addressId,
-        notes: `Order for ${scenarioName} scenario.`,
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
-      'orders',
-      orderData,
-      'Order for fixed time future overflow'
-    );
-
-    if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
+    // --- 1. Create Order ---
+    const orderRecord: TablesInsert<'orders'> = {
+        user_id: customerUserId,
+        address_id: customerAddressId,
+        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
+        // Earliest available is tomorrow, aligning with job scheduling
+        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(),
+        notes: `Order for ${scenarioName}.`
+    };
+    const { data: orderData, error: orderError } = await insertData<'orders'>(supabase, 'orders', [orderRecord], 'id');
+    if (orderError || !orderData || orderData.length === 0) {
+      throw new Error(`Failed to insert order: ${orderError?.message}`);
     }
-    const orderId = newOrders[0].id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId}`);
+    const orderId = orderData[0].id;
+    logInfo(`Created order (ID: ${orderId}) for ${scenarioName}.`);
 
-    // --- 2. Calculate Times for Tomorrow ---
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0); // Start of day tomorrow
-    const tomorrowStartISO = tomorrow.toISOString();
+    // --- 2. Create Jobs for Tomorrow (to potentially fill capacity) ---
+    const jobsToCreate: TablesInsert<'jobs'>[] = [];
+    const numberOfFillerJobs = 3; // Adjust as needed based on expected capacity
 
-    tomorrow.setHours(11, 0, 0, 0); // Set time to 11:00:00.000 tomorrow
-    const fixedTimeTomorrowISO = tomorrow.toISOString();
-    logInfo(`Calculated fixed time for tomorrow: ${fixedTimeTomorrowISO}`);
+    for (let i = 0; i < numberOfFillerJobs; i++) {
+        jobsToCreate.push({
+            order_id: orderId,
+            address_id: customerAddressId,
+            service_id: i % 2 === 0 ? serviceId1 : serviceId2, // Alternate services
+            status: 'pending_review',
+            priority: faker.number.int({ min: 1, max: 5 }), // Vary priority
+            job_duration: faker.number.int({ min: 45, max: 120 }), // Vary duration
+            fixed_assignment: false, // Explicitly set default value
+            notes: `Filler job ${i + 1} for ${scenarioName}. Scheduled for tomorrow.`
+            // Request time could be set to tomorrow explicitly if needed by scheduler logic
+            // requested_time: faker.date.soon({ days: 1, refDate: new Date(Date.now() + 86400000) }).toISOString()
+        });
+    }
 
-    // --- 3. Create Jobs (Regular + Fixed) ---
-    const allJobsData: TablesInsert<'jobs'>[] = [
-      // Regular jobs for tomorrow
-      {
+    // --- 3. Create Fixed Time Job for Tomorrow ---
+    const fixedTimeTomorrow = new Date();
+    fixedTimeTomorrow.setDate(fixedTimeTomorrow.getDate() + 1); // Set to tomorrow
+    fixedTimeTomorrow.setHours(11, 0, 0, 0); // Set fixed time to 11:00 AM tomorrow
+
+    jobsToCreate.push({
         order_id: orderId,
-        service_id: serviceId1,
-        address_id: addressId,
-        status: 'queued',
-        priority: 3, // Lower priority
-        job_duration: 120,
-        requested_time: tomorrowStartISO, // Request for tomorrow
-        notes: 'Regular job 1 for tomorrow (overflow scenario)',
-        fixed_assignment: false,
-      },
-      {
-        order_id: orderId,
-        service_id: serviceId2,
-        address_id: addressId,
-        status: 'queued',
-        priority: 3, // Lower priority
-        job_duration: 90,
-        requested_time: tomorrowStartISO, // Request for tomorrow
-        notes: 'Regular job 2 for tomorrow (overflow scenario)',
-        fixed_assignment: false,
-      },
-      // Fixed time job for tomorrow
-      {
-        order_id: orderId,
+        address_id: customerAddressId,
         service_id: serviceId3,
-        address_id: addressId,
         status: 'fixed_time',
-        priority: 1, // Higher priority
-        job_duration: 60,
-        fixed_assignment: true,
-        fixed_schedule_time: fixedTimeTomorrowISO,
-        notes: `Fixed time job for tomorrow @ ${fixedTimeTomorrowISO}`,
-      },
-    ];
+        priority: 10, // High priority
+        job_duration: 75,
+        fixed_schedule_time: fixedTimeTomorrow.toISOString(),
+        fixed_assignment: false, // Explicitly set default value (even for fixed time)
+        notes: `Job for ${scenarioName}, fixed for TOMORROW ${fixedTimeTomorrow.toLocaleString()}`
+    });
 
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
-      'jobs',
-      allJobsData,
-      'Jobs for fixed time future overflow'
-    );
-
-    if (jobError || !newJobs || newJobs.length < allJobsData.length) {
-      throw new Error(
-        `Failed to insert all jobs: ${jobError?.message || 'Incorrect data returned'}`
-      );
+    // --- 4. Insert All Jobs ---
+    const { data: jobData, error: jobError } = await insertData<'jobs'>(supabase, 'jobs', jobsToCreate, 'id');
+    if (jobError || !jobData || jobData.length !== jobsToCreate.length) {
+      throw new Error(`Failed to insert all jobs: ${jobError?.message || 'Incorrect number of jobs inserted'}`);
     }
-    insertedIds.jobs = newJobs.map(job => job.id);
-    logInfo(`Created jobs with IDs: ${insertedIds.jobs.join(', ')}`);
+    const jobIds = jobData.map(j => j.id);
+    logInfo(`Created ${jobIds.length} jobs (IDs: ${jobIds.join(', ')}) for ${scenarioName}.`);
 
-    // --- Completion ---
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
+    // --- 5. Return Result ---
+    logInfo(`Successfully seeded scenario: ${scenarioName}`);
     return {
       scenarioName,
-      insertedIds,
+      insertedIds: {
+        orders: [orderId],
+        jobs: jobIds,
+      },
     };
 
   } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    throw error; // Re-throw for the main script
+    logError(`Error seeding scenario ${scenarioName}:`, error);
+    throw error;
   }
 }

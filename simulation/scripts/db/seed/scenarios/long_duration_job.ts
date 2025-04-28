@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   type Database,
@@ -12,133 +13,106 @@ import type { BaselineRefs, ScenarioSeedResult } from './types';
 /**
  * Seeds the database for the 'long_duration_job' scenario.
  *
- * Scenario: Creates one job with an unusually long duration (e.g., 4+ hours)
- *           alongside several normal-duration jobs.
+ * Goal: Create one job with an unusually long duration (e.g., 4+ hours)
+ * alongside several normal-duration jobs to test capacity impact.
  *
- * Expected Outcome: The long-duration job should significantly impact scheduling
- *                   capacity for the day it's placed, potentially pushing other
- *                   jobs to later times or different days.
- *
- * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data.
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param supabase The Supabase client instance.
+ * @param baselineRefs References to baseline data (IDs, etc.).
+ * @param technicianDbIds The DB IDs of the technicians seeded for this run.
+ * @returns A ScenarioSeedResult object containing the IDs of the created records.
  */
 export async function seedScenario_long_duration_job(
-  supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  supabase: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[] // Accept DB IDs
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'long_duration_job';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    orders: [],
-    jobs: [],
-  };
-
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
 
   try {
     // --- Prerequisite Checks ---
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    if (!baselineRefs.customerIds?.length) {
+      throw new Error('BaselineRefs missing required customerIds');
     }
-    if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length < 3) {
-      throw new Error('Insufficient service IDs (< 3) found for this scenario.');
+    if (!baselineRefs.addressIds?.length) {
+      throw new Error('BaselineRefs missing required addressIds');
     }
-    if (!baselineRefs.addressIds || baselineRefs.addressIds.length === 0) {
-      throw new Error('No address IDs found in baseline references.');
+    // Need at least 2 services for variety
+    if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length < 2) {
+        throw new Error('BaselineRefs missing required serviceIds (need >= 2)');
     }
-    const userId = baselineRefs.customerIds[0];
+    const customerUserId = baselineRefs.customerIds[0];
+    const customerAddressId = baselineRefs.addressIds[0];
     const serviceIdLong = baselineRefs.serviceIds[0]; // Service for the long job
-    const serviceIdReg1 = baselineRefs.serviceIds[1];
-    const serviceIdReg2 = baselineRefs.serviceIds[2];
-    const addressId = baselineRefs.addressIds[0];
+    const serviceIdNormal = baselineRefs.serviceIds[1]; // Service for normal jobs
 
-    // --- 1. Create the Order ---
-    // Using one order for simplicity, but could use multiple
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        address_id: addressId,
-        notes: `Order for ${scenarioName} scenario.`,
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
-      'orders',
-      orderData,
-      'Order for long duration job scenario'
-    );
-
-    if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
+    // --- 1. Create Order ---
+    const orderRecord: TablesInsert<'orders'> = {
+        user_id: customerUserId,
+        address_id: customerAddressId,
+        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
+        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(),
+        notes: `Order for ${scenarioName}.`
+    };
+    const { data: orderData, error: orderError } = await insertData<'orders'>(supabase, 'orders', [orderRecord], 'id');
+    if (orderError || !orderData || orderData.length === 0) {
+      throw new Error(`Failed to insert order: ${orderError?.message}`);
     }
-    const orderId = newOrders[0].id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId}`);
+    const orderId = orderData[0].id;
+    logInfo(`Created order (ID: ${orderId}) for ${scenarioName}.`);
 
-    // --- 2. Create Long and Regular Duration Jobs ---
-    const allJobsData: TablesInsert<'jobs'>[] = [
-      // The long duration job
-      {
+    // --- 2. Create Long Duration Job and Normal Jobs ---
+    const jobsToCreate: TablesInsert<'jobs'>[] = [];
+    const LONG_DURATION_MINUTES = 240; // 4 hours
+    const numberOfNormalJobs = 2;
+
+    // Long duration job
+    jobsToCreate.push({
         order_id: orderId,
+        address_id: customerAddressId,
         service_id: serviceIdLong,
-        address_id: addressId,
-        status: 'queued',
-        priority: 2,
-        job_duration: 240, // 4 hours
-        notes: 'Very long duration job (4 hours).',
+        status: 'pending_review',
+        priority: 5,
+        job_duration: LONG_DURATION_MINUTES,
         fixed_assignment: false,
-      },
-      // Regular duration jobs
-      {
-        order_id: orderId,
-        service_id: serviceIdReg1,
-        address_id: addressId, // Can be same or different address if needed
-        status: 'queued',
-        priority: 2,
-        job_duration: 60,
-        notes: 'Regular duration job 1 (long duration scenario)',
-        fixed_assignment: false,
-      },
-      {
-        order_id: orderId,
-        service_id: serviceIdReg2,
-        address_id: addressId,
-        status: 'queued',
-        priority: 3,
-        job_duration: 90,
-        notes: 'Regular duration job 2 (long duration scenario)',
-        fixed_assignment: false,
-      },
-    ];
+        notes: `LONG DURATION job (${LONG_DURATION_MINUTES} min) for ${scenarioName}.`
+    });
 
-    // --- 3. Insert Jobs ---
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
-      'jobs',
-      allJobsData,
-      'Long duration and regular jobs'
-    );
-
-    if (jobError || !newJobs || newJobs.length < allJobsData.length) {
-      throw new Error(
-        `Failed to insert all jobs for long duration scenario: ${jobError?.message || 'Incorrect data returned'}`
-      );
+    // Normal duration jobs
+    for (let i = 0; i < numberOfNormalJobs; i++) {
+        jobsToCreate.push({
+            order_id: orderId,
+            address_id: customerAddressId,
+            service_id: serviceIdNormal,
+            status: 'pending_review',
+            priority: faker.number.int({ min: 1, max: 3 }), // Lower priority
+            job_duration: faker.number.int({ min: 45, max: 90 }),
+            fixed_assignment: false,
+            notes: `Normal duration job ${i + 1} for ${scenarioName}.`
+        });
     }
-    insertedIds.jobs = newJobs.map(job => job.id);
-    logInfo(`Created ${allJobsData.length} jobs (incl. long duration): ${insertedIds.jobs.join(', ')}`);
 
-    // --- Completion ---
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
+    // --- 3. Insert All Jobs ---
+    const { data: jobData, error: jobError } = await insertData<'jobs'>(supabase, 'jobs', jobsToCreate, 'id');
+    if (jobError || !jobData || jobData.length !== jobsToCreate.length) {
+      throw new Error(`Failed to insert all jobs: ${jobError?.message || 'Incorrect number of jobs inserted'}`);
+    }
+    const jobIds = jobData.map(j => j.id);
+    logInfo(`Created ${jobIds.length} jobs (IDs: ${jobIds.join(', ')}) for ${scenarioName}.`);
+
+    // --- 4. Return Result ---
+    logInfo(`Successfully seeded scenario: ${scenarioName}`);
     return {
       scenarioName,
-      insertedIds,
+      insertedIds: {
+        orders: [orderId],
+        jobs: jobIds,
+        technicianDbIds: technicianDbIds,
+      },
     };
 
   } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    throw error; // Re-throw for the main script
+    logError(`Error seeding scenario ${scenarioName}:`, error);
+    throw error;
   }
 }

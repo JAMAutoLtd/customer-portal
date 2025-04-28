@@ -3,7 +3,7 @@ import { faker } from '@faker-js/faker';
 // Import types and utils from the central utils file
 import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
-import { insertData, logInfo, logError, seedScenarioTechnicians } from '../../../utils';
+import { insertData, logInfo, logError } from '../../../utils';
 
 // Define types using the standard Supabase helpers
 type OrderRow = Tables<'orders'>;
@@ -30,21 +30,16 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  *
  * @param supabaseAdmin - The Supabase client with admin privileges.
  * @param baselineRefs - References to the baseline data (excluding technicians).
- * @param technicianCount - The number of technicians to create for this scenario.
+ * @param technicianDbIds - The DB IDs of technicians to create for this scenario.
  * @returns Metadata object conforming to ScenarioSeedResult.
  */
 export async function seedScenario_base_schedule(
   supabaseAdmin: SupabaseClient<Database>,
   baselineRefs: BaselineRefs,
-  technicianCount: number // Parameter remains
+  technicianDbIds: number[] // Accept the DB IDs passed from main seeder
 ): Promise<ScenarioSeedResult> {
-  logInfo(`Starting scenario seeding: base_schedule with ${technicianCount} technicians`);
+  logInfo(`Starting scenario seeding: base_schedule with ${technicianDbIds.length} technicians (already created)`);
   const scenarioName = 'base_schedule';
-
-  // Validate technicianCount (can be kept here or solely in utility)
-  if (![1, 2, 3, 4].includes(technicianCount)) {
-     throw new Error(`Invalid technicianCount (${technicianCount}). Must be 1, 2, 3, or 4.`);
-  }
 
   // Validate baseline refs needed for this scenario (keep vanIds check)
   if (
@@ -52,7 +47,7 @@ export async function seedScenario_base_schedule(
     !baselineRefs.addressIds?.length ||
     !baselineRefs.customerVehicleIds?.length ||
     !baselineRefs.serviceIds?.length ||
-    !baselineRefs.equipmentIds?.length || 
+    !baselineRefs.equipmentIds?.length ||
     !baselineRefs.vanIds?.length // Need van IDs from baseline
   ) {
     throw new Error(
@@ -60,17 +55,10 @@ export async function seedScenario_base_schedule(
     );
   }
 
-  // --- Seed Technicians using Utility Function --- 
-  const techResult = await seedScenarioTechnicians(
-      supabaseAdmin,
-      technicianCount,
-      baselineRefs.vanIds // Pass available van IDs from baseline
-  );
-
   // --- Seed Orders and Jobs (using baseline customers/addresses/vehicles) --- 
   const ordersToCreate: OrderInsert[] = [];
   const jobTemplates: Omit<JobInsert, 'order_id'>[] = [];
-  const numberOfOrders = 10; // Or make dynamic based on techCount?
+  const numberOfOrders = 10; // Or make dynamic based on techCount (now technicianDbIds.length)?
 
   for (let i = 0; i < numberOfOrders; i++) {
     const customerId = getRandomElement(baselineRefs.customerIds);
@@ -175,18 +163,18 @@ export async function seedScenario_base_schedule(
   const createdJobIds = insertedJobs.map(j => j.id).filter(id => id !== undefined && id !== null) as number[];
 
   logInfo(
-    `Finished scenario seeding: ${scenarioName}. Created ${techResult.createdTechnicianAuthIds.length} techs, ${createdOrderIds.length} orders, ${createdJobIds.length} jobs.`
+    `Finished scenario seeding: ${scenarioName}. Created ${createdOrderIds.length} orders, ${createdJobIds.length} jobs. (Technicians seeded externally)`
   );
 
-  // Return metadata including created technician IDs and DB IDs
+  // Return metadata. Note: technician IDs are now managed and returned by the main seeder.
+  // This function only returns IDs it created directly.
   return {
     scenarioName: scenarioName,
     insertedIds: {
       orders: createdOrderIds,
       jobs: createdJobIds,
-      technicianIds: techResult.createdTechnicianAuthIds, // Auth IDs
-      technicianDbIds: techResult.createdTechnicianDbIds, // DB IDs from utility result
-      vanIds: techResult.assignedVanIds,
+      // technicianIds and technicianDbIds are NOT returned here anymore
+      // vanIds are also not returned here as assignment happens in main seeder
     },
   };
 }

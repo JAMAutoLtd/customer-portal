@@ -1,3 +1,4 @@
+import { faker } from '@faker-js/faker';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   type Database,
@@ -12,130 +13,91 @@ import type { BaselineRefs, ScenarioSeedResult } from './types';
 /**
  * Seeds the database for the 'same_location_jobs' scenario.
  *
- * Scenario: Creates a single order with multiple jobs scheduled for the
- *           same address, potentially offering optimization opportunities.
+ * Goal: Create multiple jobs for the same order at the same address,
+ * testing the scheduler's potential for location-based optimization.
  *
- * Expected Outcome: The scheduler might group these jobs together for a single
- *                   technician visit to minimize travel time, depending on
- *                   other constraints like equipment and technician availability.
- *
- * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data.
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param supabase The Supabase client instance.
+ * @param baselineRefs References to baseline data (IDs, etc.).
+ * @param technicianDbIds The DB IDs of the technicians seeded for this run.
+ * @returns A ScenarioSeedResult object containing the IDs of the created records.
  */
 export async function seedScenario_same_location_jobs(
-  supabaseAdmin: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs
+  supabase: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[] // Accept DB IDs
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'same_location_jobs';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    orders: [],
-    jobs: [],
-  };
-
-  logInfo(`Starting scenario seeding: ${scenarioName}...`);
+  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
 
   try {
     // --- Prerequisite Checks ---
-    if (!baselineRefs.customerIds || baselineRefs.customerIds.length === 0) {
-      throw new Error('No user/customer IDs found in baseline references.');
+    if (!baselineRefs.customerIds?.length) {
+      throw new Error('BaselineRefs missing required customerIds');
     }
-    // Need at least 3 services for variety
-    if (!baselineRefs.serviceIds || baselineRefs.serviceIds.length < 3) {
-      throw new Error('Insufficient service IDs (< 3) found for this scenario.');
+    if (!baselineRefs.addressIds?.length) {
+      throw new Error('BaselineRefs missing required addressIds');
     }
-    if (!baselineRefs.addressIds || baselineRefs.addressIds.length === 0) {
-      throw new Error('No address IDs found in baseline references.');
+    // Need at least 3 services for variety, or allow reuse if fewer
+    if (!baselineRefs.serviceIds?.length) {
+        throw new Error('BaselineRefs missing required serviceIds');
     }
-    const userId = baselineRefs.customerIds[0];
-    const serviceId1 = baselineRefs.serviceIds[0];
-    const serviceId2 = baselineRefs.serviceIds[1];
-    const serviceId3 = baselineRefs.serviceIds[2];
-    const targetAddressId = baselineRefs.addressIds[0]; // Use the first address
+    const customerUserId = baselineRefs.customerIds[0];
+    const targetAddressId = baselineRefs.addressIds[0]; // Use the same address for all jobs
 
-    // --- 1. Create the Order ---
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        address_id: targetAddressId, // Use the specific address
-        notes: `Order for ${scenarioName} scenario at address ${targetAddressId}.`,
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
-      'orders',
-      orderData,
-      'Order for same location jobs'
-    );
-
-    if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
+    // --- 1. Create Order ---
+    const orderRecord: TablesInsert<'orders'> = {
+        user_id: customerUserId,
+        address_id: targetAddressId, // Single address for the order
+        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
+        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(),
+        notes: `Order for ${scenarioName} at address ID ${targetAddressId}.`
+    };
+    const { data: orderData, error: orderError } = await insertData<'orders'>(supabase, 'orders', [orderRecord], 'id');
+    if (orderError || !orderData || orderData.length === 0) {
+      throw new Error(`Failed to insert order: ${orderError?.message}`);
     }
-    const orderId = newOrders[0].id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId} for address ${targetAddressId}`);
+    const orderId = orderData[0].id;
+    logInfo(`Created order (ID: ${orderId}) for ${scenarioName} at address ${targetAddressId}.`);
 
-    // --- 2. Create Multiple Jobs for the Same Location/Order ---
-    const jobData: TablesInsert<'jobs'>[] = [
-      {
-        order_id: orderId,
-        service_id: serviceId1,
-        address_id: targetAddressId, // Same address
-        status: 'queued',
-        priority: 2,
-        job_duration: 60,
-        notes: `Job 1 for same location, service ${serviceId1}`,
-        fixed_assignment: false,
-      },
-      {
-        order_id: orderId,
-        service_id: serviceId2,
-        address_id: targetAddressId, // Same address
-        status: 'queued',
-        priority: 3, // Different priority
-        job_duration: 45,
-        notes: `Job 2 for same location, service ${serviceId2}`,
-        fixed_assignment: false,
-      },
-      {
-        order_id: orderId,
-        service_id: serviceId3,
-        address_id: targetAddressId, // Same address
-        status: 'queued',
-        priority: 2,
-        job_duration: 75,
-        notes: `Job 3 for same location, service ${serviceId3}`,
-        fixed_assignment: false,
-      },
-    ];
+    // --- 2. Create Multiple Jobs at the Same Location ---
+    const jobsToCreate: TablesInsert<'jobs'>[] = [];
+    const numberOfJobs = 3; // Create 3 jobs at the same location
 
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
-      'jobs',
-      jobData,
-      'Jobs for same location'
-    );
-
-    if (jobError || !newJobs || newJobs.length < jobData.length) {
-      throw new Error(
-        `Failed to insert all jobs for same location: ${jobError?.message || 'Incorrect data returned'}`
-      );
+    for (let i = 0; i < numberOfJobs; i++) {
+        // Cycle through available baseline service IDs
+        const serviceId = baselineRefs.serviceIds![i % baselineRefs.serviceIds!.length];
+        jobsToCreate.push({
+            order_id: orderId,
+            address_id: targetAddressId, // Same address ID for all jobs
+            service_id: serviceId,
+            status: 'pending_review',
+            priority: faker.number.int({ min: 1, max: 5 }),
+            job_duration: faker.number.int({ min: 30, max: 75 }), // Shorter jobs potentially
+            fixed_assignment: false,
+            notes: `Job ${i + 1} for ${scenarioName} at address ${targetAddressId}.`
+        });
     }
-    insertedIds.jobs = newJobs.map(job => job.id);
-    logInfo(`Created ${jobData.length} jobs at same location (Address ID: ${targetAddressId}), IDs: ${insertedIds.jobs.join(', ')}`);
 
-    // --- Completion ---
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
+    const { data: jobData, error: jobError } = await insertData<'jobs'>(supabase, 'jobs', jobsToCreate, 'id');
+    if (jobError || !jobData || jobData.length !== numberOfJobs) {
+      throw new Error(`Failed to insert all jobs: ${jobError?.message || 'Incorrect number of jobs inserted'}`);
+    }
+    const jobIds = jobData.map(j => j.id);
+    logInfo(`Created ${jobIds.length} jobs (IDs: ${jobIds.join(', ')}) for ${scenarioName} at address ${targetAddressId}.`);
+
+    // --- 3. Return Result ---
+    logInfo(`Successfully seeded scenario: ${scenarioName}`);
     return {
       scenarioName,
-      insertedIds,
+      insertedIds: {
+        orders: [orderId],
+        jobs: jobIds,
+        technicianDbIds: technicianDbIds, // Include technician IDs for context
+      },
     };
 
   } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    throw error; // Re-throw for the main script
+    logError(`Error seeding scenario ${scenarioName}:`, error);
+    throw error;
   }
 }
