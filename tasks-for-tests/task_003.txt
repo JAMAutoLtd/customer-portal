@@ -1,0 +1,20 @@
+# Task ID: 3
+# Title: Implement database cleanup script
+# Status: done
+# Dependencies: 2
+# Priority: high
+# Description: Create a script to clean test data from the Staging database
+# Details:
+Implement the cleanup script (`simulation/scripts/db/cleanup-staging.ts`) that:
+1. Uses the Supabase client utility to connect to Staging
+2. Identifies test data based on defined patterns (email domain, notes prefix)
+3. Implements multiple confirmation prompts before executing deletions
+4. Deletes data in the correct order to respect foreign key constraints
+5. Uses Supabase Admin API to delete auth.users
+6. Handles errors gracefully
+7. Provides detailed logging of the cleanup process
+
+Ensure the script can be run independently via `pnpm db:clean:staging`
+
+# Test Strategy:
+Test the script against a staging database with known test data. Verify all test data is removed and no errors occur due to foreign key constraints. Confirm that confirmation prompts work correctly.
