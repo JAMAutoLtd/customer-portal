@@ -1,5 +1,13 @@
 import { supabase } from './client';
-import { Technician, Van, User, Address } from '../types/database.types';
+import {
+  Technician,
+  Van,
+  User,
+  Address,
+  TechnicianDefaultHours,
+  TechnicianAvailabilityException,
+} from '../types/database.types';
+import { logger } from '../utils/logger';
 
 /**
  * Fetches active technicians along with their assigned van details and home location coordinates.
@@ -42,7 +50,9 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
           last_service, 
           next_service,
           onestepgps_device_id
-        )
+        ),
+        technician_default_hours (*),
+        technician_availability_exceptions (*)
       `);
 
       console.log('Raw Supabase response (technicians):', JSON.stringify(response, null, 2)); // Log raw response
@@ -51,12 +61,14 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
 
   } catch (fetchError) {
     console.error('Error during Supabase fetch operation (technicians):', fetchError);
+    logger.error('Error during Supabase fetch operation (technicians):', fetchError);
     throw new Error(`Network or fetch error occurred while fetching technicians: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
   }
 
 
   if (error) {
     console.error('Error object details from Supabase response (technicians):', JSON.stringify(error, null, 2)); // Stringify the error
+    logger.error('Error object details from Supabase response (technicians):', JSON.stringify(error, null, 2)); // Stringify the error
     // Provide fallback for potential missing message/details
     const errorMessage = error.message || 'Unknown error';
     const errorDetails = error.details || 'No details provided';
@@ -65,6 +77,7 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
 
   if (!data) {
     console.warn('No technicians found (or none with valid user/home address).');
+    logger.warn('No technicians found (or none with valid user/home address).');
     return [];
   }
 
@@ -77,12 +90,14 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
       const userJoin = techRaw.users;
       if (!userJoin || typeof userJoin !== 'object' || Array.isArray(userJoin)) {
         console.warn(`Technician ${techRaw.id} has invalid user join data. Skipping.`);
+        logger.warn(`Technician ${techRaw.id} has invalid user join data. Skipping.`);
         return null;
       }
 
       const addressJoin = userJoin.addresses;
       if (!addressJoin || typeof addressJoin !== 'object' || Array.isArray(addressJoin)) {
         console.warn(`Technician ${techRaw.id} (User ${userJoin.id}) has invalid address join data. Skipping.`);
+        logger.warn(`Technician ${techRaw.id} (User ${userJoin.id}) has invalid address join data. Skipping.`);
         return null;
       }
       
@@ -106,7 +121,11 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
         homeLocation = { lat: homeAddress.lat, lng: homeAddress.lng };
       } else {
         console.warn(`Technician ${techRaw.id} (User ${user.id}) has missing home address coordinates.`);
+        logger.warn(`Technician ${techRaw.id} (User ${user.id}) has missing home address coordinates.`);
       }
+
+      const defaultHours = (techRaw.technician_default_hours || []) as TechnicianDefaultHours[];
+      const availabilityExceptions = (techRaw.technician_availability_exceptions || []) as TechnicianAvailabilityException[];
 
       // Construct the final Technician object strictly matching the interface
       const technicianData: Technician = {
@@ -119,6 +138,8 @@ export async function getActiveTechnicians(): Promise<Technician[]> {
         home_location: homeLocation,
         current_location: (van?.lat != null && van?.lng != null) ? { lat: van.lat, lng: van.lng } : undefined,
         earliest_availability: undefined,
+        defaultHours: defaultHours,
+        availabilityExceptions: availabilityExceptions,
       };
       return technicianData;
     })

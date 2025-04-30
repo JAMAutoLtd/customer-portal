@@ -12,6 +12,8 @@ type OrderInsert = TablesInsert<'orders'>;
 type JobInsert = TablesInsert<'jobs'>;
 type UserInsert = TablesInsert<'users'>;
 type TechnicianInsert = TablesInsert<'technicians'>;
+// Add type for default hours insertion
+type DefaultHoursInsert = TablesInsert<'technician_default_hours'>;
 
 // Helper to pick a random element from an array
 function getRandomElement<T>(arr: T[]): T {
@@ -162,8 +164,41 @@ export async function seedScenario_base_schedule(
   // Filter out potential null/undefined IDs
   const createdJobIds = insertedJobs.map(j => j.id).filter(id => id !== undefined && id !== null) as number[];
 
+  // --- Create and Insert Default Hours for Technicians ---
+  logInfo(`Creating default hours (Mon-Fri 9-5 UTC) for ${technicianDbIds.length} technicians...`);
+  const defaultHoursToCreate: DefaultHoursInsert[] = [];
+  for (const techId of technicianDbIds) {
+    for (let day = 1; day <= 5; day++) { // Monday to Friday (1 to 5)
+      defaultHoursToCreate.push({
+        technician_id: techId,
+        day_of_week: day,
+        start_time: '09:00:00',
+        end_time: '17:00:00',
+        is_available: true,
+      });
+    }
+  }
+
+  if (defaultHoursToCreate.length > 0) {
+    const { error: hoursError } = await insertData(
+        supabaseAdmin,
+        'technician_default_hours',
+        defaultHoursToCreate,
+        'Technician default hours'
+    );
+    if (hoursError) {
+        logError('Error inserting technician default hours', hoursError);
+        // Decide if this is critical enough to throw
+        // throw hoursError;
+        logInfo('Continuing despite error inserting default hours...');
+    }
+  } else {
+      logInfo('No technician IDs provided, skipping default hours insertion.');
+  }
+  // --- End Default Hours Insertion ---
+
   logInfo(
-    `Finished scenario seeding: ${scenarioName}. Created ${createdOrderIds.length} orders, ${createdJobIds.length} jobs. (Technicians seeded externally)`
+    `Finished scenario seeding: ${scenarioName}. Created ${createdOrderIds.length} orders, ${createdJobIds.length} jobs. Applied default hours.`
   );
 
   // Return metadata. Note: technician IDs are now managed and returned by the main seeder.

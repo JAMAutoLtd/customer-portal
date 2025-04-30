@@ -60,6 +60,10 @@ describe('Scheduler Integration - Base Schedule', () => {
         // Get valid technician DB IDs from scenario results
         const validTechnicianDbIds = currentScenarioResult.insertedIds.technicianDbIds!;
 
+        // Remove added delay
+        // console.log('Waiting 3 seconds for local server startup...');
+        // await new Promise(resolve => setTimeout(resolve, 3000)); 
+
         console.log('Triggering scheduler replan...');
         await triggerSchedulerReplan();
 

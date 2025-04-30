@@ -1,4 +1,5 @@
 import { Job, JobBundle, SchedulableJob, SchedulableItem } from '../types/database.types';
+import { logger } from '../utils/logger'; // Import logger
 
 /**
  * Groups 'queued' jobs by order_id to create bundles and identify single jobs.
@@ -8,7 +9,8 @@ import { Job, JobBundle, SchedulableJob, SchedulableItem } from '../types/databa
  * @returns {SchedulableItem[]} An array containing JobBundle objects and SchedulableJob objects.
  */
 export function bundleQueuedJobs(queuedJobs: Job[]): SchedulableItem[] {
-  console.log(`Processing ${queuedJobs.length} queued jobs for bundling...`);
+  // console.log(`Processing ${queuedJobs.length} queued jobs for bundling...`);
+  logger.info(`Processing ${queuedJobs.length} queued jobs for bundling...`);
   const jobsByOrderId = new Map<number, Job[]>();
 
   // Group jobs by order_id
@@ -42,7 +44,8 @@ export function bundleQueuedJobs(queuedJobs: Job[]): SchedulableItem[] {
         eligible_technician_ids: [], // To be filled in later
       };
       schedulableItems.push(bundle);
-      console.log(`Created bundle for Order ID ${orderId} with ${jobs.length} jobs. Priority: ${highestPriority}, Duration: ${totalDuration} mins.`);
+      // console.log(`Created bundle for Order ID ${orderId} with ${jobs.length} jobs. Priority: ${highestPriority}, Duration: ${totalDuration} mins.`);
+      logger.debug(`Created bundle for Order ID ${orderId} with ${jobs.length} jobs. Priority: ${highestPriority}, Duration: ${totalDuration} mins.`);
     } else if (jobs.length === 1) {
       // Create a single schedulable job item
       const singleJob = jobs[0];
@@ -52,11 +55,13 @@ export function bundleQueuedJobs(queuedJobs: Job[]): SchedulableItem[] {
         originalItem: singleJob, // This is defined in SchedulableJob
       };
       schedulableItems.push(schedulableJob);
-       console.log(`Identified single Job ID ${singleJob.id} (Order ID ${orderId}). Priority: ${singleJob.priority}, Duration: ${singleJob.job_duration} mins.`);
+       //  console.log(`Identified single Job ID ${singleJob.id} (Order ID ${orderId}). Priority: ${singleJob.priority}, Duration: ${singleJob.job_duration} mins.`);
+       logger.debug(`Identified single Job ID ${singleJob.id} (Order ID ${orderId}). Priority: ${singleJob.priority}, Duration: ${singleJob.job_duration} mins.`);
     }
   }
 
-  console.log(`Created ${schedulableItems.length} schedulable items (bundles or single jobs).`);
+  // console.log(`Created ${schedulableItems.length} schedulable items (bundles or single jobs).`);
+  logger.info(`Created ${schedulableItems.length} schedulable items (bundles or single jobs).`);
   return schedulableItems;
 }
 
@@ -73,7 +78,8 @@ export function mapItemsToJobIds(itemIds: string[], eligibleItemMap: Map<string,
     for (const itemId of itemIds) {
         const item = eligibleItemMap.get(itemId);
         if (!item) {
-            console.warn(`Could not find item with ID '${itemId}' in eligibleItemMap during job ID mapping.`);
+            // console.warn(`Could not find item with ID '${itemId}' in eligibleItemMap during job ID mapping.`);
+            logger.warn(`Could not find item with ID '${itemId}' in eligibleItemMap during job ID mapping.`);
             continue;
         }
         // Check if it's a JobBundle using 'jobs' property
@@ -105,7 +111,8 @@ async function runBundlingExample() {
             console.log('No queued jobs found to demonstrate bundling.');
         }
     } catch (error) {
-        console.error('Bundling example failed:', error);
+        // console.error('Bundling example failed:', error);
+        logger.error('Bundling example failed:', error);
     }
 }
 

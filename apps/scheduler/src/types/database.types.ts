@@ -37,7 +37,9 @@ export interface Technician {
   current_location?: { lat: number; lng: number }; // Added for scheduler convenience
   earliest_availability?: string; // Added for scheduler convenience
   home_location?: { lat: number; lng: number }; // Added for multi-day overflow
-  availability?: TechnicianAvailability[]; // Optional: Full availability schedule
+  // Add new fields for detailed availability records
+  defaultHours?: TechnicianDefaultHours[];
+  availabilityExceptions?: TechnicianAvailabilityException[];
 }
 
 export type JobStatus = 
@@ -151,4 +153,91 @@ export interface TechnicianAvailability {
   availabilityStartTimeISO: string;
   availabilityEndTimeISO: string;
   startLocation: { lat: number; lng: number };
+}
+
+// Add new interfaces for availability records
+export interface TechnicianDefaultHours {
+  id: number;
+  technician_id: number;
+  day_of_week: number; // 0 = Sunday, 6 = Saturday
+  start_time: string; // time without time zone, e.g., '09:00:00'
+  end_time: string; // time without time zone, e.g., '17:00:00'
+  created_at: string; // timestamp with time zone
+  updated_at: string; // timestamp with time zone
+  is_available: boolean | null;
+}
+
+export interface TechnicianAvailabilityException {
+  id: number;
+  technician_id: number;
+  exception_type: 'time_off' | 'custom_hours';
+  date: string; // date, e.g., '2024-08-15'
+  is_available: boolean;
+  start_time: string | null; // time without time zone, e.g., '10:00:00'
+  end_time: string | null; // time without time zone, e.g., '15:00:00'
+  reason: string | null;
+  created_at: string; // timestamp with time zone
+  updated_at: string; // timestamp with time zone
+}
+
+// --- Start: New Types for Scheduling State Management ---
+
+/**
+ * Reasons why a job might fail scheduling.
+ * Includes classification for persistence.
+ */
+export enum FailureReason {
+  // Persistent Failures (Eligibility Issues)
+  NO_ELIGIBLE_TECHNICIAN_EQUIPMENT = 'NO_ELIGIBLE_TECHNICIAN_EQUIPMENT', // No tech has required equipment
+  NO_ASSIGNED_VAN = 'NO_ASSIGNED_VAN', // Technician does not have an assigned van
+  // Add other potential persistent reasons if needed (e.g., service area)
+  
+  // Transient Failures (Optimizer Issues for a Specific Day)
+  OPTIMIZER_TIME_CONSTRAINT = 'OPTIMIZER_TIME_CONSTRAINT',         // Optimizer couldn't fit within time window/dependencies
+  OPTIMIZER_CAPACITY_CONSTRAINT = 'OPTIMIZER_CAPACITY_CONSTRAINT', // Optimizer couldn't fit due to technician capacity
+  OPTIMIZER_OTHER = 'OPTIMIZER_OTHER',                           // Other optimizer reason (e.g., high penalty)
+  
+  // Unknown/Other
+  UNKNOWN = 'UNKNOWN',
+}
+
+// Helper to check if a reason is considered persistent
+export const isPersistentFailure = (reason: FailureReason | null | undefined): boolean => {
+  if (!reason) return false;
+  return [
+    FailureReason.NO_ELIGIBLE_TECHNICIAN_EQUIPMENT,
+    FailureReason.NO_ASSIGNED_VAN,
+    // Add other persistent reasons here
+  ].includes(reason);
+};
+
+/**
+ * Represents a single scheduling attempt for a job.
+ */
+export interface SchedulingAttempt {
+  timestamp: string; // ISO timestamp of the attempt
+  planningDay: string; // Date string (YYYY-MM-DD) the attempt was for
+  success: boolean;
+  failureReason: FailureReason | null;
+  assignedTechnicianId?: number | null; // Only if successful
+  assignedTimeISO?: string | null; // Only if successful
+}
+
+/**
+ * Holds the complete scheduling state history for a single job.
+ */
+export interface JobSchedulingState {
+  jobId: number;
+  attempts: SchedulingAttempt[];
+  lastStatus: 'pending' | 'scheduled' | 'failed_persistent' | 'failed_transient'; // Current assessment
+}
+
+// --- End: New Types for Scheduling State Management ---
+
+// Add interface for CustomerVehicle based on selection in orders.ts
+export interface CustomerVehicle {
+  id: number;
+  year: number | null;
+  make: string | null;
+  model: string | null;
 } 

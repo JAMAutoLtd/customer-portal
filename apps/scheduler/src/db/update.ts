@@ -3,6 +3,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 // this function uses manually defined types from this project for the update payload.
 // Ensure consistency if the auto-generated type is used elsewhere.
 import { Job, JobStatus } from '../types/database.types'; // Using manual Job interface
+import { logger } from '../utils/logger'; // Import logger
 
 // Define the shape of the data used for updating jobs, derived from the manual Job interface
 // Allows updating only specific fields relevant to scheduling outcomes.
@@ -37,17 +38,20 @@ export async function updateJobs(
     // Group updates by the data payload to batch identical updates
     const updatesByPayload = new Map<string, number[]>(); // Key: JSON.stringify(data), Value: [jobId, jobId, ...]
 
-    updates.forEach(update => {
+    const updatesToPerform: JobUpdateOperation[] = [];
+
+    for (const update of updates) {
         if (!update.data || Object.keys(update.data).length === 0) {
-            console.warn(`Skipping update for job ${update.jobId} due to empty update data.`);
-            return;
+            logger.warn(`Skipping update for job ${update.jobId} due to empty update data.`);
+            continue; // Skip this update
         }
         const key = JSON.stringify(update.data); // Use stringified data as the key
         if (!updatesByPayload.has(key)) {
             updatesByPayload.set(key, []);
         }
         updatesByPayload.get(key)?.push(update.jobId);
-    });
+        updatesToPerform.push(update);
+    }
 
     // Create an array of Supabase batch update promises
     const updatePromises = [];
@@ -72,6 +76,7 @@ export async function updateJobs(
         let successCount = 0;
         let errorCount = 0;
         const failedBatchDetails: string[] = [];
+        const failedUpdates: { jobId: number; error: Error }[] = [];
 
         updateResults.forEach((result, index) => {
             // Reconstruct which batch this result corresponds to for logging
@@ -79,9 +84,10 @@ export async function updateJobs(
             
             if (result.error) {
                 const errorMsg = `Error batch updating jobs [${jobIds.join(', ')}] with data ${dataString}: ${result.error.message}`;
-                console.error(errorMsg, result.error);
+                logger.error(errorMsg, result.error);
                 errorCount++;
                 failedBatchDetails.push(`Jobs [${jobIds.join(', ')}]: ${result.error.message}`);
+                failedUpdates.push({ jobId: jobIds[0], error: result.error });
             } else {
                 successCount += jobIds.length; // Count individual jobs updated in the batch
                 console.log(`DEBUG DB Update Result for jobs [${jobIds.join(', ')}]:`, JSON.stringify(result.data, null, 2));
@@ -95,7 +101,7 @@ export async function updateJobs(
         }
 
     } catch (error) {
-        console.error('Error performing batch job updates:', error);
+        logger.error('Error performing batch job updates:', error);
         if (error instanceof Error) {
             throw error;
         }
