@@ -43,7 +43,7 @@ const CURRENT_SCENARIO_METADATA_PATH = path.resolve(__dirname, '../.current-scen
 // const METADATA_PATH = path.resolve(__dirname, '../../../../simulation/scripts/db/seed/seed-metadata.json');
 // TODO: Get from environment variables or make configurable
 // const SCHEDULER_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'; // Web app proxy URL
-const SCHEDULER_HOST_URL = 'http://localhost:3001'; // Target scheduler directly on exposed host port
+const SCHEDULER_HOST_URL = 'http://localhost:3001'; // Target scheduler directly based on .env.test intention
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 

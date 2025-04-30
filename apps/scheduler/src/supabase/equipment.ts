@@ -1,6 +1,7 @@
 import { supabase } from './client';
 import { VanEquipment, Equipment, Job, ServiceCategory, EquipmentRequirement } from '../types/database.types';
 import { getYmmIdForOrder } from './orders'; // Import the helper function
+import { logger } from '../utils/logger'; // Import logger
 
 // Mapping from service category to the corresponding equipment requirement table name
 const requirementTableMap: Record<ServiceCategory, string> = {
@@ -21,11 +22,11 @@ const requirementTableMap: Record<ServiceCategory, string> = {
 export async function getEquipmentForVans(vanIds: number[]): Promise<Map<number, VanEquipment[]>> {
   const equipmentMap = new Map<number, VanEquipment[]>();
   if (vanIds.length === 0) {
-    console.warn('No van IDs provided to getEquipmentForVans.');
+    logger.warn('No van IDs provided to getEquipmentForVans.');
     return equipmentMap;
   }
 
-  console.log(`Fetching equipment for ${vanIds.length} vans...`);
+  logger.info(`Fetching equipment for ${vanIds.length} vans...`);
 
   const response = await supabase
     .from('van_equipment')
@@ -37,17 +38,17 @@ export async function getEquipmentForVans(vanIds: number[]): Promise<Map<number,
     .in('van_id', vanIds);
 
   // Log the raw response to see what PostgREST returns for the implicit join
-  console.log('Raw Supabase response (van_equipment):', JSON.stringify(response, null, 2));
+  logger.debug('Raw Supabase response (van_equipment):', JSON.stringify(response, null, 2));
 
   const { data, error } = response;
 
   if (error) {
-    console.error('Error fetching van equipment:', error);
+    logger.error('Error fetching van equipment:', error);
     throw new Error(`Failed to fetch van equipment: ${error.message}`);
   }
 
   if (!data) {
-    console.warn('No equipment found for the specified vans.');
+    logger.warn('No equipment found for the specified vans.');
     return equipmentMap;
   }
 
@@ -60,7 +61,7 @@ export async function getEquipmentForVans(vanIds: number[]): Promise<Map<number,
 
     // Make sure equipment data and model exist before accessing
     if (!equipmentData) {
-        console.warn(`Missing joined equipment data for van_id ${item.van_id}, equipment_id ${item.equipment_id}. Skipping.`);
+        logger.warn(`Missing joined equipment data for van_id ${item.van_id}, equipment_id ${item.equipment_id}. Skipping.`);
         continue; 
     }
 
@@ -77,7 +78,7 @@ export async function getEquipmentForVans(vanIds: number[]): Promise<Map<number,
     equipmentMap.get(item.van_id)?.push(vanEquipment);
   }
 
-  console.log(`Fetched equipment details for ${equipmentMap.size} vans.`);
+  logger.info(`Fetched equipment details for ${equipmentMap.size} vans.`);
   return equipmentMap;
 }
 
@@ -89,20 +90,20 @@ export async function getEquipmentForVans(vanIds: number[]): Promise<Map<number,
  */
 export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
   if (!job.service || !job.service.service_category) {
-    console.warn(`Job ${job.id} is missing service category information. Cannot determine required equipment.`);
+    logger.warn(`Job ${job.id} is missing service category information. Cannot determine required equipment.`);
     return [];
   }
   if (!job.order_id) {
-     console.warn(`Job ${job.id} is missing order_id. Cannot determine required equipment.`);
+     logger.warn(`Job ${job.id} is missing order_id. Cannot determine required equipment.`);
      return [];
   }
 
-  console.log(`Determining required equipment for Job ID: ${job.id}, Service Category: ${job.service.service_category}`);
+  logger.debug(`Determining required equipment for Job ID: ${job.id}, Service Category: ${job.service.service_category}`);
 
   // 1. Get the ymm_id for the order associated with the job
   const ymmId = await getYmmIdForOrder(job.order_id);
   if (ymmId === null) {
-    console.warn(`Could not determine ymm_id for order ${job.order_id} (Job ID: ${job.id}). Cannot fetch equipment requirements.`);
+    logger.warn(`Could not determine ymm_id for order ${job.order_id} (Job ID: ${job.id}). Cannot fetch equipment requirements.`);
     return [];
   }
 
@@ -110,11 +111,11 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
   const tableName = requirementTableMap[job.service.service_category];
   if (!tableName) {
     // This case should ideally not happen if service_category enum is enforced
-    console.error(`Invalid service category '${job.service.service_category}' for job ${job.id}. No requirement table mapped.`);
+    logger.error(`Invalid service category '${job.service.service_category}' for job ${job.id}. No requirement table mapped.`);
     return [];
   }
 
-  console.log(`Querying table '${tableName}' for ymm_id: ${ymmId}, service_id: ${job.service_id}`);
+  logger.debug(`Querying table '${tableName}' for ymm_id: ${ymmId}, service_id: ${job.service_id}`);
 
   // 3. Query the specific requirements table
   const { data, error } = await supabase
@@ -126,12 +127,12 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
 
   if (error) {
     // Don't throw, just warn and return empty - maybe this specific combo doesn't require equipment
-    console.warn(`Could not fetch equipment requirements from ${tableName} for ymm_id ${ymmId}, service_id ${job.service_id}: ${error.message}`);
+    logger.warn(`Could not fetch equipment requirements from ${tableName} for ymm_id ${ymmId}, service_id ${job.service_id}: ${error.message}`);
     return [];
   }
 
   if (!data || data.length === 0) {
-    console.log(`No specific equipment requirement found in ${tableName} for ymm_id ${ymmId}, service_id ${job.service_id}. Checking for generic category tool...`);
+    logger.debug(`No specific equipment requirement found in ${tableName} for ymm_id ${ymmId}, service_id ${job.service_id}. Checking for generic category tool...`);
     // --- BEGIN FALLBACK LOGIC ---
     try {
         const genericModelName = job.service.service_category; // e.g., 'prog'
@@ -143,19 +144,19 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
             .limit(1);
 
         if (genericError) {
-            console.warn(`Error checking for generic equipment '${genericModelName}': ${genericError.message}`);
+            logger.warn(`Error checking for generic equipment '${genericModelName}': ${genericError.message}`);
             return []; // Return empty on error
         }
 
         if (genericData && genericData.length > 0) {
-            console.log(`Found generic equipment requirement: ${genericModelName}`);
+            logger.debug(`Found generic equipment requirement: ${genericModelName}`);
             return [genericModelName]; // Return the category name as the required model
         } else {
-            console.log(`No generic equipment requirement found for category '${genericModelName}'.`);
+            logger.debug(`No generic equipment requirement found for category '${genericModelName}'.`);
             return []; // Return empty if no generic found either
         }
     } catch (fallbackError: any) {
-        console.error(`Error during generic equipment fallback check: ${fallbackError.message}`);
+        logger.error(`Error during generic equipment fallback check: ${fallbackError.message}`);
         return [];
     }
     // --- END FALLBACK LOGIC ---
@@ -164,7 +165,7 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
   // Extract the equipment model strings
   const requiredModels = data.map(req => req.equipment_model).filter(model => !!model); // Filter out any null/empty strings
   
-  console.log(`Required equipment models for Job ID ${job.id}: ${requiredModels.join(', ')}`);
+  logger.debug(`Required equipment models for Job ID ${job.id}: ${requiredModels.join(', ')}`);
   return requiredModels;
 }
 
@@ -177,17 +178,17 @@ async function runRequirementExample() {
     if (jobs.length > 0) {
         const testJob = jobs.find(j => j.service?.service_category); // Find a job with a service
         if(testJob){
-            console.log(`Testing with Job ID: ${testJob.id}, Order ID: ${testJob.order_id}, Service ID: ${testJob.service_id}`);
+            logger.info(`Testing with Job ID: ${testJob.id}, Order ID: ${testJob.order_id}, Service ID: ${testJob.service_id}`);
             const requiredEquipment = await getRequiredEquipmentForJob(testJob);
-            console.log(`Successfully determined required equipment for job ${testJob.id}:`, requiredEquipment);
+            logger.info(`Successfully determined required equipment for job ${testJob.id}:`, requiredEquipment);
         } else {
-             console.log("Could not find a suitable job with service details for testing.");
+             logger.info("Could not find a suitable job with service details for testing.");
         }
     } else {
-      console.log("No relevant jobs found to test requirement fetching.");
+      logger.info("No relevant jobs found to test requirement fetching.");
     }
   } catch (err) {
-    console.error('Failed to run requirement example:', err);
+    logger.error('Failed to run requirement example:', err);
   }
 }
 // Assuming getRelevantJobs is available in this scope or imported

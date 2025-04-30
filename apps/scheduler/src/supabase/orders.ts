@@ -1,5 +1,6 @@
 import { supabase } from './client';
-import { YmmRef } from '../types/database.types';
+import { YmmRef, CustomerVehicle } from '../types/database.types';
+import { logger } from '../utils/logger';
 
 /**
  * Fetches the ymm_id for a given order by looking up the order's vehicle
@@ -20,31 +21,34 @@ export async function getYmmIdForOrder(orderId: number): Promise<number | null> 
       customer_vehicles ( id, year, make, model )
     `)
     .eq('id', orderId)
-    .single(); // Expecting only one order
+    .maybeSingle(); // Use maybeSingle to handle null/not found
 
   if (orderError) {
-    // Handle case where order might not be found (e.g., error code PGROST 0 - no rows returned)
-    if (orderError.code === 'PGRST0' || orderError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-      console.warn(`Order with ID ${orderId} not found.`);
-      return null;
-    } 
-    console.error(`Error fetching order ${orderId}:`, orderError);
-    throw new Error(`Failed to fetch order ${orderId}: ${orderError.message}`);
+    // console.error(`Error fetching order ${orderId}:`, orderError);
+    logger.error(`Error fetching order ${orderId}:`, orderError);
+    return null;
   }
-
-  if (!orderData || !orderData.customer_vehicles) {
-    console.warn(`Order ${orderId} found, but has no associated vehicle information.`);
+  if (!orderData) {
+    // console.warn(`Order with ID ${orderId} not found.`);
+    logger.warn(`Order with ID ${orderId} not found.`);
     return null;
   }
 
-  // Supabase join might return an array, handle it
-  const vehicle = Array.isArray(orderData.customer_vehicles) 
-    ? orderData.customer_vehicles[0] 
-    : orderData.customer_vehicles;
+  // customer_vehicles is returned as an array by Supabase join
+  const vehicleArray = orderData.customer_vehicles as CustomerVehicle[] | null;
+  const vehicle = (vehicleArray && vehicleArray.length > 0) ? vehicleArray[0] : null;
 
-  if (!vehicle || !vehicle.year || !vehicle.make || !vehicle.model) {
-      console.warn(`Vehicle details (year, make, model) missing for order ${orderId}. Cannot determine ymm_id.`);
-      return null;
+  if (!vehicle) {
+    // console.warn(`Order ${orderId} found, but has no associated vehicle information.`);
+    logger.warn(`Order ${orderId} found, but has no associated vehicle information.`);
+    return null;
+  }
+
+  // Check if we have enough info to lookup YMM
+  if (!vehicle.year || !vehicle.make || !vehicle.model) {
+    // console.warn(`Vehicle details (year, make, model) missing for order ${orderId}. Cannot determine ymm_id.`);
+    logger.warn(`Vehicle details (year, make, model) missing for order ${orderId}. Cannot determine ymm_id.`);
+    return null;
   }
 
   // 2. Find the matching ymm_id in ymm_ref based on vehicle details
@@ -58,15 +62,18 @@ export async function getYmmIdForOrder(orderId: number): Promise<number | null> 
 
   if (ymmError) {
     if (ymmError.code === 'PGRST0' || ymmError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-        console.warn(`No ymm_ref entry found for vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model} (Order ID: ${orderId}).`);
+        // console.warn(`No ymm_ref entry found for vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model} (Order ID: ${orderId}).`);
+        logger.warn(`No ymm_ref entry found for vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model} (Order ID: ${orderId}).`);
         return null;
     }
-    console.error(`Error fetching ymm_ref for vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}:`, ymmError);
+    // console.error(`Error fetching ymm_ref for vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}:`, ymmError);
+    logger.error(`Error fetching ymm_ref for vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}:`, ymmError);
     throw new Error(`Failed to fetch ymm_ref: ${ymmError.message}`);
   }
 
   if (!ymmData) {
-    console.warn(`ymm_ref entry not found for vehicle on order ${orderId}.`);
+    // console.warn(`ymm_ref entry not found for vehicle on order ${orderId}.`);
+    logger.warn(`ymm_ref entry not found for vehicle on order ${orderId}.`);
     return null;
   }
 

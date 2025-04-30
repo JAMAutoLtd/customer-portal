@@ -23,8 +23,9 @@ module.exports = {
       // Exclude E2E tests from this project
       testPathIgnorePatterns: ['/node_modules/', '/dist/', '/tests/e2e/'],
       moduleFileExtensions: ['ts', 'js', 'json', 'node'],
-      // Setup specific to this project (if any)
-      setupFiles: ['dotenv/config'],
+      // Use the correct setup file that loads .env.test
+      // setupFiles: ['dotenv/config'], // Incorrect: loads root .env
+      setupFilesAfterEnv: ['<rootDir>/../../tests/integration/setupEnv.ts'], // Use integration setup
     },
     // Add other projects here (e.g., apps/web if it gets tests)
     // {
