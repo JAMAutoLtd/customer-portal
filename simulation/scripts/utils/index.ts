@@ -266,4 +266,49 @@ export async function seedScenarioTechnicians(
         assignedVanIds: finalTechniciansInput.map(t => t.assigned_van_id),
         createdTechnicianDbIds
     };
+}
+
+/**
+ * Fetches equipment details for a given list of van IDs.
+ *
+ * @param supabaseAdmin - The Supabase client.
+ * @param vanIds - An array of van IDs.
+ * @returns A Map where keys are van IDs and values are arrays of associated equipment records.
+ */
+export async function getEquipmentForVans(
+    supabaseAdmin: SupabaseClient<Database>,
+    vanIds: number[]
+): Promise<Map<number, Tables<'equipment'>[]>> {
+    if (vanIds.length === 0) {
+        return new Map();
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from('van_equipment')
+        .select(`
+            van_id,
+            equipment (*)
+        `)
+        .in('van_id', vanIds);
+
+    if (error) {
+        logError('Error fetching van equipment', error);
+        throw error;
+    }
+
+    const equipmentMap = new Map<number, Tables<'equipment'>[]>();
+
+    for (const item of data ?? []) {
+        // Type guard to ensure equipment is not null and is an object (not an array)
+        if (item.van_id && item.equipment && typeof item.equipment === 'object' && !Array.isArray(item.equipment)) {
+            const vanId = item.van_id;
+            const equipmentDetails = item.equipment as Tables<'equipment'>;
+            if (!equipmentMap.has(vanId)) {
+                equipmentMap.set(vanId, []);
+            }
+            equipmentMap.get(vanId)!.push(equipmentDetails);
+        }
+    }
+
+    return equipmentMap;
 } 

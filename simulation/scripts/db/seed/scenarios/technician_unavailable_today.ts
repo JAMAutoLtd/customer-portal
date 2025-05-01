@@ -1,192 +1,159 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import {
-  type Database,
-  type TablesInsert,
-  insertData,
-  logError,
-  logInfo,
-  type Enums,
-} from '../../../utils';
+import { faker } from '@faker-js/faker';
+import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
+import { insertData, logInfo, logError } from '../../../utils';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
-// Helper to format Date object to YYYY-MM-DD string
-function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+dayjs.extend(utc);
+
+// Define types using the standard Supabase helpers
+type OrderInsert = TablesInsert<'orders'>;
+type JobInsert = TablesInsert<'jobs'>;
+type AvailabilityExceptionInsert = TablesInsert<'technician_availability_exceptions'>;
+
+// Helper to pick a random element from an array
+function getRandomElement<T>(arr: T[]): T {
+  if (arr.length === 0) {
+    throw new Error('Cannot get random element from an empty array.');
+  }
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Helper to format Date object to HH:MM:SS string (local time)
-function formatTime(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const seconds = date.getSeconds().toString().padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
-}
+// Explicitly define IDs for generally available, non-ADAS services
+const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
 
 /**
- * Seeds the database for the 'technician_unavailable_today' scenario.
- *
- * Scenario: Creates an unavailability record for a specific technician
- *           for a block of time today (e.g., 1 PM - 3 PM).
- *           Also creates jobs that would normally fall into this time slot.
- *
- * Expected Outcome: The scheduler should not assign the created jobs to the
- *                   unavailable technician during their specified time off.
- *                   Jobs should be assigned to other technicians or rescheduled.
+ * Seeds data for the 'technician_unavailable_today' scenario.
+ * Creates an availability exception for one technician today, making them unavailable
+ * for a specific time block (e.g., mid-day time off).
+ * Seeds jobs that *could* be assigned to this tech during that block.
+ * Expected outcome: The scheduler respects the exception and schedules jobs around it
+ * or assigns them to other available technicians.
  *
  * @param supabaseAdmin - The Supabase client with admin privileges.
- * @param baselineRefs - References to the baseline data (excluding technicians).
- * @param technicianDbIds - The DB IDs of the technicians seeded for this run.
- * @returns A promise resolving to the ScenarioSeedResult object.
+ * @param baselineRefs - References to the baseline data.
+ * @param technicianDbIds - The DB IDs of technicians active in this scenario.
+ * @returns Metadata object conforming to ScenarioSeedResult.
  */
 export async function seedScenario_technician_unavailable_today(
   supabaseAdmin: SupabaseClient<Database>,
   baselineRefs: BaselineRefs,
-  technicianDbIds: number[] // Accept DB IDs
+  technicianDbIds: number[]
 ): Promise<ScenarioSeedResult> {
   const scenarioName = 'technician_unavailable_today';
-  const insertedIds: ScenarioSeedResult['insertedIds'] = {
-    orders: [],
-    jobs: [],
-    technician_availability_exceptions: [],
-    // technicianIds (Auth IDs) are not needed/returned by this scenario script itself
-    // vanIds are not needed/returned by this scenario script itself
-    technicianDbIds: technicianDbIds, // Store passed-in IDs for potential return/verification
+  logInfo(`Starting scenario seeding: ${scenarioName}`);
+
+  // Validate baseline refs
+  if (
+    !baselineRefs.customerIds?.length ||
+    !baselineRefs.addressIds?.length ||
+    !baselineRefs.customerVehicleIds?.length ||
+    !baselineRefs.serviceIds?.length
+  ) {
+    throw new Error(`BaselineRefs is missing required data for ${scenarioName} scenario.`);
+  }
+
+  if (technicianDbIds.length === 0) {
+    throw new Error(`No technicians provided for ${scenarioName} scenario.`);
+  }
+
+  // --- Define Unavailability ---
+  const techToMakeUnavailable = getRandomElement(technicianDbIds);
+  const today = dayjs.utc().format('YYYY-MM-DD'); // Format for DB date field
+
+  // Example: Make tech unavailable from 13:00 to 15:00 UTC today
+  const timeOffStart = '13:00:00';
+  const timeOffEnd = '15:00:00';
+
+  // NOTE: The check constraint requires start/end to be NULL when is_available=false.
+  // The scheduler logic MUST correctly interpret 'time_off' for a date without start/end as a full-day off
+  // or potentially infer the intended block from elsewhere if needed.
+  // For testing a specific block, using 'custom_hours' with is_available=false might be needed if the constraint isn't updated.
+  // Let's stick to the PRD/subtask intent for now and use time_off with nulls.
+  const exception: AvailabilityExceptionInsert = {
+    technician_id: techToMakeUnavailable,
+    exception_type: 'time_off',
+    date: today,
+    is_available: false, // Explicitly unavailable
+    start_time: null,    // Per check constraint for is_available=false
+    end_time: null,      // Per check constraint for is_available=false
+    reason: `Scenario ${scenarioName}: Mid-day break (intended ${timeOffStart}-${timeOffEnd})`,
   };
 
-  logInfo(`Starting scenario seeding: ${scenarioName} with ${technicianDbIds.length} technicians (already seeded)...`);
+  // TODO: Implement Case 2 from subtask details: multi-window unavailability using 'custom_hours'
 
-  try {
-    // --- Prerequisite Checks ---
-    if (!baselineRefs.customerIds?.length || 
-        !baselineRefs.serviceIds?.length || 
-        !baselineRefs.addressIds?.length) {
-      throw new Error('BaselineRefs is missing required data (customers, services, addresses) for scenario.');
-    }
-    if (technicianDbIds.length === 0) {
-        throw new Error(`No technician DB IDs provided for ${scenarioName} scenario.`);
-    }
+  const { data: insertedExceptionData, error: exceptionError } = await insertData(
+    supabaseAdmin,
+    'technician_availability_exceptions',
+    [exception],
+    `${scenarioName} exception`
+  );
 
-    // --- Use the FIRST provided technician DB ID for the exception ---
-
-    const targetTechnicianId = technicianDbIds[0];
-
-    // Use baseline refs for other entities
-    const userId = baselineRefs.customerIds[0];
-    const serviceId = baselineRefs.serviceIds[0];
-    const addressId = baselineRefs.addressIds[0];
-
-    // --- 1. Calculate Unavailability Time for Today ---
-    const today = new Date();
-    const startTime = new Date(today);
-    startTime.setHours(13, 0, 0, 0); // 1:00 PM today
-
-    const endTime = new Date(today);
-    endTime.setHours(15, 0, 0, 0); // 3:00 PM today
-
-    const exceptionDate = formatDate(today);
-    const exceptionStartTime = formatTime(startTime);
-    const exceptionEndTime = formatTime(endTime);
-
-    logInfo(`Creating unavailability for tech ${targetTechnicianId} on ${exceptionDate} from ${exceptionStartTime} to ${exceptionEndTime}`);
-
-    // --- 2. Create Unavailability Record ---
-    const unavailabilityData: TablesInsert<'technician_availability_exceptions'>[] = [
-      {
-        technician_id: targetTechnicianId,
-        exception_type: 'time_off' as Enums<'availability_exception_type'>,
-        date: exceptionDate,
-        is_available: false,
-        // start_time and end_time MUST be NULL when is_available is false per check constraint
-        // start_time: exceptionStartTime, // REMOVED
-        // end_time: exceptionEndTime, // REMOVED
-        reason: `Scenario: ${scenarioName} - Unavailable ALL DAY`,
-      }
-    ];
-
-    const { data: newExceptions, error: exceptionError } = await insertData(
-      supabaseAdmin,
-      'technician_availability_exceptions',
-      unavailabilityData,
-      'Technician unavailability exception'
-    );
-
-    if (exceptionError || !newExceptions || newExceptions.length === 0) {
-      throw new Error(
-        `Failed to insert unavailability: ${exceptionError?.message || 'No data returned'}`
-      );
-    }
-    const exceptionId = newExceptions[0].id;
-    insertedIds.technician_availability_exceptions!.push(exceptionId);
-    logInfo(`Created unavailability exception with ID: ${exceptionId}`);
-
-    // --- 3. Create Order ---
-    const orderData: TablesInsert<'orders'>[] = [
-      {
-        user_id: userId,
-        address_id: addressId,
-        notes: `Order for ${scenarioName} scenario.`,
-      }
-    ];
-
-    const { data: newOrders, error: orderError } = await insertData(
-      supabaseAdmin,
-      'orders',
-      orderData,
-      'Order for tech unavailable scenario'
-    );
-
-    if (orderError || !newOrders || newOrders.length === 0) {
-      throw new Error(
-        `Failed to insert order: ${orderError?.message || 'No data returned'}`
-      );
-    }
-    const orderId = newOrders[0].id;
-    insertedIds.orders!.push(orderId);
-    logInfo(`Created order with ID: ${orderId}`);
-
-    // --- 4. Create Job that falls into unavailable time ---
-    // Use a requested_time that falls within the 1-3 PM block
-    const requestedTime = new Date(today);
-    requestedTime.setHours(13, 30, 0, 0); // 1:30 PM today
-
-    const jobData: TablesInsert<'jobs'>[] = [
-      {
-        order_id: orderId,
-        service_id: serviceId,
-        address_id: addressId,
-        status: 'queued',
-        priority: 2,
-        job_duration: 60,
-        requested_time: requestedTime.toISOString(),
-        notes: `Job that should conflict with tech ${targetTechnicianId} unavailability.`,
-        fixed_assignment: false, // Not fixed, so scheduler should reassign
-      },
-    ];
-
-    const { data: newJobs, error: jobError } = await insertData(
-      supabaseAdmin,
-      'jobs',
-      jobData,
-      'Job conflicting with unavailability'
-    );
-
-    if (jobError || !newJobs || newJobs.length === 0) {
-      throw new Error(
-        `Failed to insert job for unavailability scenario: ${jobError?.message || 'No data returned'}`
-      );
-    }
-    insertedIds.jobs = newJobs.map(job => job.id);
-    logInfo(`Created potentially conflicting job with ID: ${insertedIds.jobs[0]}`);
-
-    // --- Completion ---
-    logInfo(`Scenario seeding completed: ${scenarioName}`);
-    return {
-      scenarioName,
-      insertedIds,
-    };
-
-  } catch (error) {
-    logError(`Error during scenario seeding (${scenarioName}):`, error);
-    throw error; // Re-throw for the main script
+  if (exceptionError) {
+    logError('Error inserting availability exception', exceptionError);
+    throw exceptionError;
   }
+
+  const createdExceptionIds = (insertedExceptionData ?? []).map(e => e.id);
+  logInfo(`Created time_off exception for Tech ID ${techToMakeUnavailable} on ${today} (Intended ${timeOffStart}-${timeOffEnd} UTC)`);
+
+  // --- Seed Jobs that could fall into the unavailable window ---
+  const jobsToCreate: JobInsert[] = [];
+  const fillerOrderIds: number[] = [];
+  const numberOfJobs = 5; // Create a few jobs
+
+  for (let i = 0; i < numberOfJobs; i++) {
+    const customerId = getRandomElement(baselineRefs.customerIds);
+    const addressId = getRandomElement(baselineRefs.addressIds);
+    const vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
+    const serviceId = getRandomElement(BASIC_SERVICE_IDS);
+
+    const order: OrderInsert = { user_id: customerId, address_id: addressId, vehicle_id: vehicleId, notes: `Order for unavailable tech test ${i + 1}` };
+    const { data: orderData, error: orderErr } = await insertData(supabaseAdmin, 'orders', [order], `${scenarioName} order ${i + 1}`);
+    if (orderErr || !orderData || orderData.length === 0) {
+      logError(`Failed to insert order ${i+1}`, orderErr);
+      continue;
+    }
+    const orderId = orderData[0].id;
+    fillerOrderIds.push(orderId);
+
+    const job: JobInsert = {
+      order_id: orderId,
+      service_id: serviceId,
+      address_id: addressId,
+      status: 'queued' as Enums<'job_status'>,
+      priority: 3,
+      notes: `Job ${i+1} potentially conflicting with Tech ${techToMakeUnavailable}'s time off.`,
+      job_duration: 60,
+      // Let the scheduler assign the technician
+      assigned_technician: null,
+      estimated_sched: null,
+      fixed_assignment: false,
+      fixed_schedule_time: null,
+      requested_time: null,
+      technician_notes: null,
+    };
+    jobsToCreate.push(job);
+  }
+
+  const { data: insertedJobsData, error: jobError } = await insertData(
+    supabaseAdmin, 'jobs', jobsToCreate, `${scenarioName} jobs`
+  );
+  if (jobError) {
+      logError('Error inserting jobs, but continuing...', jobError);
+  }
+  const createdJobIds = (insertedJobsData ?? []).map(j => j.id);
+
+  logInfo(`Finished scenario seeding: ${scenarioName}. Tech ${techToMakeUnavailable} unavailable today (intended ${timeOffStart}-${timeOffEnd} UTC). Created Jobs: ${createdJobIds.length}.`);
+
+  return {
+    scenarioName: scenarioName,
+    insertedIds: {
+      jobs: createdJobIds,
+      technician_availability_exceptions: createdExceptionIds,
+      orders: fillerOrderIds,
+    },
+  };
 }

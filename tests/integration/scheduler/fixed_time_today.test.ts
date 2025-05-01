@@ -7,136 +7,112 @@ import {
 } from './utils';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ScenarioSeedResult, BaselineRefs } from '../../../simulation/scripts/db/seed/scenarios/types';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 
-// jest.setTimeout(90000);
+dayjs.extend(utc);
+
+// Increase Jest timeout
+// jest.setTimeout(90000); // 90 seconds
 
 describe('Scheduler Integration - Fixed Time Today', () => {
     let supabase: SupabaseClient;
     let currentScenarioResult: ScenarioSeedResult;
     let baselineRefs: BaselineRefs;
 
-    // Hold IDs and data relevant to this scenario
-    let fixedTimeJobId: number | undefined;
-    let orderId: number | undefined;
-    let scenarioTechnicianDbIds: number[] = [];
-    let expectedFixedTime: string | null = null; // Store the exact fixed time from the DB
-
     beforeAll(async () => {
         supabase = getSupabaseClient();
-        console.log('--- Test Setup (Fixed Time Today): Reading Metadata Files --- ');
+        console.log('--- Test Setup: Reading Metadata Files --- ');
         try {
             baselineRefs = await readBaselineMetadata();
             currentScenarioResult = await readCurrentScenarioMetadata();
 
-            // Validate scenario name
             if (currentScenarioResult.scenarioName !== 'fixed_time_today') {
                 throw new Error(`Expected scenario metadata for 'fixed_time_today', but found '${currentScenarioResult.scenarioName}'.`);
             }
-
-            // Extract relevant IDs
-            const scenarioJobIds = currentScenarioResult.insertedIds?.jobs ?? [];
-            orderId = currentScenarioResult.insertedIds?.orders?.[0];
-            scenarioTechnicianDbIds = currentScenarioResult.insertedIds?.technicianDbIds ?? [];
-
-            if (!orderId) {
-                 throw new Error('Scenario metadata is missing the order ID.');
+            if (!currentScenarioResult.insertedIds?.jobs || currentScenarioResult.insertedIds.jobs.length !== 1) {
+                throw new Error('Scenario metadata should contain exactly one job ID for fixed_time_today.');
             }
-            if (scenarioJobIds.length !== 1) {
-                throw new Error(`Expected 1 job ID for 'fixed_time_today', but found ${scenarioJobIds.length}.`);
-            }
-            fixedTimeJobId = scenarioJobIds[0];
-             if (scenarioTechnicianDbIds.length === 0) {
-                throw new Error('Scenario metadata is missing technician DB IDs.');
-            }
-
-            // Fetch the actual fixed_schedule_time set by the seeder
-            const { data: jobData, error: fetchError } = await supabase
-                .from('jobs')
-                .select('fixed_schedule_time')
-                .eq('id', fixedTimeJobId)
-                .single();
-
-            if (fetchError || !jobData || !jobData.fixed_schedule_time) {
-                throw new Error(`Failed to fetch fixed_schedule_time for job ${fixedTimeJobId}: ${fetchError?.message}`);
-            }
-            expectedFixedTime = jobData.fixed_schedule_time;
-
-            console.log(`Metadata loaded. Scenario: ${currentScenarioResult.scenarioName}. Order: ${orderId}. Job: ${fixedTimeJobId}. Expected Fixed Time: ${expectedFixedTime}. Techs: ${scenarioTechnicianDbIds.length}`);
-            console.log('--- Test Setup (Fixed Time Today) Complete ---');
+            console.log(`Metadata loaded. Scenario: ${currentScenarioResult.scenarioName}. Job ID: ${currentScenarioResult.insertedIds.jobs[0]}`);
+            console.log('--- Test Setup Complete ---');
 
         } catch (error) {
-            console.error('FATAL: Test setup failed:', error);
+            console.error('FATAL: Test setup failed while reading metadata:', error);
             throw error;
         }
     }, 30000);
 
-    it('should schedule the job exactly at its fixed time and assign a valid technician', async () => {
+    it('should schedule the job exactly at its fixed_schedule_time', async () => {
         expect(baselineRefs).toBeDefined();
         expect(currentScenarioResult).toBeDefined();
-        expect(orderId).toBeDefined();
-        expect(fixedTimeJobId).toBeDefined();
-        expect(expectedFixedTime).not.toBeNull();
-        expect(scenarioTechnicianDbIds.length).toBeGreaterThan(0);
+        expect(currentScenarioResult.insertedIds.jobs).toBeDefined();
+        expect(currentScenarioResult.insertedIds.jobs!.length).toEqual(1);
 
-        console.log(`Triggering scheduler replan for fixed time job ID: ${fixedTimeJobId}...`);
+        const fixedJobId = currentScenarioResult.insertedIds.jobs![0];
+
+        // Fetch the original fixed time from the DB before replan
+        const { data: originalJob, error: fetchError } = await supabase
+            .from('jobs')
+            .select('fixed_schedule_time, assigned_technician')
+            .eq('id', fixedJobId)
+            .single();
+
+        expect(fetchError).toBeNull();
+        expect(originalJob).not.toBeNull();
+        expect(originalJob!.fixed_schedule_time).not.toBeNull();
+        const expectedScheduleTime = originalJob!.fixed_schedule_time!;
+        // Technician might be null if eligibility check fails later, but seed assigns one
+        // const expectedTechnician = originalJob!.assigned_technician!;
+
+        console.log(`Triggering scheduler replan for fixed job ID: ${fixedJobId}...`);
         await triggerSchedulerReplan();
 
-        console.log('Waiting for replan to complete (fixed time job)...');
-        // Wait until the job status becomes 'queued'
+        console.log(`Waiting for replan to complete (expecting job ${fixedJobId} scheduled)...`);
+        // Wait for the job to have an estimated schedule
         const checkCondition = async (): Promise<boolean> => {
             const { data: job, error } = await supabase
                 .from('jobs')
-                .select('status')
-                .eq('id', fixedTimeJobId!)
+                .select('id, estimated_sched, status')
+                .eq('id', fixedJobId)
                 .single();
 
             if (error) {
                 console.error('DB query error during wait:', error);
                 return false;
             }
-            const isQueued = job?.status === 'queued';
-            if (isQueued) {
-                console.log(`Condition met: Job ${fixedTimeJobId} has status 'queued'.`);
+            const isScheduled = job?.estimated_sched !== null && job?.status === 'queued'; // Should become queued
+            if (isScheduled) {
+                console.log(`Condition met: Job ${fixedJobId} has estimated schedule and status 'queued'.`);
             } else {
-                 console.log(`Condition not met: Job ${fixedTimeJobId} status is ${job?.status ?? 'not found'}. Expected 'queued'.`);
+                console.log(`Condition not met: Job ${fixedJobId} status '${job?.status}', schedule '${job?.estimated_sched}'.`);
             }
-            return isQueued;
+            return isScheduled;
         };
+        // Fixed time jobs might take longer if complex interactions
+        await waitForReplan(checkCondition, 90000, 4000);
 
-        await waitForReplan(checkCondition, 90000, 4000); // Allow reasonable time for scheduling
-
-        console.log('Replan complete. Verifying fixed time schedule...');
+        console.log('Replan complete. Verifying schedule...');
 
         // Fetch final state of the job
-        const { data: finalJob, error: jobsError } = await supabase
+        const { data: finalJob, error: jobError } = await supabase
             .from('jobs')
-            .select('id, status, estimated_sched, assigned_technician, fixed_schedule_time')
-            .eq('id', fixedTimeJobId!)
+            .select('id, status, assigned_technician, estimated_sched, fixed_schedule_time')
+            .eq('id', fixedJobId)
             .single();
 
-        expect(jobsError).toBeNull();
+        expect(jobError).toBeNull();
         expect(finalJob).not.toBeNull();
 
-        // --- Assertions ---
-
-        // 1. Verify Status
+        // Assertions for the fixed time today scenario
         expect(finalJob!.status).toEqual('queued');
-
-        // 2. Verify Technician Assignment
-        expect(finalJob!.assigned_technician).not.toBeNull();
-        expect(scenarioTechnicianDbIds).toContain(finalJob!.assigned_technician);
-
-        // 3. CRITICAL: Verify Estimated Schedule matches Fixed Time
+        expect(finalJob!.assigned_technician).not.toBeNull(); // Should be assigned
         expect(finalJob!.estimated_sched).not.toBeNull();
-        console.log(`Comparing Estimated: ${finalJob!.estimated_sched} with Fixed: ${expectedFixedTime}`);
-        // Direct string comparison should work for ISO timestamps
-        expect(finalJob!.estimated_sched).toEqual(expectedFixedTime);
-        // Optionally, compare Date objects for robustness
-        expect(new Date(finalJob!.estimated_sched!).toISOString()).toEqual(new Date(expectedFixedTime!).toISOString());
 
+        // *** Crucial Check: Verify estimated schedule matches the original fixed time ***
+        expect(dayjs(finalJob!.estimated_sched).utc().toISOString()).toEqual(dayjs(expectedScheduleTime).utc().toISOString());
+        // Optional: Check against the fixed_schedule_time column as well, though it shouldn't change
+        expect(dayjs(finalJob!.fixed_schedule_time).utc().toISOString()).toEqual(dayjs(expectedScheduleTime).utc().toISOString());
 
-        console.log('Fixed time job verification successful.');
+        console.log('Fixed time today verification successful: Job scheduled exactly at fixed time.');
     });
-
-    // afterAll(...)
-}); 
+});

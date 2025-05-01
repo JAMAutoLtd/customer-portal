@@ -1,127 +1,227 @@
-import { faker } from '@faker-js/faker';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import {
-  type Database,
-  type TablesInsert,
-  insertData,
-  logError,
-  logInfo,
-  type Enums, // Import Enums if needed for status/priority
-} from '../../../utils'; // Assuming utils/index.ts is two levels up
+import { faker } from '@faker-js/faker';
+// Import types and utils from the central utils file
+import type { Database, Tables, Enums, TablesInsert } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
+import { insertData, logInfo, logError, getEquipmentForVans } from '../../../utils'; // Removed getRequiredEquipmentForJob as it's not used directly here
 
-/**
- * Seeds the database for the 'equipment_conflict' scenario.
- *
- * Goal: Create a job that requires a piece of equipment that no technician possesses,
- * forcing the scheduler to handle an unsolvable equipment constraint.
- *
- * @param supabase The Supabase client instance.
- * @param baselineRefs References to baseline data (IDs, etc.).
- * @param technicianDbIds Accept DB IDs, even if unused here
- * @returns A ScenarioSeedResult object containing the IDs of the created records.
- */
-export async function seedScenario_equipment_conflict(
-  supabase: SupabaseClient<Database>,
-  baselineRefs: BaselineRefs,
-  technicianDbIds: number[] // Accept DB IDs, even if unused here
-): Promise<ScenarioSeedResult> {
-  const scenarioName = 'equipment_conflict';
-  logInfo(`Seeding scenario: ${scenarioName} with ${technicianDbIds.length} technicians available...`);
+// Define types using the standard Supabase helpers
+type OrderInsert = TablesInsert<'orders'>;
+type JobInsert = TablesInsert<'jobs'>;
 
-  try {
-    // --- 1. Create Unique Equipment ---
-    const newEquipmentName = `Conflict Equipment ${faker.string.uuid().substring(0, 4)}`;
-    // For simplicity, assume the first service ID from baseline implies a need for 'diag' equipment.
-    // A more robust approach would query service details or have richer baseline refs.
-    const targetServiceId = baselineRefs.serviceIds?.[0];
-    if (!targetServiceId) {
-      throw new Error('Baseline data missing required service IDs.');
-    }
-
-    // Assume the service requires 'diag' type equipment for this scenario
-    const newEquipmentRecord: TablesInsert<'equipment'> = {
-        model: newEquipmentName,
-        equipment_type: 'diag' // This type MUST NOT be assigned to any baseline technician's van equipment
-    };
-    const { data: newEquipmentData, error: equipmentError } = await insertData<'equipment'>( // Corrected Generic
-        supabase,
-        'equipment',
-        [newEquipmentRecord],
-        'id' // Return the id
-    );
-    if (equipmentError || !newEquipmentData || newEquipmentData.length === 0) {
-        throw new Error(`Failed to insert unique equipment: ${equipmentError?.message}`);
-    }
-    const uniqueEquipmentId = newEquipmentData[0].id;
-    logInfo(`Created unique equipment '${newEquipmentName}' (ID: ${uniqueEquipmentId}) not assigned to vans.`);
-
-    // --- 2. Create Order ---
-    const customerUserId = baselineRefs.customerIds?.[0]; // Corrected property name
-    const customerAddressId = baselineRefs.addressIds?.[0]; // Corrected property name
-     if (!customerUserId || !customerAddressId) {
-      throw new Error('Baseline data missing required customer user ID or address ID.');
-    }
-    const orderRecord: TablesInsert<'orders'> = {
-        user_id: customerUserId,
-        address_id: customerAddressId,
-        repair_order_number: `RO-${faker.string.alphanumeric(8)}`,
-        earliest_available_time: faker.date.soon({ days: 1 }).toISOString(), // Corrected Date format
-        notes: `Order for equipment conflict scenario.`
-    };
-     const { data: orderData, error: orderError } = await insertData<'orders'>( // Corrected Generic
-      supabase,
-      'orders',
-      [orderRecord],
-      'id' // Return the id
-    );
-    if (orderError || !orderData || orderData.length === 0) {
-      throw new Error(`Failed to insert order: ${orderError?.message}`);
-    }
-    const orderId = orderData[0].id;
-    logInfo(`Created order (ID: ${orderId}) for conflict scenario.`);
-
-
-    // --- 3. Create Job Requiring Unique Equipment ---
-    // This job uses the service ID which implies a need for the unique equipment type
-    const jobRecord: TablesInsert<'jobs'> = {
-        order_id: orderId,
-        address_id: customerAddressId, // Job is at the order address
-        service_id: targetServiceId, // Use the service ID requiring the unique equipment type
-        status: 'pending_review', // Initial status - should remain this way if scheduler works correctly
-        priority: 5, // Example priority
-        job_duration: 60, // Example duration in minutes
-        notes: `Job requiring equipment type 'diag' (via service ${targetServiceId}) which no technician has.`
-        // Ensure vehicle_id is set on the order or job if required by FK constraints or scheduler logic
-    };
-     const { data: jobData, error: jobError } = await insertData<'jobs'>( // Corrected Generic
-      supabase,
-      'jobs',
-      [jobRecord],
-      'id' // Return the id
-    );
-    if (jobError || !jobData || jobData.length === 0) {
-      throw new Error(`Failed to insert job: ${jobError?.message}`);
-    }
-    const jobId = jobData[0].id;
-    logInfo(`Created job (ID: ${jobId}) requiring unique equipment.`);
-
-    // --- 4. Return Result ---
-    logInfo(`Successfully seeded scenario: ${scenarioName}`);
-    return {
-      scenarioName,
-      insertedIds: {
-        equipment: [uniqueEquipmentId],
-        orders: [orderId],
-        jobs: [jobId],
-      },
-    };
-  } catch (error) {
-    logError(`Error seeding scenario ${scenarioName}:`, error);
-    throw error; // Re-throw the error to be caught by the main seeding script
+// Helper to pick a random element from an array
+function getRandomElement<T>(arr: T[]): T {
+  if (arr.length === 0) {
+    throw new Error('Cannot get random element from an empty array.');
   }
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Original content (if any) can go here or be integrated above.
-// Ensure the function signature matches expectations (supabaseAdmin, baselineRefs)
-// and the return type is Promise<ScenarioSeedResult>
+/**
+ * Seeds data for the 'equipment_conflict' scenario.
+ * Creates a job requiring specific equipment (via service/YMM lookup)
+ * that NO available technicians possess.
+ * Expected outcome: The job should end up in 'pending_review' status.
+ *
+ * @param supabaseAdmin - The Supabase client with admin privileges.
+ * @param baselineRefs - References to the baseline data.
+ * @param technicianDbIds - The DB IDs of technicians active in this scenario.
+ * @returns Metadata object conforming to ScenarioSeedResult.
+ */
+export async function seedScenario_equipment_conflict(
+  supabaseAdmin: SupabaseClient<Database>,
+  baselineRefs: BaselineRefs,
+  technicianDbIds: number[]
+): Promise<ScenarioSeedResult> {
+  const scenarioName = 'equipment_conflict';
+  logInfo(`Starting scenario seeding: ${scenarioName}`);
+
+  // Validate baseline refs needed for this scenario
+  if (
+    !baselineRefs.customerIds?.length ||
+    !baselineRefs.addressIds?.length ||
+    !baselineRefs.customerVehicleIds?.length ||
+    !baselineRefs.serviceIds?.length ||
+    !baselineRefs.equipmentIds?.length ||
+    !baselineRefs.vanIds?.length ||
+    !baselineRefs.ymmRefIds?.length // Need YMM refs
+  ) {
+    throw new Error(
+      `BaselineRefs is missing required data for ${scenarioName} scenario.`
+    );
+  }
+
+  if (technicianDbIds.length === 0) {
+    throw new Error('No technicians provided for equipment_conflict scenario.');
+  }
+
+  // --- Determine Equipment Conflict ---
+  // 1. Get equipment assigned to the vans of the active technicians
+  const techVanAssignments = await supabaseAdmin
+    .from('technicians')
+    .select('id, assigned_van_id')
+    .in('id', technicianDbIds)
+    .not('assigned_van_id', 'is', null);
+
+  if (techVanAssignments.error) {
+    logError('Failed to fetch technician van assignments', techVanAssignments.error);
+    throw techVanAssignments.error;
+  }
+
+  const assignedVanIds = techVanAssignments.data.map(t => t.assigned_van_id as number);
+  if (assignedVanIds.length === 0) {
+      logInfo('Warning: No technicians have assigned vans in this baseline setup.');
+      // Decide how to handle this - maybe error, maybe create a van? For now, error.
+      throw new Error('Cannot run equipment_conflict scenario: No technicians have assigned vans.');
+  }
+  const techEquipmentMap = await getEquipmentForVans(supabaseAdmin, assignedVanIds);
+  const allTechEquipmentModels = new Set<string>();
+  techEquipmentMap.forEach(equipList => {
+      // Ensure eq and eq.model are not null before adding
+      equipList.forEach(eq => {
+          if (eq && eq.model) {
+              allTechEquipmentModels.add(eq.model)
+          }
+      });
+  });
+  logInfo(`Technicians in this scenario collectively possess equipment models: ${Array.from(allTechEquipmentModels).join(', ')}`);
+
+
+  // 2. Find a service/YMM combination that requires equipment *not* held by any tech
+  //    We need to query the requirement tables.
+  //    Let's try finding an ADAS service first, as those often have specific requirements.
+  //    Need correct types for the join
+  type AdasReqWithDetails = Tables<'adas_equipment_requirements'> & {
+      services: Pick<Tables<'services'>, 'service_name'> | null;
+      ymm_ref: Pick<Tables<'ymm_ref'>, 'year' | 'make' | 'model'> | null;
+  }
+
+  const { data: adasReqs, error: adasReqError } = await supabaseAdmin
+      .from('adas_equipment_requirements')
+      .select(`
+          service_id,
+          ymm_id,
+          equipment_model,
+          services ( service_name ),
+          ymm_ref ( year, make, model )
+      `)
+      .limit(100) // Limit to avoid pulling too much
+      .returns<AdasReqWithDetails[]>(); // Specify the return type
+
+
+  if (adasReqError) {
+      logError('Failed to query ADAS equipment requirements', adasReqError);
+      throw adasReqError;
+  }
+
+  let conflictingServiceId: number | null = null;
+  let conflictingYmmId: number | null = null;
+  let requiredModelNotFound: string | null = null;
+
+  for (const req of adasReqs ?? []) {
+      // Check if equipment_model exists and is not null
+      if (req.equipment_model && !allTechEquipmentModels.has(req.equipment_model)) {
+          conflictingServiceId = req.service_id;
+          conflictingYmmId = req.ymm_id;
+          requiredModelNotFound = req.equipment_model;
+          logInfo(`Found conflict: Service ID ${conflictingServiceId} for YMM ID ${conflictingYmmId} requires '${requiredModelNotFound}', which no active tech has.`);
+          break;
+      }
+  }
+
+  // TODO: Add similar checks for airbag_equipment_requirements, diag..., immo..., prog...
+  // if conflictingServiceId is still null after checking all requirement tables.
+
+  if (!conflictingServiceId || !conflictingYmmId || !requiredModelNotFound) {
+      logError('Failed to find a suitable service/YMM combination with an equipment conflict against the current technician pool.', { allTechEquipmentModels });
+      throw new Error('Could not establish an equipment conflict for this scenario.');
+  }
+
+  // --- Seed Order and Job ---
+  const customerId = getRandomElement(baselineRefs.customerIds);
+  const addressId = getRandomElement(baselineRefs.addressIds);
+
+  // Find a vehicle linked to the conflicting YMM ID
+  // Assuming ymm_id column exists on customer_vehicles table
+  const { data: vehicleForYmm, error: vehicleError } = await supabaseAdmin
+    .from('customer_vehicles')
+    .select('id')
+    .eq('ymm_id', conflictingYmmId)
+    .limit(1);
+
+  let vehicleId: number;
+  if (vehicleError || !vehicleForYmm || vehicleForYmm.length === 0) {
+      logInfo(`Warning: Could not find existing vehicle for YMM ID ${conflictingYmmId}. Picking random vehicle.`);
+      // Fallback to random vehicle, requirement check might be less precise but still function
+      vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
+  } else {
+      vehicleId = vehicleForYmm[0].id;
+  }
+
+
+  const order: OrderInsert = {
+    user_id: customerId,
+    address_id: addressId,
+    vehicle_id: vehicleId, // Use vehicle linked to YMM if possible
+    notes: `Equipment conflict order requiring '${requiredModelNotFound}'`,
+  };
+
+  const { data: insertedOrderData, error: orderError } = await insertData(
+    supabaseAdmin,
+    'orders',
+    [order],
+    `Order for ${scenarioName} scenario`
+  );
+  if (orderError || !insertedOrderData || insertedOrderData.length === 0) {
+    throw orderError || new Error('Failed to insert order');
+  }
+  const createdOrderId = insertedOrderData[0].id;
+
+  const job: JobInsert = {
+    order_id: createdOrderId,
+    service_id: conflictingServiceId, // The service requiring the missing equipment
+    address_id: addressId, // Use same address as order
+    status: 'queued' as Enums<'job_status'>,
+    priority: 1, // High priority to ensure it gets evaluated
+    notes: `Job requiring ${requiredModelNotFound} which no tech has. Should become pending_review.`,
+    job_duration: faker.number.int({ min: 60, max: 120 }),
+    // other fields null or default
+    assigned_technician: null,
+    estimated_sched: null,
+    fixed_assignment: false,
+    fixed_schedule_time: null,
+    requested_time: null,
+    technician_notes: null,
+  };
+
+  const { data: insertedJobData, error: jobError } = await insertData(
+    supabaseAdmin,
+    'jobs',
+    [job],
+    `Job for ${scenarioName} scenario`
+  );
+  if (jobError || !insertedJobData || insertedJobData.length === 0) {
+    throw jobError || new Error('Failed to insert job');
+  }
+  const createdJobId = insertedJobData[0].id;
+
+  logInfo(`Finished scenario seeding: ${scenarioName}. Created Order ID: ${createdOrderId}, Job ID: ${createdJobId}.`);
+
+  // Verification step (optional but recommended)
+  // Query the DB after seeding to ensure the conflict exists as expected.
+  // e.g., fetch the job, get its requirements, check against tech equipment again.
+
+  const insertedIds: ScenarioSeedResult['insertedIds'] = {
+    orders: [createdOrderId],
+    jobs: [createdJobId],
+    equipment: [],
+    services: [],
+    ymm_ref: [],
+    adas_equipment_requirements: [],
+  };
+
+  return {
+    scenarioName: scenarioName,
+    insertedIds,
+  };
+}

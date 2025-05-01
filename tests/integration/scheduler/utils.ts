@@ -228,4 +228,71 @@ function logInfo(message: string) {
 
 function logError(message: string, error: any) {
     console.error(`[ERROR] ${message}`, error);
+}
+
+/**
+ * Retrieves the Technician Auth ID (UUID string) corresponding to a given Technician DB ID
+ * from the scenario metadata.
+ *
+ * Assumes that technicianDbIds and technicianAuthIds arrays in insertedIds are ordered consistently.
+ *
+ * @param scenarioResult The result object from readCurrentScenarioMetadata.
+ * @param techDbId The numeric Technician DB ID.
+ * @returns The corresponding Technician Auth ID (UUID string).
+ * @throws Error if the DB ID is not found or metadata is missing/malformed.
+ */
+export function getTechnicianAuthIdByDbId(scenarioResult: ScenarioSeedResult, techDbId: number): string {
+    const dbIds = scenarioResult.insertedIds?.technicianDbIds;
+    const authIds = scenarioResult.insertedIds?.technicianAuthIds;
+
+    if (!dbIds || !authIds || dbIds.length !== authIds.length) {
+        throw new Error('Scenario metadata is missing technicianDbIds or technicianAuthIds, or arrays have different lengths.');
+    }
+
+    const index = dbIds.findIndex(id => id === techDbId);
+    if (index === -1) {
+        throw new Error(`Technician DB ID ${techDbId} not found in scenario metadata technicianDbIds: [${dbIds.join(', ')}]`);
+    }
+
+    const authId = authIds[index];
+    if (typeof authId !== 'string') { // Basic type check for UUID
+        throw new Error(`Invalid Auth ID found at index ${index} for DB ID ${techDbId}. Expected string, got ${typeof authId}`);
+    }
+
+    return authId;
+}
+
+/**
+ * Retrieves the Assigned Van ID (number) corresponding to a given Technician DB ID
+ * from the scenario metadata.
+ *
+ * Assumes that technicianDbIds and assignedVanIds arrays in insertedIds are ordered consistently.
+ *
+ * @param scenarioResult The result object from readCurrentScenarioMetadata.
+ * @param techDbId The numeric Technician DB ID.
+ * @returns The corresponding Assigned Van ID (number).
+ * @throws Error if the DB ID is not found or metadata is missing/malformed.
+ */
+export function getAssignedVanIdByDbId(scenarioResult: ScenarioSeedResult, techDbId: number): number {
+    const dbIds = scenarioResult.insertedIds?.technicianDbIds;
+    // NOTE: Logic in seed/index.ts currently puts assignedVanIds in an object map, not an array.
+    // Need to adapt or ensure seed/index.ts puts it in an array matching dbIds order.
+    // Assuming for now it's an array matching dbIds order, like authIds.
+    const vanIds = scenarioResult.insertedIds?.assignedVanIds as number[] | undefined; // Assuming array for now
+
+    if (!dbIds || !vanIds || dbIds.length !== vanIds.length) {
+        throw new Error('Scenario metadata is missing technicianDbIds or assignedVanIds, or arrays have different lengths.');
+    }
+
+    const index = dbIds.findIndex(id => id === techDbId);
+    if (index === -1) {
+        throw new Error(`Technician DB ID ${techDbId} not found in scenario metadata technicianDbIds: [${dbIds.join(', ')}]`);
+    }
+
+    const vanId = vanIds[index];
+     if (typeof vanId !== 'number') { // Basic type check
+        throw new Error(`Invalid Van ID found at index ${index} for DB ID ${techDbId}. Expected number, got ${typeof vanId}`);
+    }
+
+    return vanId;
 } 

@@ -33,29 +33,28 @@ The primary public interface is the entry point that executes `runFullReplan` or
         *   `dbClient`: An initialized Supabase client instance.
     *   **Returns:** `Promise<void>` - Resolves when the process completes successfully, rejects on critical failure.
     *   **Workflow:** (High-Level)
-        1.  **Init:** Initialize internal state (`finalAssignments` Map, `jobsToPlan` Set).
-        2.  **Fetch Initial Data:** Get active technicians (including van/home location and `onestepgps_device_id`), relevant jobs (`queued`, `locked`, `fixed_time`). Populate `jobsToPlan` with `queued` job IDs.
-        3.  **Fetch Real-time Locations:** Calls `fetchDeviceLocations` (`apps/scheduler/src/onestepgps/client.ts`). If successful, updates the `current_location` of technicians *in memory* based on their van's `onestepgps_device_id`.
-        4.  **Separate Jobs:** Identify `lockedJobs` and `fixedTimeJobs` for constraint handling.
+        1.  **Init:** Initialize internal state (`jobStates` Map to track scheduling progress/attempts).
+        2.  **Fetch Initial Data:** Get active technicians (including `defaultHours`, `availabilityExceptions`), relevant jobs (`queued`, `locked`, `fixed_time`). Populate `jobStates` for `queued` jobs.
+        3.  **Fetch Real-time Locations:** Calls `fetchDeviceLocations`. Updates `current_location` in memory for technicians based on GPS data if available.
+        4.  **Separate Jobs:** Identify `lockedJobs` (en_route, in_progress, fixed_time) and `allFixedTimeJobs`.
         5.  **Pass 1 (Today):**
-            *   If `jobsToPlan` is empty, skip to Final Update.
-            *   Calculate today's availability using *updated `current_location`* and `lockedJobs`.
-            *   Fetch job details for IDs in `jobsToPlan`.
-            *   Bundle (`bundleQueuedJobs`), check eligibility (`determineTechnicianEligibility`), prepare payload (`prepareOptimizationPayload`) for jobs in `jobsToPlan`.
+            *   If no pending jobs, skip to Final Update.
+            *   Bundle (`bundleQueuedJobs`), check eligibility (`determineTechnicianEligibility`).
+            *   Mark persistently ineligible jobs (e.g., equipment) in `jobStates`.
+            *   Prepare payload (`prepareOptimizationPayload`) for eligible jobs, calculating today's availability using `calculateWindowsForTechnician` and `applyLockedJobsToWindows`, and modeling availability gaps.
             *   Call optimization service (`callOptimizationService`).
-            *   Process results (`processOptimizationResults`): Update `finalAssignments` Map for scheduled jobs, remove scheduled job IDs from `jobsToPlan` Set.
+            *   Process results (`processOptimizationResults`): Update `jobStates` for successfully scheduled jobs (mark `scheduled`, store assignment) or transiently failed jobs (mark `failed_transient`).
         6.  **Overflow Loop (Pass 2+):**
-            *   Iterates for subsequent days (up to `MAX_OVERFLOW_ATTEMPTS`) if `jobsToPlan` is not empty. Skips weekends.
-            *   Fetches technicians (with *home locations*) and details for jobs still in `jobsToPlan`.
-            *   Calculates availability for the *future* date (using *home locations*).
-            *   If no availability, skips day.
-            *   Bundle, check eligibility, prepare payload for jobs in `jobsToPlan` using future availability.
+            *   Iterates for subsequent days (up to `MAX_OVERFLOW_ATTEMPTS`) if jobs remain pending/transiently failed.
+            *   Fetches technicians (using home locations).
+            *   Bundle, check eligibility, mark persistent failures.
+            *   Prepare payload for remaining eligible jobs, calculating availability for the *future* date using `calculateWindowsForTechnician` (DB data) and `applyLockedJobsToWindows` (for any future locked/fixed jobs on that date), modeling gaps, and including correct `fixedConstraints`.
             *   Call optimization service.
-            *   Process results: Update `finalAssignments`, remove scheduled job IDs from `jobsToPlan`.
+            *   Process results: Update `jobStates` (scheduled/failed_transient).
         7.  **Final Update:** Performs a single batch database update via `updateJobs`:
-            *   For jobs in `finalAssignments`: Set `status = 'queued'`, `assigned_technician`, `estimated_sched`.
-            *   For jobs remaining in `jobsToPlan`: Set `status = 'pending_review'`, clear assignment/schedule.
-        8. **Log Summary:** Generate and log technician schedules.
+            *   For jobs marked `scheduled`: Set `status = 'queued'`, `assigned_technician`, `estimated_sched`.
+            *   For jobs marked `failed_persistent` or remaining `failed_transient`: Set `status = 'pending_review'`, clear assignment/schedule.
+        8. **Log Summary:** Generate and log technician schedules and unscheduled jobs.
 
 **`apps/scheduler/src/supabase/client.ts`**
 
@@ -92,8 +91,9 @@ The primary public interface is the entry point that executes `runFullReplan` or
 
 **`apps/scheduler/src/scheduler/availability.ts`**
 
-*   `calculateTechnicianAvailability(technicians: Technician[], lockedJobs: Job[]): void`: Calculates availability for the *current day* (based on the current date and 09:00-18:30 UTC work window). It considers `lockedJobs` to determine the earliest available time and updates `current_location` based on the last locked job's address. Updates technician objects *in place*. *(Note: This uses a fixed window; integration with `technician_default_hours` / `technician_availability_exceptions` tables is not yet implemented).*
-*   `calculateAvailabilityForDay(technicians: Technician[], targetDate: Date): TechnicianAvailability[]`: Calculates availability for a *specific future day* based on the 09:00-18:30 UTC work window (Mon-Fri only). Uses technician *home locations* as the start location. Returns an array of `TechnicianAvailability` objects. *(Note: Also uses fixed window).*
+*   **`calculateWindowsForTechnician(technician: Technician, startDate: Date, endDate: Date): DailyAvailabilityWindows`**: Calculates detailed, potentially multi-segment availability windows for a technician over a date range. Reads default hours (`technician.defaultHours`) and exceptions (`technician.availabilityExceptions`) from the passed technician object. Returns a Map where keys are date strings (YYYY-MM-DD) and values are arrays of `TimeWindow` objects ({start: Date, end: Date}).
+*   **`applyLockedJobsToWindows(dailyWindows: DailyAvailabilityWindows, lockedJobs: Job[], technicianId: number, targetDate: Date): DailyAvailabilityWindows`**: Modifies the provided `DailyAvailabilityWindows` map for a specific `targetDate` by subtracting the time periods occupied by the given technician's `lockedJobs` (en_route, in_progress, fixed_time) that fall on that date.
+*   *(Deprecated Functions):* `calculateTechnicianAvailability` and `calculateAvailabilityForDay` are deprecated and based on older, fixed-window logic.
 
 **`apps/scheduler/src/scheduler/bundling.ts`**
 
@@ -105,7 +105,15 @@ The primary public interface is the entry point that executes `runFullReplan` or
 
 **`apps/scheduler/src/scheduler/payload.ts`**
 
-*   `prepareOptimizationPayload(technicians: Technician[], items: SchedulableItem[], fixedTimeJobs: Job[], technicianAvailability?: TechnicianAvailability[]): Promise<OptimizationRequestPayload>`: Constructs the JSON payload for the optimization service. It indexes locations, calculates the travel time matrix (using `getTravelTime`), formats technician data (using current or future availability from `technicianAvailability`), formats items (including earliest start time constraints from `orders.earliest_available_time`), and adds fixed time constraints. Handles potential clashes between technician start locations and item locations by slightly perturbing technician start coordinates if necessary.
+*   **`prepareOptimizationPayload(technicians: Technician[], items: SchedulableItem[], fixedTimeJobs: Job[], lockedJobs: Job[], targetDate: Date): Promise<OptimizationRequestPayload>`**: Constructs the JSON payload for the optimization service for a specific `targetDate`. 
+    *   Calculates detailed technician availability for the `targetDate` using `calculateWindowsForTechnician` and `applyLockedJobsToWindows`.
+    *   Identifies unavailability gaps within the workday using `findAvailabilityGaps`.
+    *   Models these gaps as dummy "break" items and corresponding `OptimizationFixedConstraint`s.
+    *   Indexes unique locations (depot, items, tech starts - perturbing tech starts if they clash with item locations).
+    *   Calculates the travel time matrix using `getBulkTravelTimes` (passing `targetDate` to enable predictive traffic for future dates).
+    *   Formats technicians with their overall start/end times derived from the calculated windows.
+    *   Formats items, including `earliestStartTimeISO` constraints derived from `orders.earliest_available_time`.
+    *   Includes `fixedConstraints` for actual fixed-time jobs relevant to the `targetDate` and the generated dummy breaks.
 
 **`apps/scheduler/src/scheduler/optimize.ts`**
 

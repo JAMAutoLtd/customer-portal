@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { seedBaseline } from './baseline';
 import { createStagingSupabaseClient, logInfo, logError } from '../../utils';
-import { seedScenario } from './scenarios'; // Scenario router
+import { seedScenario } from './scenarios/index'; // Scenario router
 import { ScenarioSeedResult, BaselineRefs } from './scenarios/types';
 import { cleanupScenarioLeftovers } from '../cleanup-staging';
 
@@ -163,7 +163,21 @@ async function main() {
       );
       logInfo(`Scenario '${scenarioName}' applied successfully.`);
 
-      // Add technician IDs to the final output metadata
+      // --- Construct final metadata --- 
+      // Ensure assignedVanIds is an ordered array matching technicianDbIds order
+      const orderedAssignedVanIds = techResult.createdTechnicianDbIds.map(dbId => {
+        const vanId = techResult.assignedVanIds[dbId];
+        if (vanId === undefined) {
+             // This case should ideally not happen if seedScenarioTechnicians guarantees assignment
+             logError(`Van assignment missing for technician DB ID ${dbId} in techResult.assignedVanIds`, techResult.assignedVanIds);
+             // Handle appropriately - maybe throw error or assign a placeholder like null/0?
+             // For now, let's throw an error to make the issue visible.
+             throw new Error(`Van assignment missing for technician DB ID ${dbId}`);
+         }
+         return vanId;
+      });
+
+      // Add technician IDs and the *ordered* van IDs to the final output metadata
       const finalOutputMetadata = {
         ...scenarioResult,
         // Ensure insertedIds exists, and add technicianDbIds to it
@@ -171,7 +185,8 @@ async function main() {
           ...(scenarioResult.insertedIds || {}),
           technicianDbIds: techResult.createdTechnicianDbIds,
           technicianAuthIds: techResult.createdTechnicianAuthIds,
-          assignedVanIds: techResult.assignedVanIds
+          // assignedVanIds: techResult.assignedVanIds // Original object map
+          assignedVanIds: orderedAssignedVanIds // Store the ordered array
         }
       };
 

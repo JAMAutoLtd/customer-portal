@@ -90,3 +90,8 @@ This guide covers setting up the development environment, common development wor
     *   Optimiser: `pnpm run dev:optimiser` (from root, requires Python environment).
 *   **Building (`scheduler`):** Build the scheduler service using `pnpm run build:scheduler` from the root. 
 *   **Simulation Environment:** For local development and testing of the backend interaction (Scheduler <-> Optimizer <-> Database), use the Docker Compose environment defined in `simulation/`. Refer to `simulation/README.md` for setup and usage instructions, including how to run E2E tests (`pnpm run test:e2e`). 
+    *   The simulation includes scripts for seeding baseline data and specific test scenarios (`simulation/scripts/db/seed/scenarios/`).
+    *   Integration tests (`tests/integration/scheduler/`) verify the scheduler's behavior under various conditions seeded by these scenarios.
+    *   **New Scenarios:**
+        *   `unschedulable_fixed_time`: Tests the case where a job has a `fixed_schedule_time` that conflicts with a technician's availability exception (e.g., time off), ensuring the job is marked `pending_review`.
+        *   `locked_job_impact`: Tests that the scheduler respects the implicit unavailability caused by an existing job in `en_route` or `in_progress` status, scheduling other jobs around it. 

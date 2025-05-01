@@ -9,7 +9,7 @@ This file orchestrates the main replan process. It imports and calls functions f
     *   `jobs.ts`: `getRelevantJobs` (Gets jobs for today's plan) and `getJobsByStatus` (Gets overflow jobs).
     *   `client.ts`: Provides the Supabase client instance.
 *   **Scheduling Logic (`apps/scheduler/src/scheduler/`)**:
-    *   `availability.ts`: `calculateTechnicianAvailability` (For today) and `calculateAvailabilityForDay` (For future overflow days).
+    *   `availability.ts`: `calculateWindowsForTechnician`, `applyLockedJobsToWindows` (Uses DB data & locked jobs to determine availability windows).
     *   `bundling.ts`: `bundleQueuedJobs`.
     *   `eligibility.ts`: `determineTechnicianEligibility`.
     *   `payload.ts`: `prepareOptimizationPayload`.
@@ -17,7 +17,10 @@ This file orchestrates the main replan process. It imports and calls functions f
     *   `results.ts`: `processOptimizationResults`.
 *   **Database Update (`apps/scheduler/src/db/`)**:
     *   `update.ts`: `updateJobs`.
-*   **Types (`apps/scheduler/src/types/`)**: Imports various type definitions (`database.types.ts`).
+*   **Types (`apps/scheduler/src/types/`)**: Imports various type definitions (`database.types.ts` including `JobSchedulingState`).
+*   **External Services (`apps/scheduler/src/google/`, `apps/scheduler/src/onestepgps/`)**:
+    *   `maps.ts`: `getBulkTravelTimes` (calculates travel times, handles bulk calls).
+    *   `client.ts`: `fetchDeviceLocations` (gets real-time GPS data).
 
 
 
@@ -39,9 +42,10 @@ This file orchestrates the main replan process. It imports and calls functions f
     *   Imports: `supabase` (from `client.ts`), `SupabaseClient`, `JobUpdateOperation` (types).
     *   Purpose: Performs batch updates on the Supabase `jobs` table based on a list of operations.
 
-*   **`apps/scheduler/src/scheduler/availability.ts` (`calculateTechnicianAvailability`, `calculateAvailabilityForDay`)**:
-    *   Imports: `Technician`, `Job`, `TechnicianAvailability` (types).
-    *   Purpose: Calculates technician start times, end times, and start locations based on locked jobs (for today) or standard work hours and home locations (for future days), considering working days/hours (currently Mon-Fri, 9am-6:30pm UTC). Uses standard JavaScript `Date` methods (UTC variants).
+*   **`apps/scheduler/src/scheduler/availability.ts` (`calculateWindowsForTechnician`, `applyLockedJobsToWindows`)**:
+    *   Imports: `Technician`, `Job`, `TechnicianAvailabilityException`, `TechnicianDefaultHours`, `TimeWindow`, `DailyAvailabilityWindows` (types).
+    *   Imports: `date-fns` helpers.
+    *   Purpose: Calculates detailed technician availability windows based on DB default hours and exceptions. Applies time blocked by locked jobs (en_route, in_progress, fixed_time) for a specific date.
 
 *   **`apps/scheduler/src/scheduler/bundling.ts` (`bundleQueuedJobs`)**:
     *   Imports: `Job`, `JobBundle`, `SchedulableJob`, `SchedulableItem` (types).
@@ -53,13 +57,16 @@ This file orchestrates the main replan process. It imports and calls functions f
     *   Purpose: Compares equipment required for a job/bundle (fetched via `getRequiredEquipmentForJob`) with the equipment available in each technician's van (fetched via `getEquipmentForVans`) to determine eligibility. Breaks bundles if no single tech is eligible.
 
 *   **`apps/scheduler/src/scheduler/payload.ts` (`prepareOptimizationPayload`)**:
-    *   Imports: `Technician`, `SchedulableItem`, `Job`, `Address`, `OptimizationPayload`, `OptimizationTechnician`, `OptimizationItem`, `OptimizationLocation`, `TechnicianAvailability` (types).
-    *   Imports: `getTravelTime` (from `apps/scheduler/src/google/maps.ts`).
+    *   Imports: `Technician`, `SchedulableItem`, `Job`, `Address`, `OptimizationPayload`, `OptimizationTechnician`, `OptimizationItem`, `OptimizationLocation`, `TimeWindow`, `DailyAvailabilityWindows` (types).
+    *   Imports: `getBulkTravelTimes` (from `maps.ts`), `calculateWindowsForTechnician`, `applyLockedJobsToWindows`, `findAvailabilityGaps` (from `availability.ts`).
     *   Purpose: Constructs the JSON payload for the external optimization service. This involves:
+        *   Calculating detailed availability windows using `calculateWindowsForTechnician` and `applyLockedJobsToWindows`.
+        *   Identifying and modeling internal availability gaps as dummy break items/constraints using `findAvailabilityGaps`.
         *   Indexing all unique locations (depot, technician start, job sites).
-        *   Calculating the travel time matrix between all locations using `getTravelTime`.
-        *   Formatting technician data (start/end times, start locations - either current or home based on `TechnicianAvailability`).
-        *   Formatting schedulable items with their constraints and eligible technician indices.
+        *   Calculating the travel time matrix between all locations using `getBulkTravelTimes`.
+        *   Formatting technician data (start/end times derived from calculated windows).
+        *   Formatting schedulable items with constraints and eligible technician indices.
+        *   Adding `fixedConstraints` for real fixed jobs and dummy breaks.
 
 *   **`apps/scheduler/src/scheduler/optimize.ts` (`callOptimizationService`)**:
     *   Imports: `axios` (external library), `OptimizationPayload`, `OptimizationResponsePayload` (types).
@@ -76,42 +83,39 @@ This file orchestrates the main replan process. It imports and calls functions f
         *   `getEquipmentForVans`: Fetches equipment currently assigned to specified vans.
         *   `getRequiredEquipmentForJob`: Determines equipment requirements based on job service category, vehicle type (using `getYmmIdForOrder`), and service details by querying `service_equipment_requirements`.
 
-*   **`apps/scheduler/src/google/maps.ts` (`getTravelTime`)**:
-    *   Imports: `@googlemaps/google-maps-services-js` (external library), `Address` (type).
-    *   Purpose: Calls the Google Maps Distance Matrix API to get driving travel times between locations. Includes an in-memory cache to avoid redundant API calls for the same origin-destination pairs within a short timeframe. Uses API key from environment variables.
+*   **`apps/scheduler/src/google/maps.ts` (`getBulkTravelTimes`)**:
+    *   Imports: `@googlemaps/google-maps-services-js` (external library), `LatLngLiteral` (type).
+    *   Purpose: Calls the Google Maps Distance Matrix API in batches to get driving travel times between multiple locations. Includes an in-memory cache. Handles real-time and predictive traffic requests.
 
 *   **`apps/scheduler/src/supabase/orders.ts` (`getYmmIdForOrder`)**:
     *   Imports: `supabase` (from `client.ts`), `Order` (type).
     *   Purpose: Fetches the `ymm_id` (Year-Make-Model identifier) associated with a specific `order_id` from the `orders` table.
 
-**3. System Workflow Summary (based on `runFullReplan` Refactored Approach):**
+**3. System Workflow Summary (Refactored Approach):**
 
-1.  **Initialization:** Start the replan cycle. Initialize internal state: `finalAssignments = new Map()` and `jobsToPlan = new Set()`.
-2.  **Fetch Initial Data:** Get active technicians (with current locations) and relevant jobs (initially `queued`, plus `locked`/`fixed_time`). Populate `jobsToPlan` with IDs of `queued` jobs.
-3.  **Separate Jobs:** Identify `lockedJobs` and `fixedTimeJobs`.
-4.  **Pass 1 (Today):**
-    *   If `jobsToPlan` is empty, skip to Final Update.
-    *   Calculate today's technician availability using `lockedJobs`.
-    *   Fetch job details for IDs in `jobsToPlan`.
-    *   Bundle, check eligibility, prepare payload for jobs in `jobsToPlan`.
+1.  **Initialization:** Start the replan cycle. Initialize internal state: `jobStates = new Map()` to track status and attempts per job.
+2.  **Fetch Initial Data:** Get active technicians (including DB availability data) and relevant jobs (initially `queued`, plus `locked`/`fixed_time`). Populate `jobStates` for `queued` jobs.
+3.  **Fetch Real-Time Locations:** Use OneStepGPS to update technician `current_location` in memory for today.
+4.  **Separate Jobs:** Identify `lockedJobs` and `allFixedTimeJobs`.
+5.  **Pass 1 (Today):**
+    *   If no pending jobs (`jobStates`), skip to Final Update.
+    *   Bundle, check eligibility (mark persistent failures like equipment in `jobStates`).
+    *   Prepare payload for eligible jobs: Calculate today's availability windows (DB data + locked jobs + GPS start location), model gaps, calculate bulk travel times (real-time), add fixed constraints for today.
     *   Call optimization service.
-    *   Process results:
-        *   For successfully scheduled jobs: Add `{ techId, estimatedSchedISO }` to `finalAssignments` using the `jobId` as the key. Remove `jobId` from `jobsToPlan`.
-5.  **Overflow Loop (Pass 2+):**
-    *   Loop up to `MAX_OVERFLOW_ATTEMPTS` times as long as `jobsToPlan` is not empty.
-    *   Increment the planning date by one day.
-    *   Fetch technicians (with **home locations**) and fetch details for jobs still in `jobsToPlan`.
-    *   Calculate technician availability for the *future* date (using home locations).
-    *   If no availability, skip to the next day in the loop.
-    *   Bundle, check eligibility, prepare payload for jobs in `jobsToPlan` using future availability.
+    *   Process results: Update `jobStates` (mark `scheduled` with assignment details or `failed_transient`).
+6.  **Overflow Loop (Pass 2+):**
+    *   Loop up to `MAX_OVERFLOW_ATTEMPTS` times as long as jobs remain pending/transiently failed in `jobStates`.
+    *   Increment the planning date.
+    *   Fetch technicians (use home locations).
+    *   Bundle, check eligibility for remaining jobs (mark persistent failures).
+    *   Prepare payload for remaining eligible jobs: Calculate future day's availability windows (DB data + locked jobs for that future date + home start location), model gaps, calculate bulk travel times (predictive), add fixed constraints for that future date.
     *   Call optimization service.
-    *   Process results:
-        *   For successfully scheduled jobs: Add `{ techId, estimatedSchedISO }` to `finalAssignments` using the `jobId`. Remove `jobId` from `jobsToPlan`.
-6.  **Final Database Update:**
-    *   Prepare a list of `JobUpdateOperation`.
-    *   Iterate `finalAssignments`: Add update operations to set `status = 'queued'`, `assigned_technician = techId`, `estimated_sched = estimatedSchedISO`.
-    *   Iterate remaining `jobId`s in `jobsToPlan`: Add update operations to set `status = 'pending_review'`, `assigned_technician = null`, `estimated_sched = null`.
+    *   Process results: Update `jobStates`.
+7.  **Final Database Update:**
+    *   Prepare a list of `JobUpdateOperation` based on the final `lastStatus` in `jobStates`.
+    *   Jobs marked `scheduled` get `status = 'queued'`, assignment, and time.
+    *   Jobs marked `failed_persistent` or `failed_transient` get `status = 'pending_review'`, assignment/time cleared.
     *   Execute `updateJobs` with the combined list of operations.
-7.  **Completion/Error:** Log success or handle errors.
+8.  **Log Summary & Completion/Error:** Log the final schedule, unscheduled jobs (with reasons from `jobStates`), generate direction links, and handle errors.
 
-This trace provides a detailed view of how the modules interact to perform the full replan, including fetching data, applying business logic (bundling, eligibility, availability), interacting with external services (Google Maps, Optimization Service), and updating the database state **using the refactored internal tracking and final update mechanism.**
+This trace provides a detailed view of how the modules interact to perform the full replan, incorporating database-driven availability, explicit gap modeling, improved state tracking, and the final update mechanism.
