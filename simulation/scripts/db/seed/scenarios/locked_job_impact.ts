@@ -67,10 +67,16 @@ export const seedScenario_locked_job_impact = async (
         const customerId1 = baselineRefs.customerIds[0];
         const addressId1 = baselineRefs.addressIds[0];
         const serviceId1 = getRandomElement(BASIC_SERVICE_IDS);
+        // Get a vehicle ID from baseline refs
+        if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+            throw new Error('BaselineRefs is missing customerVehicleIds.');
+        }
+        const vehicleId1 = baselineRefs.customerVehicleIds[0];
 
         const order1Data: OrderInsert = {
             user_id: customerId1,
             address_id: addressId1,
+            vehicle_id: vehicleId1,
             notes: `Order 1 for ${scenarioName} - Locked Job`,
         };
         const order1Result = await insertData(supabase, 'orders', [order1Data], 'Order 1 for locked job scenario');
@@ -100,10 +106,13 @@ export const seedScenario_locked_job_impact = async (
         const customerId2 = baselineRefs.customerIds[1] ?? customerId1; // Use a different customer if available
         const addressId2 = baselineRefs.addressIds[1] ?? addressId1; // Different address
         const serviceId2 = getRandomElement(BASIC_SERVICE_IDS.filter(id => id !== serviceId1));
+        // Use another vehicle ID
+        const vehicleId2 = baselineRefs.customerVehicleIds[1] ?? vehicleId1;
 
         const order2Data: OrderInsert = {
             user_id: customerId2,
             address_id: addressId2,
+            vehicle_id: vehicleId2,
             notes: `Order 2 for ${scenarioName} - Queued Job A`,
         };
         const order2Result = await insertData(supabase, 'orders', [order2Data], 'Order 2 for locked job scenario');
@@ -126,10 +135,13 @@ export const seedScenario_locked_job_impact = async (
         const customerId3 = baselineRefs.customerIds[2] ?? customerId1;
         const addressId3 = baselineRefs.addressIds[2] ?? addressId2;
         const serviceId3 = getRandomElement(BASIC_SERVICE_IDS.filter(id => id !== serviceId1 && id !== serviceId2));
+        // Use another vehicle ID
+        const vehicleId3 = baselineRefs.customerVehicleIds[2] ?? vehicleId1;
 
         const order3Data: OrderInsert = {
             user_id: customerId3,
             address_id: addressId3,
+            vehicle_id: vehicleId3,
             notes: `Order 3 for ${scenarioName} - Queued Job B`,
         };
         const order3Result = await insertData(supabase, 'orders', [order3Data], 'Order 3 for locked job scenario');

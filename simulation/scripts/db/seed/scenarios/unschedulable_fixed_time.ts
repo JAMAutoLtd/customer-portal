@@ -82,10 +82,16 @@ export const seedScenario_unschedulable_fixed_time = async (
         const addressId = baselineRefs.addressIds[0];
         // Ensure the service is one the tech *could* do if available
         const serviceId = getRandomElement(BASIC_SERVICE_IDS);
+        // Get a vehicle ID from baseline refs
+        if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+            throw new Error('BaselineRefs is missing customerVehicleIds.');
+        }
+        const vehicleId = baselineRefs.customerVehicleIds[0];
 
         const orderData: OrderInsert = {
             user_id: customerId,
             address_id: addressId,
+            vehicle_id: vehicleId,
             notes: `Order for ${scenarioName}`,
         };
         const orderResult = await insertData(supabase, 'orders', [orderData], 'Order for unschedulable fixed job');

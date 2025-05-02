@@ -8,6 +8,33 @@ import utc from 'dayjs/plugin/utc';
 
 dayjs.extend(utc);
 
+// --- Configuration for Controlled Equipment Eligibility ---
+// Based on logs/default seeding, assume technicians have DIAG and PROG tools.
+// List Service IDs that ONLY require DIAG/PROG or have NO specific requirement.
+// Query: SELECT id, service_name, service_category FROM services WHERE service_category IN ('diag', 'prog') OR id IN (/* Add ADAS IDs known to be safe */);
+// Eligible IDs based on services table screenshot (assuming default tech has DIAG/PROG tools):
+const GUARANTEED_ELIGIBLE_SERVICE_IDS = [
+    // DIAG Services (From Screenshot)
+    19, // Diagnostic or Wiring
+    // PROG Services
+    6,  // ECM
+    7,  // TCM
+    8,  // BCM
+    10, // Instrument Cluster
+    14, // Headlamp Module
+    15, // Other -prog
+    // ADAS Services known NOT to require specific tools (Example IDs - VERIFY)
+    // These often depend on YMM, so use with caution or stick to DIAG/PROG
+    // 1, // Example: Front Radar (IF known to be safe for baseline vehicles)
+    // 5, // Example: Parking Assist Sensor (IF known to be safe)
+    // Avoid: IMMO (16-18), AIRBAG (9), some ADAS (1-5 etc.) unless tech is seeded with tools
+];
+// Ensure the list is not empty
+if (GUARANTEED_ELIGIBLE_SERVICE_IDS.length === 0) {
+    throw new Error("GUARANTEED_ELIGIBLE_SERVICE_IDS cannot be empty. Please define eligible service IDs.");
+}
+// ---
+
 // Define types using the standard Supabase helpers
 type OrderInsert = TablesInsert<'orders'>;
 type JobInsert = TablesInsert<'jobs'>;
@@ -59,38 +86,53 @@ export const seedScenario_fixed_time_future_overflow = async (
         }
 
         // 2. Determine tomorrow's date and a fixed time slot
-        const tomorrow = dayjs.utc().add(1, 'day');
-        const fixedTimeTomorrow = tomorrow.set('hour', 10).set('minute', 0).set('second', 0).toISOString(); // 10:00 AM UTC tomorrow
+        const assignedTechnicianId = technicianDbIds[0]; // Assign to the first tech
 
-        // 3. Assign the fixed job to a specific technician (e.g., the first one)
-        const assignedTechId = technicianDbIds[0];
+        // --- Create Fixed Time Job for Tomorrow --- 
+        // Calculate the date for the next working day (skip weekends)
+        let nextWorkday = dayjs.utc().add(1, 'day');
+        if (nextWorkday.day() === 6) { // Saturday
+            nextWorkday = nextWorkday.add(2, 'days'); // Move to Monday
+        } else if (nextWorkday.day() === 0) { // Sunday
+            nextWorkday = nextWorkday.add(1, 'day'); // Move to Monday
+        }
 
-        // 4. Create the Order and the Fixed Job
+        // Set time to 10 AM UTC on that next workday
+        const fixedScheduleTime = nextWorkday.hour(10).minute(0).second(0).millisecond(0).toISOString();
+        const fixedJobDateString = nextWorkday.format('YYYY-MM-DD'); // For logging
+
+        // 3. Create the Order and the Fixed Job
         const customerId = baselineRefs.customerIds[0];
         const addressId = baselineRefs.addressIds[0];
-        const serviceIdFixed = baselineRefs.serviceIds[0]; // Use a baseline service
+        const serviceIdFixed = getRandomElement(GUARANTEED_ELIGIBLE_SERVICE_IDS); // NEW
+        // Get a vehicle ID from baseline refs
+        if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+            throw new Error('BaselineRefs is missing customerVehicleIds.');
+        }
+        const vehicleId = baselineRefs.customerVehicleIds[0];
 
-        const orderDataFixed: TablesInsert<'orders'> = {
+        const orderData: TablesInsert<'orders'> = {
             user_id: customerId,
             address_id: addressId,
+            vehicle_id: vehicleId,
             notes: `Order for ${scenarioName} - Fixed Job`,
         };
         // Pass as array
-        const orderResultFixed = await insertData(supabase, 'orders', [orderDataFixed], 'Order for fixed job in future overflow');
-        const orderIdFixed = orderResultFixed.data?.[0]?.id;
-        if (!orderIdFixed) throw new Error('Failed to insert order for fixed job.');
-        insertedIds.orders = [orderIdFixed]; // Assign directly
+        const orderResult = await insertData(supabase, 'orders', [orderData], 'Order for fixed job in future overflow');
+        const orderId = orderResult.data?.[0]?.id;
+        if (!orderId) throw new Error('Failed to insert order for fixed job.');
+        insertedIds.orders = [orderId]; // Assign directly
 
         const fixedJobData: TablesInsert<'jobs'> = {
-            order_id: orderIdFixed,
+            order_id: orderId,
             address_id: addressId,
             service_id: serviceIdFixed,
             status: 'fixed_time', // Set status explicitly
             priority: 1, // High priority
             job_duration: 120, // 2 hours
-            notes: `Fixed job for ${scenarioName} @ ${fixedTimeTomorrow}`,
-            fixed_schedule_time: fixedTimeTomorrow,
-            assigned_technician: assignedTechId, // Pre-assign
+            notes: `Fixed job for ${scenarioName} @ ${fixedScheduleTime}`,
+            fixed_schedule_time: fixedScheduleTime,
+            assigned_technician: assignedTechnicianId, // Pre-assign
             fixed_assignment: true,
         };
 
@@ -100,23 +142,25 @@ export const seedScenario_fixed_time_future_overflow = async (
         if (!fixedJobId) throw new Error('Failed to insert fixed job.');
         insertedIds.jobs = [fixedJobId]; // Assign directly
         insertedIds.fixedJobId = [fixedJobId]; // Store separately using the generic type signature
-        logInfo(`Inserted fixed job ID: ${fixedJobId} assigned to Tech ${assignedTechId} at ${fixedTimeTomorrow}`);
+        logInfo(`Inserted fixed job ID: ${fixedJobId} assigned to Tech ${assignedTechnicianId} at ${fixedScheduleTime}`);
 
-        // 5. Create Filler Jobs for tomorrow to cause capacity issues
-        const numberOfFillerJobs = 8; // Adjust as needed based on capacity
+        // --- Create Filler Jobs for Tomorrow (Same day as fixed job) ---
+        const numberOfFillerJobs = 10; // Enough to potentially cause overflow
         const fillerJobsData: TablesInsert<'jobs'>[] = [];
         const fillerOrderIds: number[] = [];
 
         for (let i = 0; i < numberOfFillerJobs; i++) {
             const fillerCustomerId = baselineRefs.customerIds[faker.number.int({ min: 0, max: baselineRefs.customerIds.length - 1 })];
             const fillerAddressId = baselineRefs.addressIds[faker.number.int({ min: 0, max: baselineRefs.addressIds.length - 1 })];
-            const fillerServiceId = baselineRefs.serviceIds[faker.number.int({ min: 0, max: baselineRefs.serviceIds.length - 1 })];
+            const fillerServiceId = getRandomElement(GUARANTEED_ELIGIBLE_SERVICE_IDS); // NEW
+            // Use a baseline vehicle ID for filler jobs too
+            const fillerVehicleId = baselineRefs.customerVehicleIds[faker.number.int({ min: 0, max: baselineRefs.customerVehicleIds.length - 1 })];
 
             const fillerOrderData: TablesInsert<'orders'> = {
                 user_id: fillerCustomerId,
                 address_id: fillerAddressId,
+                vehicle_id: fillerVehicleId,
                 notes: `Filler Order ${i + 1} for ${scenarioName}`,
-                earliest_available_time: tomorrow.startOf('day').toISOString(), // Available tomorrow
             };
             // Pass as array
             const fillerOrderResult = await insertData(supabase, 'orders', [fillerOrderData], `Filler order ${i+1} for future overflow`);
@@ -131,10 +175,10 @@ export const seedScenario_fixed_time_future_overflow = async (
                 order_id: fillerOrderId,
                 address_id: fillerAddressId,
                 service_id: fillerServiceId,
-                status: 'pending_review',
-                priority: faker.number.int({ min: 2, max: 5 }), // Lower priority than fixed job
-                job_duration: faker.number.int({ min: 90, max: 150 }),
-                notes: `Filler job ${i + 1} for ${scenarioName}. Target date: ${tomorrow.format('YYYY-MM-DD')}`,
+                status: 'queued',
+                priority: faker.number.int({ min: 1, max: 5 }),
+                job_duration: faker.number.int({ min: 60, max: 120 }),
+                notes: `Filler job ${i + 1} for ${scenarioName}. Target date: ${fixedJobDateString}`,
             });
         }
 

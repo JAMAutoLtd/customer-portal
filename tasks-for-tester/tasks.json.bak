@@ -1,0 +1,575 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Set up project dependencies and configuration",
+      "description": "Initialize the project structure and install all required dependencies for the E2E testing framework",
+      "status": "done",
+      "dependencies": [],
+      "priority": "high",
+      "details": "Create the project structure and install dependencies using pnpm:\n1. Initialize pnpm workspace in the root directory\n2. Install core dependencies: Node.js, TypeScript, Playwright, Jest, Supabase client, Inquirer, Faker, Dotenv\n3. Create the basic folder structure for the framework:\n   - simulation/scripts/db/seed/\n   - simulation/scripts/db/seed/scenarios/\n   - tests/e2e/specs/\n   - tests/integration/scheduler/\n4. Set up TypeScript configuration (tsconfig.json)\n5. Create initial .env.test template with required environment variables\n6. Set up docker-compose.test.yml for local service execution",
+      "testStrategy": "Verify all dependencies are correctly installed by running `pnpm list`. Ensure the project structure is created correctly. Test that TypeScript compilation works with a simple test file."
+    },
+    {
+      "id": 2,
+      "title": "Implement Supabase client utility",
+      "description": "Create a utility function to establish connections to the Staging Supabase instance",
+      "status": "done",
+      "dependencies": [
+        1
+      ],
+      "priority": "high",
+      "details": "Create a utility function `createStagingSupabaseClient` that:\n1. Reads Supabase credentials from .env.test file\n2. Establishes a connection to the Staging Supabase instance\n3. Handles authentication with service role key\n4. Provides error handling for connection issues\n5. Returns a properly typed Supabase client instance\n6. Includes optional parameter for admin access (for auth operations)\n\nImplement in a file like `simulation/utils/supabase-client.ts`",
+      "testStrategy": "Create a simple test script that uses the utility to connect to Supabase and perform a basic query. Verify connection is established correctly and credentials are properly read from environment variables."
+    },
+    {
+      "id": 3,
+      "title": "Implement database cleanup script",
+      "description": "Create a script to clean test data from the Staging database",
+      "status": "done",
+      "dependencies": [
+        2
+      ],
+      "priority": "high",
+      "details": "Implement the cleanup script (`simulation/scripts/db/cleanup-staging.ts`) that:\n1. Uses the Supabase client utility to connect to Staging\n2. Identifies test data based on defined patterns (email domain, notes prefix)\n3. Implements multiple confirmation prompts before executing deletions\n4. Deletes data in the correct order to respect foreign key constraints\n5. Uses Supabase Admin API to delete auth.users\n6. Handles errors gracefully\n7. Provides detailed logging of the cleanup process\n\nEnsure the script can be run independently via `pnpm db:clean:staging`",
+      "testStrategy": "Test the script against a staging database with known test data. Verify all test data is removed and no errors occur due to foreign key constraints. Confirm that confirmation prompts work correctly."
+    },
+    {
+      "id": 4,
+      "title": "Implement baseline data seeding script",
+      "description": "Create a script to seed the Staging database with baseline data",
+      "status": "done",
+      "dependencies": [
+        2,
+        3
+      ],
+      "priority": "high",
+      "details": "Implement the baseline seeding script (`simulation/scripts/db/seed/baseline.ts`) that:\n1. Accepts a parameter for the number of technicians (1-4) to include\n2. Calls the cleanup function before inserting data\n3. Creates static data arrays for addresses, equipment, services, YMM refs, users, technicians, vans, requirements\n4. Creates auth.users using the Supabase Admin API\n5. Creates corresponding public user profiles\n6. Handles \"user already exists\" errors gracefully\n7. Returns metadata about created entities (IDs, counts)\n\nEnsure the script maintains relational integrity between created entities.",
+      "testStrategy": "Run the script with different technician counts and verify the correct number of records are created in each table. Check that auth users are created correctly and that the script handles existing users gracefully."
+    },
+    {
+      "id": 5,
+      "title": "Implement scenario seeding scripts",
+      "description": "Create scripts for seeding specific test scenarios on top of baseline data",
+      "status": "done",
+      "dependencies": [
+        4
+      ],
+      "priority": "high",
+      "details": "Implement 10 scenario seeding scripts in `simulation/scripts/db/seed/scenarios/` for:\n1. base_schedule.ts: Standard scheduling flow\n2. equipment_conflict.ts: Job requires equipment no technician has\n3. bundle_equipment_conflict.ts: Multi-job order requires equipment split across techs\n4. fixed_time_today.ts: Job fixed for today\n5. fixed_time_future_overflow.ts: Job fixed for tomorrow\n6. technician_unavailable_today.ts: Tech unavailable for a block today\n7. availability_overflow_skip_day.ts: All techs unavailable tomorrow, jobs skip to Day+2\n8. priority_conflict.ts: High vs. Low priority jobs compete for limited capacity\n9. same_location_jobs.ts: Multiple jobs at one address\n10. long_duration_job.ts: One very long job impacting capacity\n\nEach script should:\n- Use IDs/references from baseline seed run to maintain relational integrity\n- Generate dynamic data using @faker-js/faker\n- Return metadata (IDs of created records) for test verification\n- Import core DB types (Database, Tables, TablesInsert, Enums) from 'simulation/scripts/utils/index.ts'\n- Use TablesInsert<'table_name'> to type data arrays for insertion\n- Use the insertData utility which returns Promise<{ data: Row[] | null, error: PostgrestError | null }>\n- Check returned objects for 'error' and null 'data'\n- Use actual IDs from returned 'data' arrays when linking records\n- Return actual created record IDs in the ScenarioMetadataUpdate object\n\nEach scenario subtask (5.1, 5.2, etc.) must implement its seed function to return an object conforming to the standard `ScenarioSeedResult` interface defined in `./scenarios/types.ts`, including the `scenarioName` and `insertedIds` for records created by that specific scenario.\n\nScenario seeding scripts (subtasks 5.1+) should focus on creating scenario-specific data using the provided `BaselineRefs` argument and returning the `ScenarioSeedResult`. They do *not* read or write metadata files themselves; file I/O is handled by the main seeding script (`index.ts`).",
+      "testStrategy": "Test each scenario script individually after running the baseline seed. Verify that the correct records are created with the expected relationships and that the returned metadata is accurate.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Define shared types for scenario seeding",
+          "description": "Create TypeScript interfaces for baseline references and scenario metadata that will be used across all scenario seeding scripts",
+          "dependencies": [],
+          "details": "1. Create a new file `simulation/scripts/db/seed/scenarios/types.ts`\n2. Define `BaselineRefs` interface to contain references to baseline data (IDs of customers, technicians, equipment, etc.)\n3. Define `ScenarioMetadataUpdate` interface to track IDs of newly created records for test verification\n4. Define any helper types needed for specific scenarios\n5. Export all types for use in scenario scripts\n6. Test by importing types in a test file to verify they compile correctly",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 2,
+          "title": "Implement base_schedule.ts scenario script",
+          "description": "Create the standard scheduling flow scenario script that builds on baseline data",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/base_schedule.ts`\n2. Implement `seedScenario_base_schedule` function that accepts `baselineData: BaselineRefs`\n3. Create standard jobs with normal priority, duration, and equipment requirements\n4. Ensure jobs are schedulable with available technicians\n5. Return `ScenarioMetadataUpdate` with IDs of created records\n6. Add appropriate comments explaining the scenario\n7. Test by running the script and verifying jobs are created and schedulable",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 3,
+          "title": "Implement equipment_conflict.ts scenario script",
+          "description": "Create scenario where a job requires equipment that no technician has",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/equipment_conflict.ts`\n2. Implement `seedScenario_equipment_conflict` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types (Database, Tables, TablesInsert, Enums) and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a new equipment type not assigned to any technician using TablesInsert<'equipment'>\n5. Use insertData utility to insert the equipment and check for errors\n6. Create a job that requires this equipment using TablesInsert<'jobs'>\n7. Use the actual equipment ID from the returned data when creating the job\n8. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n9. Add appropriate comments explaining the expected scheduling outcome\n10. Test by running the script and verifying the equipment conflict exists\n11. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 4,
+          "title": "Implement bundle_equipment_conflict.ts scenario script",
+          "description": "Create scenario with a multi-job order requiring equipment split across different technicians",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/bundle_equipment_conflict.ts`\n2. Implement `seedScenario_bundle_equipment_conflict` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a service order using TablesInsert<'service_orders'>\n5. Use insertData to insert the order and check for errors\n6. Create multiple jobs using TablesInsert<'jobs'> with different equipment requirements\n7. Use the actual order ID from the returned data when creating the jobs\n8. Ensure each job requires different equipment possessed by different technicians\n9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n10. Add appropriate comments explaining the expected scheduling challenge\n11. Test by running the script and verifying the equipment distribution across technicians\n12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 5,
+          "title": "Implement fixed_time_today.ts scenario script",
+          "description": "Create scenario with a job that must be scheduled at a specific time today",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/fixed_time_today.ts`\n2. Implement `seedScenario_fixed_time_today` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a service order using TablesInsert<'service_orders'>\n5. Use insertData to insert the order and check for errors\n6. Create a job with a fixed time slot for today using TablesInsert<'jobs'>\n7. Use the actual order ID from the returned data when creating the job\n8. Ensure the time slot is during working hours\n9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n10. Add appropriate comments explaining the fixed time constraint\n11. Test by running the script and verifying the job has the correct fixed time\n12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 6,
+          "title": "Implement fixed_time_future_overflow.ts scenario script",
+          "description": "Create scenario with a job fixed for tomorrow that may cause scheduling overflow",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/fixed_time_future_overflow.ts`\n2. Implement `seedScenario_fixed_time_future_overflow` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a service order using TablesInsert<'service_orders'>\n5. Use insertData to insert the order and check for errors\n6. Create several jobs for tomorrow to fill capacity using TablesInsert<'jobs'>\n7. Create an additional job with a fixed time for tomorrow\n8. Use the actual order ID from the returned data when creating the jobs\n9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n10. Add appropriate comments explaining the expected overflow behavior\n11. Test by running the script and verifying the capacity constraints\n12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 7,
+          "title": "Implement technician_unavailable_today.ts scenario script",
+          "description": "Create scenario where a technician is unavailable for a specific time block today",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/technician_unavailable_today.ts`\n2. Implement `seedScenario_technician_unavailable_today` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a technician unavailability record for a specific time block today using TablesInsert<'technician_unavailability'>\n5. Use insertData to insert the unavailability and check for errors\n6. Create a service order using TablesInsert<'service_orders'>\n7. Create jobs that would normally be assigned to this technician using TablesInsert<'jobs'>\n8. Use the actual order ID from the returned data when creating the jobs\n9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n10. Add appropriate comments explaining the unavailability constraint\n11. Test by running the script and verifying the technician unavailability is correctly set\n12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 8,
+          "title": "Implement availability_overflow_skip_day.ts scenario script",
+          "description": "Create scenario where all technicians are unavailable tomorrow, forcing jobs to be scheduled on Day+2",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/availability_overflow_skip_day.ts`\n2. Implement `seedScenario_availability_overflow_skip_day` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create unavailability records for all technicians for the entire day tomorrow using TablesInsert<'technician_unavailability'>\n5. Use insertData to insert the unavailabilities and check for errors\n6. Create a service order using TablesInsert<'service_orders'>\n7. Create several jobs that need to be scheduled using TablesInsert<'jobs'>\n8. Use the actual order ID from the returned data when creating the jobs\n9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n10. Add appropriate comments explaining the expected day-skipping behavior\n11. Test by running the script and verifying all technicians are unavailable tomorrow\n12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 9,
+          "title": "Implement priority_conflict.ts scenario script",
+          "description": "Create scenario with high and low priority jobs competing for limited capacity",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/priority_conflict.ts`\n2. Implement `seedScenario_priority_conflict` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create service orders for high and low priority jobs using TablesInsert<'service_orders'>\n5. Use insertData to insert the orders and check for errors\n6. Create several high-priority jobs using TablesInsert<'jobs'>\n7. Create several low-priority jobs for the same time period using TablesInsert<'jobs'>\n8. Use the actual order IDs from the returned data when creating the jobs\n9. Ensure there's not enough capacity for all jobs\n10. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n11. Add appropriate comments explaining the priority resolution expectations\n12. Test by running the script and verifying the priority levels are set correctly\n13. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 10,
+          "title": "Implement same_location_jobs.ts scenario script",
+          "description": "Create scenario with multiple jobs at the same customer location",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/same_location_jobs.ts`\n2. Implement `seedScenario_same_location_jobs` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a customer with a specific address using TablesInsert<'customers'>\n5. Use insertData to insert the customer and check for errors\n6. Create a service order for this customer using TablesInsert<'service_orders'>\n7. Use the actual customer ID from the returned data when creating the order\n8. Create multiple jobs for this customer at the same location using TablesInsert<'jobs'>\n9. Use the actual order ID from the returned data when creating the jobs\n10. Vary job types and requirements\n11. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n12. Add appropriate comments explaining the location optimization opportunity\n13. Test by running the script and verifying all jobs share the same location\n14. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        },
+        {
+          "id": 11,
+          "title": "Implement long_duration_job.ts scenario script",
+          "description": "Create scenario with one very long job that impacts scheduling capacity",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `simulation/scripts/db/seed/scenarios/long_duration_job.ts`\n2. Implement `seedScenario_long_duration_job` function that accepts `baselineData: BaselineRefs`\n3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'\n4. Create a service order using TablesInsert<'service_orders'>\n5. Use insertData to insert the order and check for errors\n6. Create one job with an unusually long duration (4+ hours) using TablesInsert<'jobs'>\n7. Create several normal-duration jobs using TablesInsert<'jobs'>\n8. Use the actual order ID from the returned data when creating the jobs\n9. Ensure the long job significantly impacts available capacity\n10. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records\n11. Add appropriate comments explaining the capacity impact\n12. Test by running the script and verifying the long job has the correct duration\n13. Focus only on creating scenario-specific data and returning the result - do not handle file I/O",
+          "status": "done",
+          "parentTaskId": 5
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Implement main seeding entry point",
+      "description": "Create a main script to orchestrate baseline and scenario seeding",
+      "status": "done",
+      "dependencies": [
+        4,
+        5
+      ],
+      "priority": "high",
+      "details": "Implement the main seeding script (`simulation/scripts/db/seed/index.ts`) that:\n1. Parses CLI arguments to determine action (baseline or scenario)\n2. For baseline seeding, calls the baseline script with the specified technician count\n3. For scenario seeding, runs baseline first, then the specified scenario script\n4. Generates a `seed-metadata.json` file containing:\n   - Timestamp of the seed run\n   - Counts of created entities\n   - IDs of created records\n   - Scenario name (if applicable)\n5. Handles errors gracefully\n6. Provides detailed logging of the seeding process\n\nEnsure the script can be run via `pnpm db:seed:staging -- --action [baseline|scenario] --scenario [name] --techCount [1-4]`",
+      "testStrategy": "Test the script with various combinations of arguments. Verify that the correct seeding actions are performed and that the seed-metadata.json file is generated correctly with all required information."
+    },
+    {
+      "id": 7,
+      "title": "Configure Playwright for E2E tests",
+      "description": "Set up Playwright configuration for UI testing",
+      "status": "done",
+      "dependencies": [
+        1
+      ],
+      "priority": "medium",
+      "details": "Create and configure Playwright for E2E testing:\n1. Create `tests/e2e/playwright.config.ts` that:\n   - Reads base URL from environment variables (E2E_BASE_URL)\n   - Configures browsers (Chromium, Firefox, WebKit)\n   - Sets up screenshot and video capture on failure\n   - Configures timeouts and retry settings\n   - Sets up test reporting\n2. Create basic Page Object Models (POM) structure in `tests/e2e/pages/`\n3. Set up helper utilities for common UI interactions\n4. Configure npm scripts for running Playwright tests (`test:e2e:run`)\n\nEnsure the configuration supports running tests against the locally running web service.",
+      "testStrategy": "Create a simple test that loads the application homepage and verify that Playwright can run it successfully with the configuration. Check that environment variables are correctly read and applied."
+    },
+    {
+      "id": 8,
+      "title": "Configure Jest for integration tests",
+      "description": "Set up Jest configuration for backend integration testing",
+      "status": "done",
+      "dependencies": [
+        1
+      ],
+      "priority": "medium",
+      "details": "Create and configure Jest for integration testing:\n1. Create `tests/integration/jest.config.integration.js` that:\n   - Configures TypeScript support (ts-jest)\n   - Sets up environment variable loading from .env.test\n   - Configures test timeouts for async operations\n   - Sets up test reporting\n2. Create helper utilities for interacting with the scheduler API\n3. Set up utilities for querying the Supabase database\n4. Configure npm scripts for running Jest tests (`test:integration`)\n\nEnsure the configuration supports testing against the locally running scheduler service.",
+      "testStrategy": "Create a simple test that makes a basic API call to the scheduler service and verify that Jest can run it successfully with the configuration. Check that environment variables are correctly loaded."
+    },
+    {
+      "id": 9,
+      "title": "Implement UI E2E tests with Playwright",
+      "description": "Create Playwright tests for core UI flows",
+      "status": "pending",
+      "dependencies": [
+        6,
+        7
+      ],
+      "priority": "medium",
+      "details": "Implement Playwright E2E tests in `tests/e2e/specs/` covering:\n1. User Registration tests:\n   - Successful registration\n   - Attempted registration with existing email\n   - Attempted registration with invalid input\n2. Order Placement tests:\n   - Successful order placement by logged-in user\n   - Attempted order placement with missing fields\n\nEach test should:\n- Use Page Object Models for maintainability\n- Use locators to interact with UI elements\n- Include assertions to verify UI state and navigation\n- Handle authentication and session management\n- Clean up created data after tests\n\nTests should be designed to run against the seeded database scenarios.",
+      "testStrategy": "Run the tests against a local instance with seeded data. Verify that all tests pass and correctly validate the UI functionality. Check that tests handle edge cases and error conditions correctly.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Set up Playwright testing environment and configuration",
+          "description": "Configure Playwright for E2E testing, including installation, project setup, and base configuration",
+          "dependencies": [],
+          "details": "Implementation steps:\n1. Install Playwright and required dependencies: `npm install -D @playwright/test`\n2. Run Playwright installation: `npx playwright install`\n3. Create a `playwright.config.ts` file with appropriate configuration:\n   - Configure browsers (Chromium, Firefox, WebKit)\n   - Set up base URL for testing\n   - Configure test timeouts and retries\n   - Set up test reporting options\n4. Create the directory structure for tests:\n   - `tests/e2e/specs/` for test files\n   - `tests/e2e/pages/` for Page Object Models\n   - `tests/e2e/utils/` for test utilities\n5. Create a basic test to verify setup is working\n6. Add npm scripts for running tests in package.json\n\nTesting approach:\n- Run a simple smoke test to verify Playwright is correctly installed and configured\n- Ensure tests can connect to the application environment",
+          "status": "pending",
+          "parentTaskId": 9
+        },
+        {
+          "id": 2,
+          "title": "Implement Page Object Models for authentication and registration",
+          "description": "Create reusable Page Object Models for login, registration, and common UI components",
+          "dependencies": [
+            1
+          ],
+          "details": "Implementation steps:\n1. Create a `BasePage` class with common methods:\n   - Navigation helpers\n   - Element interaction methods\n   - Waiting and assertion utilities\n2. Create `LoginPage` class extending BasePage:\n   - Define locators for email, password fields, and login button\n   - Implement login method\n   - Add validation message handling\n3. Create `RegistrationPage` class extending BasePage:\n   - Define locators for all registration form fields\n   - Implement registration method with parameters\n   - Add methods to handle validation errors\n4. Create `HeaderComponent` for navigation and authentication state\n5. Document usage patterns for the Page Objects\n\nTesting approach:\n- Create small test snippets to verify each Page Object works correctly\n- Ensure locators are robust and will work across different browser environments",
+          "status": "pending",
+          "parentTaskId": 9
+        },
+        {
+          "id": 3,
+          "title": "Implement User Registration E2E tests",
+          "description": "Create E2E tests for user registration flows, including success and failure scenarios",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implementation steps:\n1. Create `registration.spec.ts` in the specs directory\n2. Implement test for successful registration:\n   - Navigate to registration page\n   - Fill in valid user details\n   - Submit the form\n   - Verify successful registration (redirect, welcome message)\n   - Verify user can log in with new credentials\n3. Implement test for registration with existing email:\n   - Use a known existing email from test data\n   - Attempt registration\n   - Verify appropriate error message\n4. Implement test for invalid input registration:\n   - Test with missing required fields\n   - Test with invalid email format\n   - Test with password validation rules\n   - Verify field-specific error messages\n5. Implement test data cleanup after tests\n\nTesting approach:\n- Use unique email addresses for each test run (timestamps or random values)\n- Verify both UI feedback and application state\n- Add appropriate assertions for each step\n- Ensure tests are independent and can run in isolation",
+          "status": "pending",
+          "parentTaskId": 9
+        },
+        {
+          "id": 4,
+          "title": "Implement Order Placement Page Objects and utilities",
+          "description": "Create Page Object Models and utilities for the order placement flow",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implementation steps:\n1. Create `ProductListPage` class:\n   - Methods to browse and select products\n   - Add to cart functionality\n   - Product filtering/search if applicable\n2. Create `CartPage` class:\n   - Methods to view cart contents\n   - Update quantities\n   - Proceed to checkout\n3. Create `CheckoutPage` class:\n   - Methods to fill shipping/billing information\n   - Payment method selection\n   - Order submission\n4. Create `OrderConfirmationPage` class:\n   - Methods to verify order details\n   - Order number extraction\n5. Create utilities for test data generation:\n   - Random address generator\n   - Payment information generator\n   - Order details validator\n\nTesting approach:\n- Create small test snippets to verify each Page Object works correctly\n- Test with different product configurations\n- Ensure methods handle empty states and edge cases",
+          "status": "pending",
+          "parentTaskId": 9
+        },
+        {
+          "id": 5,
+          "title": "Implement Order Placement E2E tests",
+          "description": "Create E2E tests for the order placement flow, including success and validation scenarios",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "details": "Implementation steps:\n1. Create `order-placement.spec.ts` in the specs directory\n2. Implement authentication state setup:\n   - Create utility to pre-authenticate user\n   - Set up test hooks for login state management\n3. Implement successful order placement test:\n   - Start with authenticated user\n   - Browse and add products to cart\n   - Proceed to checkout\n   - Fill in all required information\n   - Complete order\n   - Verify order confirmation\n4. Implement validation test for missing fields:\n   - Start with authenticated user\n   - Add products to cart\n   - Proceed to checkout\n   - Submit with missing required fields\n   - Verify appropriate validation messages\n5. Implement test data cleanup:\n   - Create utility to cancel/delete test orders\n   - Clean up any created data after tests\n\nTesting approach:\n- Use test hooks for setup and teardown\n- Verify both UI feedback and application state\n- Add appropriate assertions for each step\n- Test with different product combinations\n- Ensure tests clean up after themselves",
+          "status": "pending",
+          "parentTaskId": 9
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Implement backend integration tests with Jest",
+      "description": "Create Jest tests for scheduler logic validation",
+      "status": "pending",
+      "dependencies": [
+        6,
+        8
+      ],
+      "priority": "medium",
+      "details": "Implement Jest integration tests in `tests/integration/scheduler/` corresponding to the 10 scenarios:\n1. Create a test file for each scenario (e.g., `base_schedule.test.ts`)\n2. Each test should:\n   - Read baseline metadata from .baseline-metadata.json using readBaselineMetadata utility\n   - Read scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata utility\n   - Trigger the scheduler's /run-replan API endpoint\n   - Implement waiting mechanism for the async replan process\n   - Query the Staging DB to verify the final state\n   - Include assertions for expected outcomes using both BaselineRefs and ScenarioSeedResult\n3. Implement helper functions for common operations\n\nTests should validate that the scheduler correctly handles each scenario according to business rules.\n\nIntegration tests rely on two metadata files:\n- `.baseline-metadata.json` containing BaselineRefs for context like valid technicians and equipment\n- `.current-scenario-metadata.json` containing ScenarioSeedResult with specific scenario record IDs\n\nTests should NOT perform seeding themselves, but rather use the metadata from these files to perform comprehensive assertions.",
+      "testStrategy": "Run each test after the corresponding scenario has been seeded externally. Verify that the tests correctly validate the scheduler's behavior and that all assertions pass. Check that the tests handle the asynchronous nature of the scheduler correctly and use both baseline and scenario-specific metadata for comprehensive assertions.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Set up Jest integration test environment and utilities",
+          "description": "Create the test infrastructure and helper functions needed for scheduler integration tests",
+          "dependencies": [],
+          "details": "1. Create the directory structure for integration tests at `tests/integration/scheduler/`\n2. Set up Jest configuration for integration tests in `jest.config.js` or a separate config file\n3. Implement utility functions in `tests/integration/scheduler/utils.ts`:\n   - Function to read baseline metadata from .baseline-metadata.json (readBaselineMetadata)\n   - Function to read scenario metadata from .current-scenario-metadata.json (readCurrentScenarioMetadata)\n   - Function to trigger the scheduler's /run-replan API endpoint\n   - Function to wait for the async replan process to complete (with timeout and polling)\n   - Function to query the Staging DB to verify final state\n   - Function to clean up test data after tests\n4. Create a base test class or setup/teardown functions for common test operations\n5. Test the utility functions to ensure they work correctly",
+          "status": "in-progress",
+          "parentTaskId": 10
+        },
+        {
+          "id": 2,
+          "title": "Implement base_schedule integration test",
+          "description": "Create integration test for the basic scheduling scenario",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/base_schedule.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify jobs were scheduled correctly\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that all jobs are assigned to appropriate technicians\n     - Assert that time slots are allocated correctly\n     - Verify no scheduling conflicts exist\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "in-progress",
+          "parentTaskId": 10
+        },
+        {
+          "id": 3,
+          "title": "Implement equipment_conflict integration test",
+          "description": "Create integration test for scenarios with equipment conflicts",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/equipment_conflict.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify conflict resolution\n     - Use both BaselineRefs (for equipment context) and ScenarioSeedResult (for specific IDs)\n     - Assert that jobs with equipment conflicts are scheduled sequentially\n     - Verify equipment allocation follows priority rules\n     - Check that no equipment is double-booked\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 4,
+          "title": "Implement bundle_equipment_conflict integration test",
+          "description": "Create integration test for scenarios with equipment conflicts in job bundles",
+          "dependencies": [
+            1,
+            3
+          ],
+          "details": "1. Create `tests/integration/scheduler/bundle_equipment_conflict.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify conflict resolution\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that bundled jobs are kept together when possible\n     - Verify equipment allocation follows priority rules within bundles\n     - Check that bundle integrity is maintained or appropriately broken based on business rules\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 5,
+          "title": "Implement fixed_time_today integration test",
+          "description": "Create integration test for jobs with fixed time slots scheduled for today",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/fixed_time_today.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that fixed-time jobs are scheduled exactly at their specified times\n     - Verify that other jobs are scheduled around the fixed-time jobs\n     - Check that no conflicts exist with fixed-time jobs\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 6,
+          "title": "Implement fixed_time_future_overflow integration test",
+          "description": "Create integration test for fixed time jobs scheduled in the future with overflow handling",
+          "dependencies": [
+            1,
+            5
+          ],
+          "details": "1. Create `tests/integration/scheduler/fixed_time_future_overflow.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that fixed-time future jobs maintain their time slots\n     - Verify that overflow is handled according to business rules\n     - Check that jobs are appropriately distributed across days\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 7,
+          "title": "Implement technician_unavailable_today integration test",
+          "description": "Create integration test for scenarios where technicians are unavailable on the current day",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/technician_unavailable_today.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs (for technician context) and ScenarioSeedResult (for specific IDs)\n     - Assert that no jobs are scheduled during technician unavailability periods\n     - Verify that jobs are rescheduled to available time slots or different technicians\n     - Check that business rules for handling unavailability are followed\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 8,
+          "title": "Implement availability_overflow_skip_day integration test",
+          "description": "Create integration test for scenarios where a day must be skipped due to availability constraints",
+          "dependencies": [
+            1,
+            7
+          ],
+          "details": "1. Create `tests/integration/scheduler/availability_overflow_skip_day.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that days with no availability are skipped\n     - Verify that jobs are appropriately scheduled on available days\n     - Check that priority rules are followed when deciding which jobs to schedule first\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 9,
+          "title": "Implement priority_conflict integration test",
+          "description": "Create integration test for scenarios with job priority conflicts",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/priority_conflict.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that higher priority jobs are scheduled before lower priority ones\n     - Verify that the priority resolution follows business rules\n     - Check edge cases like equal priority conflicts\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 10,
+          "title": "Implement same_location_jobs integration test",
+          "description": "Create integration test for scenarios with multiple jobs at the same location",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/same_location_jobs.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that jobs at the same location are grouped together when possible\n     - Verify that travel time is minimized\n     - Check that other business rules (priority, equipment) are still respected\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        },
+        {
+          "id": 11,
+          "title": "Implement long_duration_job integration test",
+          "description": "Create integration test for scenarios with jobs that span multiple time slots",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create `tests/integration/scheduler/long_duration_job.test.ts`\n2. Import utility functions from the utils file\n3. Implement test cases with:\n   - `beforeAll` block that:\n     - Reads baseline metadata from .baseline-metadata.json using readBaselineMetadata\n     - Reads scenario metadata from .current-scenario-metadata.json using readCurrentScenarioMetadata\n   - `it` blocks that:\n     - Trigger the scheduler's replan process\n     - Wait for the process to complete\n     - Query the database to verify scheduling results\n     - Use both BaselineRefs and ScenarioSeedResult for comprehensive assertions\n     - Assert that long duration jobs are scheduled correctly across time slots\n     - Verify that no other jobs are scheduled in overlapping time slots\n     - Check that long jobs don't extend beyond working hours\n     - Test edge cases like jobs that span multiple days\n4. Include proper test cleanup in afterEach/afterAll hooks",
+          "status": "pending",
+          "parentTaskId": 10
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Implement CLI runner script",
+      "description": "Create an interactive CLI for managing the test environment",
+      "status": "pending",
+      "dependencies": [
+        3,
+        6,
+        9,
+        10
+      ],
+      "priority": "medium",
+      "details": "Implement the CLI runner script (`simulation/scripts/e2e-runner.ts`) using inquirer that:\n1. Presents options to:\n   - Clean Staging DB\n   - Seed Baseline Data (prompting for technician count)\n     - Should execute `index.ts baseline --output-metadata=.baseline-metadata.json`\n   - Seed Specific Scenario (prompting for scenario name and tech count)\n     - Should execute `index.ts scenario --name=[scenario_name] --baseline-metadata=.baseline-metadata.json --output-metadata=.current-scenario-metadata.json`\n   - Run Backend Integration Tests\n   - Run UI E2E Tests\n   - Run Scenario Test (for a given scenario, e.g., 'base_schedule')\n     - Should first execute the scenario seeding command with proper metadata parameters\n     - Then immediately execute the corresponding Jest test (e.g., `pnpm test base_schedule.test.ts`)\n   - Run Full Scenario Test (Clean -> Seed -> Jest -> Playwright)\n   - Exit\n2. Executes the corresponding pnpm scripts for each selected action\n3. Handles errors gracefully during script execution\n4. Provides clear feedback and logging\n5. Manages metadata file paths correctly, ensuring they are properly passed between steps\n\nEnsure the script can be run via `pnpm e2e:run`",
+      "testStrategy": "Test each option in the CLI runner to verify it correctly executes the corresponding actions. Verify that metadata files (.baseline-metadata.json and .current-scenario-metadata.json) are correctly generated and passed between steps. Check that user prompts work correctly and that error handling is robust. Specifically test the 'Seed Baseline' and 'Run Scenario Test' flows to ensure proper command execution and parameter passing.",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Set up CLI structure with inquirer menu",
+          "description": "Create the basic CLI structure with inquirer for interactive menu options",
+          "dependencies": [],
+          "details": "1. Create the `simulation/scripts/e2e-runner.ts` file\n2. Set up the basic CLI structure with inquirer.js\n3. Define the main menu options as specified (Clean DB, Seed Baseline, etc.)\n4. Implement the main program flow with async/await pattern\n5. Set up the command-line entry point and ensure it can be run via `pnpm e2e:run`\n6. Add appropriate type definitions\n7. Test the basic menu navigation without actual command execution\n\nTesting approach: Manually verify that the CLI displays all required options and navigation works correctly.",
+          "status": "pending",
+          "parentTaskId": 11
+        },
+        {
+          "id": 2,
+          "title": "Implement command execution utilities",
+          "description": "Create utility functions to execute shell commands and scripts",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create a utility module for executing shell commands using Node's child_process\n2. Implement a function to execute commands and capture stdout/stderr\n3. Add proper environment variable handling and argument passing\n4. Implement timeout handling and process termination\n5. Add colorized console output for better readability\n6. Create helper functions for common command patterns\n7. Test the utility functions with simple commands\n\nTesting approach: Create simple test commands to verify the execution utilities work correctly, handling stdout, stderr, and exit codes properly.",
+          "status": "pending",
+          "parentTaskId": 11
+        },
+        {
+          "id": 3,
+          "title": "Implement metadata file management",
+          "description": "Create utilities to manage metadata files between different CLI operations",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "1. Create functions to check for existence of metadata files\n2. Implement utilities to read/write metadata files\n3. Create a module to track and manage metadata file paths\n4. Implement validation for metadata file contents\n5. Add functions to generate proper command-line arguments for metadata files\n6. Create helper functions to ensure metadata is properly passed between steps\n7. Implement cleanup functions for temporary metadata files\n\nTesting approach: Verify metadata files are correctly created, read, and passed between commands by running test sequences and examining file contents.",
+          "status": "pending",
+          "parentTaskId": 11
+        },
+        {
+          "id": 4,
+          "title": "Implement action handlers for each menu option",
+          "description": "Create handler functions for each menu option that execute the appropriate commands",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "1. Create separate handler functions for each menu option\n2. Implement the Clean Staging DB action\n3. Implement the Seed Baseline Data action with technician count prompting\n4. Implement the Seed Specific Scenario action with scenario name and tech count prompting\n5. Implement the Run Backend Integration Tests action\n6. Implement the Run UI E2E Tests action\n7. Implement the Run Scenario Test action with proper metadata handling\n8. Implement the Run Full Scenario Test action that chains multiple commands\n9. Implement the Exit action\n\nTesting approach: Test each handler individually by selecting the corresponding menu option and verifying the correct commands are executed with proper arguments.",
+          "status": "pending",
+          "parentTaskId": 11
+        },
+        {
+          "id": 5,
+          "title": "Add error handling, logging, and final integration",
+          "description": "Implement robust error handling, logging, and integrate all components",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "details": "1. Implement comprehensive error handling for all command executions\n2. Add informative error messages and suggestions for common failures\n3. Implement a logging system with different verbosity levels\n4. Add progress indicators for long-running operations\n5. Implement graceful termination handling (Ctrl+C)\n6. Add confirmation prompts for destructive operations\n7. Perform final integration of all components\n8. Add package.json script entry for `pnpm e2e:run`\n9. Create documentation for the CLI usage\n\nTesting approach: Perform end-to-end testing of the complete CLI, including error scenarios (e.g., missing files, failed commands) and verify proper error handling and recovery.",
+          "status": "pending",
+          "parentTaskId": 11
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Implement Production to Staging migration utility",
+      "description": "Create a script to migrate and anonymize data from Production to Staging",
+      "status": "pending",
+      "dependencies": [
+        2,
+        3
+      ],
+      "priority": "low",
+      "details": "Implement the migration script (`simulation/scripts/db/migrate-prod-to-staging.ts`) that:\n1. Connects to Production Supabase using separate credentials\n2. Includes extreme warnings and multiple confirmation prompts\n3. Fetches data (read-only) from Production tables\n4. Anonymizes/masks PII using @faker-js/faker:\n   - User names, emails, phones\n   - Addresses\n   - VINs\n   - Notes\n   - Other sensitive information\n5. Maintains relational integrity by mapping original Production FKs to new Staging FKs\n6. Inserts anonymized data into Staging\n7. Offers option to clean Staging before migration\n\nEnsure the script handles large datasets efficiently and maintains data consistency.",
+      "testStrategy": "Test the script with a small subset of production data. Verify that all PII is properly anonymized and that relational integrity is maintained. Check that confirmation prompts work correctly and that the script handles errors gracefully."
+    },
+    {
+      "id": 13,
+      "title": "Set up Docker Compose configuration",
+      "description": "Create Docker Compose configuration for local service execution",
+      "status": "done",
+      "dependencies": [
+        1
+      ],
+      "priority": "high",
+      "details": "Create and configure `docker-compose.test.yml` that:\n1. Defines services for web, scheduler, and optimiser\n2. Configures each service to use the appropriate environment variables\n3. Sets up networking between services\n4. Configures volume mounts for code and data\n5. Sets up health checks for service readiness\n\nEnsure the configuration allows services to connect to the Staging Supabase instance via environment variables in .env.test.",
+      "testStrategy": "Test starting and stopping the Docker services using the configuration. Verify that all services start correctly and can communicate with each other and with the Staging Supabase instance."
+    },
+    {
+      "id": 14,
+      "title": "Create environment configuration",
+      "description": "Set up environment configuration for the testing framework",
+      "status": "done",
+      "dependencies": [
+        1
+      ],
+      "priority": "high",
+      "details": "Create and configure `.env.test` that includes:\n1. Supabase connection details (URL, API key, service role key)\n2. Base URLs for local services (web, scheduler, optimiser)\n3. Test configuration parameters (timeouts, retry counts)\n4. Identifier patterns for test data\n5. Optional Production Supabase credentials (with clear warnings)\n\nEnsure the configuration is properly documented and includes examples. Create a template version (.env.test.example) with placeholders for sensitive values.",
+      "testStrategy": "Verify that all components of the framework can correctly read and use the environment variables. Test with different configuration values to ensure the framework behaves correctly."
+    },
+    {
+      "id": 15,
+      "title": "Create comprehensive documentation",
+      "description": "Document the E2E testing framework and its usage",
+      "status": "pending",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "priority": "medium",
+      "details": "Create comprehensive documentation for the E2E testing framework:\n1. README.md with overview, setup instructions, and usage examples\n2. Documentation for each component:\n   - Environment setup\n   - Database management\n   - Test execution\n   - CLI runner\n   - Migration utility\n3. Troubleshooting guide\n4. Examples of extending the framework with new scenarios\n5. Best practices for writing tests\n\nEnsure the documentation is clear, concise, and includes examples for all major operations.",
+      "testStrategy": "Review the documentation for completeness and accuracy. Have another team member follow the documentation to set up and use the framework, noting any unclear or missing information."
+    }
+  ],
+  "metadata": {
+    "projectName": "PRD Implementation",
+    "totalTasks": 15,
+    "sourceFile": "C:\\dev\\customer-portal\\scripts\\prd-test-framework.txt",
+    "generatedAt": "2023-11-21"
+  }
+}

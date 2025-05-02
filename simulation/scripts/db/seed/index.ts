@@ -148,57 +148,30 @@ async function main() {
       if (!baselineRefs.vanIds || baselineRefs.vanIds.length < technicianCount) {
         throw new Error(`BaselineRefs missing required vanIds or not enough vans (${baselineRefs.vanIds?.length}) for the requested technician count (${technicianCount}).`);
       }
-      const techResult = await seedScenarioTechnicians(supabaseAdmin, technicianCount, baselineRefs.vanIds);
-      logInfo(`Seeded ${techResult.createdTechnicianDbIds.length} technicians. DB IDs: ${techResult.createdTechnicianDbIds.join(', ')}`);
+      const techResult = await seedScenarioTechnicians(supabaseAdmin, technicianCount);
+      logInfo(`Seeded ${techResult.seededTechnicians.length} technicians. DB IDs: ${techResult.seededTechnicians.map(t => t.dbId).join(', ')}`);
       // ********************************************
 
       logInfo(`Applying scenario: ${scenarioName}...`);
-      // Pass the newly created technician DB IDs to the scenario function via the router
-      const scenarioResult: ScenarioSeedResult = await seedScenario(
-          supabaseAdmin,
-          baselineRefs, // Pass original baseline refs
-          scenarioName,
-          techResult.createdTechnicianDbIds // Pass the actual DB IDs
-          // technicianCount is no longer needed here
-      );
+      // Pass only the DB IDs to the scenario seeding function
+      const scenarioResult = await seedScenario(supabaseAdmin, baselineRefs, scenarioName, techResult.seededTechnicians.map(t => t.dbId));
       logInfo(`Scenario '${scenarioName}' applied successfully.`);
 
-      // --- Construct final metadata --- 
-      // Ensure assignedVanIds is an ordered array matching technicianDbIds order
-      const orderedAssignedVanIds = techResult.createdTechnicianDbIds.map(dbId => {
-        const vanId = techResult.assignedVanIds[dbId];
-        if (vanId === undefined) {
-             // This case should ideally not happen if seedScenarioTechnicians guarantees assignment
-             logError(`Van assignment missing for technician DB ID ${dbId} in techResult.assignedVanIds`, techResult.assignedVanIds);
-             // Handle appropriately - maybe throw error or assign a placeholder like null/0?
-             // For now, let's throw an error to make the issue visible.
-             throw new Error(`Van assignment missing for technician DB ID ${dbId}`);
-         }
-         return vanId;
-      });
-
-      // Add technician IDs and the *ordered* van IDs to the final output metadata
-      const finalOutputMetadata = {
-        ...scenarioResult,
-        // Ensure insertedIds exists, and add technicianDbIds to it
-        insertedIds: {
-          ...(scenarioResult.insertedIds || {}),
-          technicianDbIds: techResult.createdTechnicianDbIds,
-          technicianAuthIds: techResult.createdTechnicianAuthIds,
-          // assignedVanIds: techResult.assignedVanIds // Original object map
-          assignedVanIds: orderedAssignedVanIds // Store the ordered array
-        }
+      // Prepare metadata
+      const finalMetadata: ScenarioSeedResult = {
+          scenarioName: scenarioName, // Use the actual scenario name
+          insertedIds: {
+              ...scenarioResult.insertedIds, // Include IDs from the scenario script
+              // Add technician info from the tech seeding result
+              technicianAuthIds: techResult.seededTechnicians.map(t => t.authId),
+              technicianDbIds: techResult.seededTechnicians.map(t => t.dbId),
+              // Create an ordered array of van IDs corresponding to the technicianDbIds order
+              assignedVanIds: techResult.seededTechnicians.map(t => t.assignedVanId)
+          }
       };
 
-      // Write the combined ScenarioSeedResult + Tech IDs to the output file
-      try {
-        logInfo(`Writing scenario metadata to ${outputMetadataPath}...`);
-        await fs.writeFile(outputMetadataPath, JSON.stringify(finalOutputMetadata, null, 2));
-        logInfo('Scenario metadata file written successfully.');
-      } catch (writeError) {
-        logError('Failed to write scenario metadata file.', writeError);
-        process.exit(1);
-      }
+      // Write metadata
+      await fs.writeFile(outputMetadataPath, JSON.stringify(finalMetadata, null, 2));
 
     } else {
       throw new Error(`Unknown action: ${action}. Use 'baseline' or 'scenario'.`);

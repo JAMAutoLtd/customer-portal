@@ -115,10 +115,14 @@ export async function insertData<
 
 // --- New Seeding Utility Function --- 
 
+interface SeedTechnicianInfo {
+    dbId: number;
+    authId: string;
+    assignedVanId: number;
+}
+
 interface SeedTechniciansResult {
-    createdTechnicianAuthIds: string[];
-    assignedVanIds: number[];
-    createdTechnicianDbIds: number[];
+    seededTechnicians: SeedTechnicianInfo[];
 }
 
 /**
@@ -128,13 +132,13 @@ interface SeedTechniciansResult {
  * @param supabaseAdmin Supabase client
  * @param technicianCount Number of technicians to seed (1-4)
  * @param availableVanIds Array of baseline van IDs available for assignment
- * @returns Object containing the created technician auth IDs, assigned van IDs, and created technician DB IDs.
+ * @returns Object containing an array of seeded technician info (DB ID, Auth ID, Van ID).
  */
 export async function seedScenarioTechnicians(
     supabaseAdmin: SupabaseClient<Database>,
     technicianCount: number,
-    availableVanIds: number[] | undefined
-): Promise<SeedTechniciansResult> {
+    // availableVanIds: number[] | undefined // No longer needed as input, use static van data
+): Promise<SeedTechniciansResult> { // Update return type
     logInfo(`Seeding ${technicianCount} technicians for scenario...`);
 
     // Validate technician count against available definitions
@@ -151,7 +155,7 @@ export async function seedScenarioTechnicians(
     // Select the required number of technician definitions
     const authUsersToCreate = technicianAuthUsersData.slice(0, technicianCount);
     const publicUsersToCreate = technicianPublicUsersData.slice(0, technicianCount);
-    const techniciansToCreate = technicianTechniciansData.slice(0, technicianCount);
+    const techniciansInputData = technicianTechniciansData.slice(0, technicianCount);
     const vansToUse = technicianVansData.slice(0, technicianCount); // Use vans from tech data
 
     const createdOrConfirmedAuthIds: string[] = [];
@@ -220,17 +224,23 @@ export async function seedScenarioTechnicians(
     
     // Ensure we only proceed with users confirmed/created in auth
     const finalPublicUsersInput = publicUsersToCreate.filter(pu => createdOrConfirmedAuthIds.includes(pu.id));
-    const finalTechniciansInput = techniciansToCreate.map((tech, index) => {
+    const finalTechniciansInput = techniciansInputData.map((tech, index) => {
         // Use van IDs from the filtered technicianVansData
         const assignedVanId = vansToUse[index].id;
         if (assignedVanId === undefined) {
-            throw new Error(`Ran out of available vans to assign to technicians.`);
+            // This check should theoretically not fail due to validation above
+            throw new Error(`Logic error: Ran out of available vans to assign.`); 
+        }
+        // Ensure the tech input data has the correct user_id matching the auth data
+        const correspondingAuthUser = authUsersToCreate[index];
+        if (!correspondingAuthUser || tech.user_id !== correspondingAuthUser.id) {
+            throw new Error(`Mismatch between technician data user_id (${tech.user_id}) and auth user id (${correspondingAuthUser?.id}) at index ${index}. Ensure technician-data.ts is consistent.`);
         }
         return {
-            ...tech,
+            ...tech, // Includes user_id
             assigned_van_id: assignedVanId
         };
-    });
+    }).filter(tech => createdOrConfirmedAuthIds.includes(tech.user_id!)); // Filter based on confirmed auth IDs
 
     // --- STEP 2: Insert Public Users --- 
     logInfo(`Inserting ${finalPublicUsersInput.length} technician public user profiles...`);
@@ -247,24 +257,65 @@ export async function seedScenarioTechnicians(
         logError('Failed to insert technician profiles.', techniciansResult.error);
         throw techniciansResult.error;
     }
-    // Capture the created technician DB IDs
-    const createdTechnicianDbIds = techniciansResult.data?.map(t => t.id) ?? [];
-    if (createdTechnicianDbIds.length !== finalTechniciansInput.length) {
+    // Capture the created technician DB IDs and associated data
+    const createdTechnicianData = techniciansResult.data ?? [];
+    if (createdTechnicianData.length !== finalTechniciansInput.length) {
         logError('Mismatch between expected and inserted technician profile count.');
         // Consider throwing an error here depending on desired strictness
     }
-    
-    logInfo(`Finished seeding ${createdOrConfirmedAuthIds.length} technicians and associated data.`);
 
-    // <<< Add Debug Logging Here >>>
-    console.log('[DEBUG] techniciansResult.data:', techniciansResult.data);
-    console.log('[DEBUG] createdTechnicianDbIds:', createdTechnicianDbIds);
-    // <<< End Debug Logging >>>
+    const seededTechnicians: SeedTechnicianInfo[] = createdTechnicianData.map(createdTech => {
+        // Find the original input data that corresponds to this created technician
+        // using the user_id which should be unique and consistent
+        const inputData = finalTechniciansInput.find(input => input.user_id === createdTech.user_id);
+        if (!inputData) {
+            // This should not happen if inserts worked correctly
+            throw new Error(`Could not find input data corresponding to created technician with user_id ${createdTech.user_id}`);
+        }
+        return {
+            dbId: createdTech.id,
+            authId: createdTech.user_id!, // Add ! assertion
+            assignedVanId: inputData.assigned_van_id // Get van ID from the input data
+        };
+    });
+    
+    // --- STEP 4: Insert Default Hours for Created Technicians ---
+    logInfo(`Creating default hours (Mon-Fri 9am-6:30pm UTC) for ${seededTechnicians.length} technicians...`);
+    const defaultHoursToCreate: TablesInsert<'technician_default_hours'>[] = [];
+    for (const techInfo of seededTechnicians) {
+        for (let day = 1; day <= 5; day++) { // Monday (1) to Friday (5)
+            defaultHoursToCreate.push({
+                technician_id: techInfo.dbId,
+                day_of_week: day,
+                start_time: '09:00:00',
+                end_time: '18:30:00', // 6:30 PM UTC
+                is_available: true,
+            });
+        }
+    }
+
+    if (defaultHoursToCreate.length > 0) {
+        const defaultHoursResult = await insertData(
+            supabaseAdmin,
+            'technician_default_hours',
+            defaultHoursToCreate,
+            'Technician default hours'
+        );
+        if (defaultHoursResult.error) {
+            logError('Failed to insert technician default hours.', defaultHoursResult.error);
+            // Treat failure to insert default hours as critical, as scheduler relies on them
+            throw defaultHoursResult.error; 
+        }
+        logInfo(`Inserted ${defaultHoursResult.data?.length ?? 0} default hours records.`);
+    } else {
+        logInfo('No technicians seeded, skipping default hours insertion.');
+    }
+    // --- End Default Hours Insertion ---
+
+    logInfo(`Finished seeding ${seededTechnicians.length} technicians and associated data.`);
 
     return {
-        createdTechnicianAuthIds: createdOrConfirmedAuthIds,
-        assignedVanIds: finalTechniciansInput.map(t => t.assigned_van_id),
-        createdTechnicianDbIds
+        seededTechnicians // Return the structured array
     };
 }
 

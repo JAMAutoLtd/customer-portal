@@ -26,10 +26,10 @@ interface AuthUserSeedData {
 
 // --- Baseline Data Arrays ---
 export const addressesData: Address[] = [
-  { id: 1, street_address: '1234 Maple St SW', lat: 51.0301, lng: -114.0719 },
-  { id: 2, street_address: '5678 Oak Ave NW', lat: 51.0852, lng: -114.1303 },
-  { id: 3, street_address: '9101 Spruce Dr SE', lat: 51.0123, lng: -114.0387 },
-  { id: 4, street_address: '2468 Pine Cres NE', lat: 51.0624, lng: -114.0412 },
+  { id: 1, street_address: '1234 Maple St SW', lat: 51.0301, lng: -114.0719 }, // Reverted Tech 1
+  { id: 2, street_address: '540 5 Ave NE', lat: 51.057274, lng: -114.049297 }, // Keep Tech 2 as updated
+  { id: 3, street_address: '9101 Spruce Dr SE', lat: 51.0123, lng: -114.0387 }, // Reverted Tech 3
+  { id: 4, street_address: '2468 Pine Cres NE', lat: 51.0624, lng: -114.0412 }, // Reverted Tech 4
   { id: 5, street_address: 'Superior Paint & Body Service Ltd, 112 17 Ave SE', lat: 51.0385, lng: -114.0606 },
   { id: 6, street_address: 'Center Street Auto Service, 1005 Centre St North', lat: 51.0641, lng: -114.0620 },
   { id: 7, street_address: 'National Transmission, 402 14 St NW', lat: 51.0537, lng: -114.0934 },
@@ -189,10 +189,10 @@ export const publicUsersData: PublicUser[] = [
 ];
 
 export const vansData: Van[] = [
-  { id: 1, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_1', lat: 51.0301, lng: -114.0719, onestepgps_device_id: 'OSGPS_VAN_1' },
-  { id: 2, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_2', lat: 51.0852, lng: -114.1303, onestepgps_device_id: 'OSGPS_VAN_2' },
-  { id: 3, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_3', lat: 51.0123, lng: -114.0387, onestepgps_device_id: 'OSGPS_VAN_3' },
-  { id: 4, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_4', lat: 51.0624, lng: -114.0412, onestepgps_device_id: 'OSGPS_VAN_4' },
+  { id: 1, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_1', lat: 51.0301, lng: -114.0719, onestepgps_device_id: 'OSGPS_VAN_1' }, // Reverted Coords Van 1
+  { id: 2, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_2', lat: 51.057274, lng: -114.049297, onestepgps_device_id: 'OSGPS_VAN_2' }, // Keep Coords Van 2
+  { id: 3, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_3', lat: 51.0123, lng: -114.0387, onestepgps_device_id: 'OSGPS_VAN_3' }, // Reverted Coords Van 3
+  { id: 4, last_service: '2024-01-01', next_service: '2024-07-01', vin: 'VIN_VAN_4', lat: 51.0624, lng: -114.0412, onestepgps_device_id: 'OSGPS_VAN_4' }, // Reverted Coords Van 4
 ];
 
 export const equipmentData: Equipment[] = [

@@ -1,0 +1,56 @@
+# Task ID: 15
+# Title: Create comprehensive documentation
+# Status: done
+# Dependencies: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+# Priority: medium
+# Description: Document the E2E testing framework and its usage
+# Details:
+Create comprehensive documentation for the E2E testing framework:
+1. README.md with overview, setup instructions, and usage examples
+2. Documentation for each component:
+   - Environment setup
+   - Database management
+   - Test execution
+   - CLI runner
+   - Migration utility
+   - Technician data handling (including the separation into `technician-data.ts`)
+   - The `--techs` parameter: purpose, usage flow, and examples in scenario seeding
+3. Troubleshooting guide
+4. Examples of extending the framework with new scenarios
+5. Best practices for writing tests
+6. Detailed explanation of recent refactoring:
+   - Separation of technician definitions into `technician-data.ts`
+   - Removal of technician handling from `seedBaseline`
+   - Updated logic in `seedScenarioTechnicians`
+   - Modified behavior of `cleanupScenarioLeftovers`
+   - Updated scenario seeding architecture in `seed/index.ts`:
+     - How it now handles technician seeding for scenarios
+     - How it passes technicianDbIds down to specific scripts
+     - How these IDs are included in the output metadata
+     - Important note that scenario scripts must not seed technicians internally
+7. Document recent scheduler refactoring in:
+   - technical-reference.md
+   - OVERVIEW.md
+   - ARCHITECTURE.md
+   Including details on:
+     - DB availability changes
+     - Gap modeling improvements
+     - State tracking enhancements
+8. Create new docs/guides/TESTING.md guide that provides comprehensive information on:
+   - E2E testing framework
+   - Integration testing approach
+   - CLI runner usage and options
+   - Seeding process details
+   - Test execution flow
+
+Ensure the documentation is clear, concise, and includes examples for all major operations.
+
+# Test Strategy:
+Review the documentation for completeness and accuracy. Have another team member follow the documentation to set up and use the framework, noting any unclear or missing information. Specifically verify:
+1. The technician data handling documentation accurately reflects the recent refactoring
+2. The documentation for the `--techs` parameter clearly explains its purpose and usage in scenario seeding
+3. The documentation clearly explains the updated scenario seeding architecture in seed/index.ts
+4. The scheduler refactoring documentation in technical-reference.md, OVERVIEW.md, and ARCHITECTURE.md accurately covers DB availability, gap modeling, and state tracking changes
+5. The new TESTING.md guide provides clear and complete information on the E2E/integration testing framework, CLI runner, seeding process, and test execution flow
+
+Ensure all documentation is consistent across files and accurately reflects the current implementation.

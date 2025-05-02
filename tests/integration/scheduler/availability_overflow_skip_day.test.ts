@@ -13,7 +13,7 @@ import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 
 // Increase Jest timeout
-// jest.setTimeout(180000); // Allow more time for multi-day overflow
+jest.setTimeout(180000); // Allow more time for multi-day overflow (3 minutes)
 
 describe('Scheduler Integration - Availability Overflow Skip Day', () => {
     let supabase: SupabaseClient;

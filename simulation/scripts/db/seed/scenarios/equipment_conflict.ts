@@ -139,37 +139,56 @@ export async function seedScenario_equipment_conflict(
 
   // --- Seed Order and Job ---
   const customerId = getRandomElement(baselineRefs.customerIds);
-  const addressId = getRandomElement(baselineRefs.addressIds);
+  const addressId = baselineRefs.addressIds[0];
 
-  // Find a vehicle linked to the conflicting YMM ID
-  // Assuming ymm_id column exists on customer_vehicles table
-  const { data: vehicleForYmm, error: vehicleError } = await supabaseAdmin
-    .from('customer_vehicles')
-    .select('id')
-    .eq('ymm_id', conflictingYmmId)
-    .limit(1);
+  // --- Find Vehicle ID corresponding to conflictingYmmId (Revised Logic) ---
+  // 1. Find the specific requirement object again to safely access its details
+  const conflictingReq = adasReqs?.find(r => r.ymm_id === conflictingYmmId);
 
-  let vehicleId: number;
-  if (vehicleError || !vehicleForYmm || vehicleForYmm.length === 0) {
-      logInfo(`Warning: Could not find existing vehicle for YMM ID ${conflictingYmmId}. Picking random vehicle.`);
-      // Fallback to random vehicle, requirement check might be less precise but still function
-      vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
-  } else {
-      vehicleId = vehicleForYmm[0].id;
+  if (!conflictingReq) {
+      // This shouldn't happen if the previous loop found one, but good practice to check
+      throw new Error(`Consistency Error: Could not re-find conflicting requirement for YMM ID ${conflictingYmmId}`);
+  }
+  if (!conflictingReq.ymm_ref || !conflictingReq.ymm_ref.year || !conflictingReq.ymm_ref.make || !conflictingReq.ymm_ref.model) {
+      logError('Conflicting requirement found, but missing critical ymm_ref details', conflictingReq);
+      throw new Error(`Conflicting requirement for YMM ID ${conflictingYmmId} is missing year/make/model details.`);
   }
 
+  // 2. Now query customer_vehicles using the guaranteed non-null values
+  const { data: vehicleForYmm, error: vehicleError } = await supabaseAdmin
+      .from('customer_vehicles')
+      .select('id')
+      .eq('year', conflictingReq.ymm_ref.year)   // Use guaranteed value
+      .eq('make', conflictingReq.ymm_ref.make)   // Use guaranteed value
+      .eq('model', conflictingReq.ymm_ref.model) // Use guaranteed value
+      .limit(1)
+      .maybeSingle(); // Use maybeSingle as it's possible no matching vehicle exists in baseline
 
-  const order: OrderInsert = {
+  if (vehicleError) {
+      logError(`Database error querying for vehicle matching YMM ID ${conflictingYmmId}`, vehicleError);
+      throw vehicleError; // Rethrow DB errors
+  }
+  if (!vehicleForYmm) {
+      // It's possible the baseline doesn't contain a vehicle for every YMM in requirements
+      logError(`Failed to find a vehicle in customer_vehicles matching YMM ID ${conflictingYmmId} (Year: ${conflictingReq.ymm_ref.year}, Make: ${conflictingReq.ymm_ref.make}, Model: ${conflictingReq.ymm_ref.model})`);
+      throw new Error(`Could not find suitable vehicle for YMM ${conflictingYmmId}. Check baseline data.`);
+  }
+
+  const vehicleId = vehicleForYmm.id;
+  logInfo(`Using Vehicle ID ${vehicleId} which corresponds to YMM ID ${conflictingYmmId}`);
+  // --- End Finding Vehicle ID ---
+
+  const orderData: TablesInsert<'orders'> = {
     user_id: customerId,
     address_id: addressId,
-    vehicle_id: vehicleId, // Use vehicle linked to YMM if possible
+    vehicle_id: vehicleId, // <-- Add vehicle ID
     notes: `Equipment conflict order requiring '${requiredModelNotFound}'`,
   };
 
   const { data: insertedOrderData, error: orderError } = await insertData(
     supabaseAdmin,
     'orders',
-    [order],
+    [orderData],
     `Order for ${scenarioName} scenario`
   );
   if (orderError || !insertedOrderData || insertedOrderData.length === 0) {

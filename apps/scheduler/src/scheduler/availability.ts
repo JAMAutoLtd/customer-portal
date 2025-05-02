@@ -114,7 +114,27 @@ export function calculateWindowsForTechnician(
     const dayOfWeek = currentDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
     let windowsForDay: TimeWindow[] = [];
 
+    // <<< Add Logging >>>
+    logger.debug(
+      `Processing availability for Tech ${technician.id} on Date: ${dateString}, UTC DayOfWeek: ${dayOfWeek}`,
+      {
+        technicianId: technician.id,
+        targetDateString: dateString,
+        targetDayOfWeekUTC: dayOfWeek,
+        currentDateISO: currentDate.toISOString(),
+      }
+    );
+    // <<< End Logging >>>
+
     const exception = exceptionsMap.get(dateString);
+    // <<< Add Logging >>>
+    logger.debug(`Found exception for ${dateString}: ${exception ? JSON.stringify(exception) : 'None'}`, {
+      technicianId: technician.id,
+      targetDateString: dateString,
+      exceptionFound: !!exception,
+      exceptionDetails: exception || null,
+    });
+    // <<< End Logging >>>
 
     if (exception) {
       if (exception.exception_type === 'custom_hours' && exception.is_available && exception.start_time && exception.end_time) {
@@ -129,6 +149,15 @@ export function calculateWindowsForTechnician(
     } else {
       // Use default hours if no overriding exception
       const defaults = defaultHoursMap.get(dayOfWeek) || [];
+      // <<< Add Logging >>>
+      logger.debug(`Using default hours for day ${dayOfWeek}. Found ${defaults.length} default entries.`, {
+          technicianId: technician.id,
+          targetDateString: dateString,
+          targetDayOfWeekUTC: dayOfWeek,
+          defaultEntriesCount: defaults.length,
+          defaultEntries: defaults, // Log the actual default entries found
+      });
+      // <<< End Logging >>>
       defaults.forEach(dh => {
           if (dh.start_time && dh.end_time) {
             const start = parseTimeStringToUTCDate(dh.start_time, currentDate);
@@ -142,6 +171,15 @@ export function calculateWindowsForTechnician(
       // For now, assuming non-overlapping defaults based on typical schedules.
     }
 
+    // <<< Add Logging >>>
+    logger.debug(`Generated ${windowsForDay.length} windows for Tech ${technician.id} on ${dateString}`, {
+        technicianId: technician.id,
+        targetDateString: dateString,
+        windowsCount: windowsForDay.length,
+        generatedWindows: windowsForDay.map(w => ({ start: w.start.toISOString(), end: w.end.toISOString() })),
+    });
+    // <<< End Logging >>>
+
     if (windowsForDay.length > 0) {
         // Sort windows by start time just in case
         windowsForDay.sort((a, b) => a.start.getTime() - b.start.getTime());
@@ -151,6 +189,26 @@ export function calculateWindowsForTechnician(
     // Move to the next day
     currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
+
+  // <<< Add Logging >>>
+  // Convert Map to a serializable object for logging
+  const windowsToLog: { [key: string]: { start: string; end: string }[] } = {};
+  dailyWindows.forEach((windows, dateStr) => {
+    windowsToLog[dateStr] = windows.map(w => ({
+        start: w.start.toISOString(),
+        end: w.end.toISOString()
+    }));
+  });
+  logger.debug(
+    `Calculated initial availability windows for technician ${technician.id}`,
+    {
+      technicianId: technician.id,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      calculatedWindows: windowsToLog,
+    }
+  );
+  // <<< End Logging >>>
 
   return dailyWindows;
 }
@@ -259,6 +317,31 @@ export function applyLockedJobsToWindows(
     } else {
         dailyWindows.delete(dateString); // Remove entry if no windows remain
     }
+
+    // <<< Add Logging for Locked Jobs Impact >>>
+    const finalWindowsToLog: { [key: string]: { start: string; end: string }[] } = {};
+    dailyWindows.forEach((windows, dateStr) => {
+      finalWindowsToLog[dateStr] = windows.map(w => ({
+        start: w.start.toISOString(),
+        end: w.end.toISOString(),
+      }));
+    });
+    logger.debug(
+      `Applied locked jobs for technician ${technicianId} on ${dateString}`,
+      {
+        technicianId: technicianId,
+        targetDate: dateString,
+        lockedJobsConsidered: techLockedJobs.map(j => ({ // Log IDs and times of jobs applied
+          id: j.id,
+          status: j.status,
+          fixedTime: j.fixed_schedule_time,
+          estimatedSched: j.estimated_sched,
+          duration: j.job_duration
+        })),
+        finalAvailabilityWindows: finalWindowsToLog[dateString] || [], // Show only windows for the target date
+      }
+    );
+    // <<< End Logging >>>
 
     return dailyWindows;
 }

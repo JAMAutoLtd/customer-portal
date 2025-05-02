@@ -47,8 +47,8 @@ export const seedScenario_bundle_equipment_conflict = async (
 
     try {
         // 1. Validate baseline refs and tech count
-        if (!baselineRefs.customerIds?.length || !baselineRefs.addressIds?.length) {
-            throw new Error('BaselineRefs missing required data (customers, addresses).');
+        if (!baselineRefs.customerIds?.length || !baselineRefs.addressIds?.length || !baselineRefs.customerVehicleIds?.length) {
+            throw new Error('BaselineRefs missing required data (customers, addresses, customerVehicles).');
         }
         if (technicianDbIds.length < 2) {
             throw new Error(`Scenario ${scenarioName} requires at least 2 technicians, but received ${technicianDbIds.length}.`);
@@ -72,37 +72,44 @@ export const seedScenario_bundle_equipment_conflict = async (
             throw new Error(`Could not determine assigned vans for technicians ${techId1} and/or ${techId2}.`);
         }
 
-        // 2. Create distinct equipment for each job/technician
-        const equipmentData1: TablesInsert<'equipment'> = { model: `BundleConflictEquip-${faker.string.uuid().substring(0, 4)}`, equipment_type: 'prog' };
-        const equipmentData2: TablesInsert<'equipment'> = { model: `BundleConflictEquip-${faker.string.uuid().substring(0, 4)}`, equipment_type: 'adas' };
+        // -- Step 2: Define baseline equipment IDs needed for the conflict --
+        // We will use Service 1 (Front Radar) and Service 2 (Windshield Camera)
+        // From baseline-data.ts, for YMM 4321 (Vehicle ID 7):
+        // - Service 1 requires 'AUTEL-CSC0605/01' (Equipment ID 11)
+        // - Service 2 requires 'AUTEL-CSC0601/01' (Equipment ID 12)
+        const requiredEquipId1 = 11; // Baseline ID for 'AUTEL-CSC0605/01'
+        const requiredEquipId2 = 12; // Baseline ID for 'AUTEL-CSC0601/01'
+        // Log the baseline equipment being used
+        logInfo(`Using baseline equipment IDs for conflict: Equip1=${requiredEquipId1}, Equip2=${requiredEquipId2}`);
+        // No need to insert new equipment records
+        insertedIds.equipment = []; // Clear this as we're not creating new ones
 
-        // Pass as arrays
-        const equipResult1 = await insertData(supabase, 'equipment', [equipmentData1], 'Equipment 1 for bundle conflict');
-        const equipResult2 = await insertData(supabase, 'equipment', [equipmentData2], 'Equipment 2 for bundle conflict');
-        const equipId1 = equipResult1.data?.[0]?.id;
-        const equipId2 = equipResult2.data?.[0]?.id;
-        if (!equipId1 || !equipId2) throw new Error('Failed to insert equipment.');
-        insertedIds.equipment = [equipId1, equipId2]; // Assign directly
-        logInfo(`Inserted equipment IDs: ${insertedIds.equipment.join(', ')}`);
-
-        // 3. Assign equipment to vans (Equip1 -> Van1, Equip2 -> Van2)
+        // -- Step 3: Assign the required *baseline* equipment specifically to the scenario vans --
+        // This ensures the conflict exists for these technicians during the test
         const vanEquipData: TablesInsert<'van_equipment'>[] = [
-            { van_id: vanId1, equipment_id: equipId1 },
-            { van_id: vanId2, equipment_id: equipId2 },
+            { van_id: vanId1, equipment_id: requiredEquipId1 }, // Assign Equip 11 to Van 1 (Tech 1)
+            { van_id: vanId2, equipment_id: requiredEquipId2 }, // Assign Equip 12 to Van 2 (Tech 2)
         ];
-        // Already an array
-        const vanEquipResult = await insertData(supabase, 'van_equipment', vanEquipData, 'Assign conflict equipment to vans');
-        // Store van_equipment IDs if needed (assuming PK is (van_id, equipment_id) or similar - needs schema check)
-        // insertedIds.van_equipment = vanEquipResult.data?.map(ve => `${ve.van_id}-${ve.equipment_id}`); // Example if PK is composite
-        logInfo(`Assigned Equip ${equipId1} to Van ${vanId1}, Equip ${equipId2} to Van ${vanId2}`);
+        const vanEquipResult = await insertData(supabase, 'van_equipment', vanEquipData, 'Assign specific baseline conflict equipment to scenario vans');
+        // Store van_equipment IDs if needed
+        // insertedIds.van_equipment = vanEquipResult.data?.map(ve => `${ve.van_id}-${ve.equipment_id}`);
+        logInfo(`Assigned baseline Equip ${requiredEquipId1} to Van ${vanId1}, baseline Equip ${requiredEquipId2} to Van ${vanId2}`);
 
-        // 4. Create Order and Jobs
-        const customerId = baselineRefs.customerIds[0];
-        const addressId = baselineRefs.addressIds[0];
+        // -- Step 4: Create Order and Jobs using a vehicle with known conflicting requirements --
+        const customerId = baselineRefs.customerIds[0]; // Use any baseline customer
+        const addressId = baselineRefs.addressIds[0];   // Use any baseline address
+        // Explicitly use Vehicle ID 7 (YMM 4321 - 2010 Audi A5)
+        // This vehicle has baseline ADAS requirements defined for services 1 and 2
+        const vehicleId = 7;
+        // Verify this vehicle ID exists in baseline refs for safety
+        if (!baselineRefs.customerVehicleIds?.includes(vehicleId)) {
+            throw new Error(`Selected Vehicle ID ${vehicleId} not found in baselineRefs.customerVehicleIds.`);
+        }
 
         const orderData: TablesInsert<'orders'> = {
             user_id: customerId,
             address_id: addressId,
+            vehicle_id: vehicleId,
             notes: `Order for ${scenarioName} scenario. Expect bundle break.`,
         };
         // Pass as array
@@ -112,33 +119,28 @@ export const seedScenario_bundle_equipment_conflict = async (
         insertedIds.orders = [orderId]; // Assign directly
         logInfo(`Inserted order ID: ${orderId}`);
 
-        // Create placeholder services if needed, or use baseline. Need to link service to equipment requirement.
-        // For simplicity, assume baseline services exist that can be linked.
-        // We need to ensure Job 1 requires Equip 1, Job 2 requires Equip 2.
-        // This might require creating service_equipment_requirements or similar entries if not using baseline.
-        // Let's assume baseline service ID 6 maps to Equip 1, and 7 maps to Equip 2 for this example.
-        // TODO: Implement actual requirement linkage if needed.
-        const serviceIdJob1 = 6; // Assumed baseline service ID linked to Equip 1
-        const serviceIdJob2 = 7; // Assumed baseline service ID linked to Equip 2
+        // Use Service IDs 1 and 2, which have conflicting baseline requirements for vehicleId 7
+        const serviceIdJob1 = 1; // Front Radar - Requires Equip 11 for YMM 4321
+        const serviceIdJob2 = 2; // Windshield Camera - Requires Equip 12 for YMM 4321
 
         const jobsData: TablesInsert<'jobs'>[] = [
             {
                 order_id: orderId,
                 address_id: addressId,
-                service_id: serviceIdJob1, // Requires Equip 1 (Tech 1)
-                status: 'pending_review',
+                service_id: serviceIdJob1, // Requires Equip 11 (Tech 1's Van)
+                status: 'queued',
                 priority: 2,
                 job_duration: 60,
-                notes: `Job 1 for ${scenarioName}. Needs Equip ${equipId1}.`,
+                notes: `Job 1 for ${scenarioName}. Baseline Service 1 (Requires Equip ${requiredEquipId1}).`,
             },
             {
                 order_id: orderId,
                 address_id: addressId,
-                service_id: serviceIdJob2, // Requires Equip 2 (Tech 2)
-                status: 'pending_review',
+                service_id: serviceIdJob2, // Requires Equip 12 (Tech 2's Van)
+                status: 'queued',
                 priority: 2,
                 job_duration: 60,
-                notes: `Job 2 for ${scenarioName}. Needs Equip ${equipId2}.`,
+                notes: `Job 2 for ${scenarioName}. Baseline Service 2 (Requires Equip ${requiredEquipId2}).`,
             },
         ];
 

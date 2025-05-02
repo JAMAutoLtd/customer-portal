@@ -49,9 +49,16 @@ export const seedScenario_same_location_jobs = async (
             throw new Error('BaselineRefs is missing customer IDs.');
         }
         const customerId = baselineRefs.customerIds[0]; // Use first baseline customer ID
+        // Get a vehicle ID from baseline refs
+        if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+            throw new Error('BaselineRefs is missing customerVehicleIds.');
+        }
+        const vehicleId = baselineRefs.customerVehicleIds[0]; // Use first baseline vehicle
+
         const orderData: TablesInsert<'orders'> = {
             user_id: customerId,
             address_id: addressId,
+            vehicle_id: vehicleId, // <-- Corrected: Use customerVehicleIds
             notes: `Order for ${scenarioName} scenario. Multiple jobs at same address.`,
             earliest_available_time: faker.date.soon({ days: 1 }).toISOString(), // e.g., available tomorrow
         };
@@ -75,9 +82,9 @@ export const seedScenario_same_location_jobs = async (
                 order_id: orderId,
                 address_id: addressId,
                 service_id: serviceId,
-                status: 'pending_review', // Start as pending review
+                status: 'queued', // Changed from pending_review
                 priority: faker.number.int({ min: 1, max: 5 }), // Random priority
-                job_duration: faker.number.int({ min: 30, max: 90 }), // 30-90 minutes
+                job_duration: faker.number.int({ min: 45, max: 90 }), // 45-90 minutes
                 notes: `Job ${i + 1}/${numberOfJobs} for ${scenarioName} at address ${addressId}. Service ID: ${serviceId}`,
             });
         }

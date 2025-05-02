@@ -1,0 +1,43 @@
+# Task ID: 1
+# Title: Review and document existing logging infrastructure
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Analyze the current logging implementation in both the scheduler and optimizer services to understand integration points and establish consistent logging patterns.
+# Details:
+Examine the pino-based logger in apps/scheduler/src/utils/logger.ts and the Python logging configuration in the optimizer service. Document the current log levels, formats, and usage patterns. Create a logging standards document that defines conventions for the new log messages, including context requirements (timestamps, IDs, function names), appropriate log levels usage, and formatting guidelines.
+
+# Test Strategy:
+Produce a documentation artifact with logging standards that can be reviewed by the team. Include examples of good log messages that follow the defined patterns.
+
+# Subtasks:
+## 1. Inventory and Analyze Pino Logger in Scheduler Service [done]
+### Dependencies: None
+### Description: Review the implementation of the Pino-based logger in apps/scheduler/src/utils/logger.ts. Identify how logging is initialized, configured, and used throughout the scheduler service, including log levels, formats, and integration points.
+### Details:
+Read through the logger.ts file and related usage in the scheduler codebase. Document the logger setup, configuration options (such as transports, formatting, and log level settings), and how logs are generated in various modules. Note any customizations or middleware (e.g., express-pino-logger) and how context (timestamps, IDs, function names) is included in log messages.[2][3][5]
+
+## 2. Inventory and Analyze Python Logging in Optimizer Service [done]
+### Dependencies: None
+### Description: Examine the Python logging configuration in the optimizer service. Identify logger setup, configuration files, log levels, formats, and how logging is used throughout the codebase.
+### Details:
+Locate the logging configuration (e.g., logging.basicConfig, config files, or custom handlers) and review its usage in the optimizer service. Document the log message structure, context inclusion (timestamps, IDs, function names), and any custom formatting or handlers. Note differences from the scheduler's logging approach.
+
+## 3. Compare and Document Integration Points and Usage Patterns [done]
+### Dependencies: 1.1, 1.2
+### Description: Compare how logging is integrated and used in both services. Identify similarities, differences, and potential inconsistencies in log levels, message formats, and context inclusion.
+### Details:
+Create a side-by-side comparison of the logging approaches in both services. Highlight integration points (e.g., middleware, decorators), log level usage, message structure, and any missing or inconsistent context fields. Summarize findings to inform standardization.
+
+## 4. Draft Logging Standards Document [done]
+### Dependencies: 1.3
+### Description: Develop a comprehensive logging standards document that defines conventions for log messages across both services.
+### Details:
+Based on the analysis, create guidelines for log message structure (including required context such as timestamps, IDs, and function names), log level usage, and formatting. Specify recommended practices for both TypeScript/Pino and Python logging, ensuring consistency and clarity.
+
+## 5. Review and Refine Logging Standards with Stakeholders [done]
+### Dependencies: 1.4
+### Description: Share the draft logging standards document with relevant team members for feedback. Refine the document based on input and finalize the standards.
+### Details:
+Present the draft to developers and stakeholders from both services. Collect feedback on feasibility, clarity, and completeness. Update the document as needed and obtain consensus on the new logging conventions.
+

@@ -1,0 +1,37 @@
+# Task ID: 5
+# Title: Implement scheduler availability window calculation logging (FEAT-LOG-004 part 1)
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Add logging for the results of initial availability window calculations in the scheduler.
+# Details:
+In apps/scheduler/src/scheduler/availability.ts, add DEBUG level logging after the calculateWindowsForTechnician function completes. Log the technician ID, date, and the calculated TimeWindow[] array after applying DB defaults/exceptions but before applying locked jobs. Format the time windows in a readable way, showing start and end times in ISO format. Use the existing pino logger with appropriate context fields.
+
+# Test Strategy:
+Execute test cases with various technician availability patterns and verify logs show the correct time windows after applying defaults and exceptions.
+
+# Subtasks:
+## 1. Analyze the existing calculateWindowsForTechnician function [done]
+### Dependencies: None
+### Description: Examine the current implementation of the calculateWindowsForTechnician function in apps/scheduler/src/scheduler/availability.ts to understand its flow, inputs, outputs, and where logging should be added.
+### Details:
+Review the calculateWindowsForTechnician function to identify: 1) The function signature and return type (TimeWindow[] array), 2) The point where DB defaults/exceptions are applied but before locked jobs are applied, 3) The structure of the TimeWindow objects, 4) How technician ID and date are passed to or used in the function. This analysis will help determine the exact placement of the logging statement and what data needs to be captured.
+
+## 2. Create a helper function to format TimeWindow arrays [done]
+### Dependencies: 5.1
+### Description: Implement a utility function that formats TimeWindow arrays in a readable way, showing start and end times in ISO format.
+### Details:
+Create a function like `formatTimeWindows(windows: TimeWindow[]): string` that converts the TimeWindow array into a readable string representation. Each window should display its start and end times in ISO format. Consider using JSON.stringify with custom replacer function to handle Date objects properly, or manually construct a formatted string for each window. The function should handle edge cases like empty arrays or null/undefined values gracefully.
+
+## 3. Add DEBUG level logging after calculateWindowsForTechnician [done]
+### Dependencies: 5.1, 5.2
+### Description: Implement the logging statement at the appropriate location in the code, using the existing pino logger with proper context fields.
+### Details:
+Add a logging statement after the calculateWindowsForTechnician function completes but before applying locked jobs. Use the pino logger with the DEBUG level. Include the following context fields: 1) technician ID, 2) date, and 3) the formatted time windows using the helper function created in subtask 2. The log message should be descriptive, such as 'Calculated initial availability windows for technician'. Ensure the logger is properly imported and configured with the correct context.
+
+## 4. Test and verify the logging implementation [done]
+### Dependencies: 5.3
+### Description: Test the logging implementation to ensure it works correctly and provides the expected output.
+### Details:
+Test the logging implementation by: 1) Setting the log level to DEBUG in the test environment, 2) Running the scheduler with a test technician and date, 3) Verifying that the logs contain the expected information (technician ID, date, and formatted time windows), 4) Checking that the logs appear at the correct point in the process (after applying DB defaults/exceptions but before applying locked jobs), 5) Ensuring the time windows are formatted correctly in ISO format and are readable. Make adjustments to the implementation if necessary based on the test results.
+

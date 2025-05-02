@@ -6,7 +6,7 @@ import {
     TechnicianAvailability, Address, SchedulableJob, VanEquipment,
     FailureReason, isPersistentFailure, SchedulingAttempt, JobSchedulingState 
 } from '../types/database.types';
-import { calculateTechnicianAvailability, calculateAvailabilityForDay, formatDateToString } from './availability';
+import { calculateTechnicianAvailability, calculateAvailabilityForDay, formatDateToString, calculateWindowsForTechnician } from './availability';
 import { bundleQueuedJobs, mapItemsToJobIds } from './bundling';
 import { determineTechnicianEligibility, EligibilityResult, IneligibleItem } from './eligibility';
 import { prepareOptimizationPayload } from './payload';
@@ -314,7 +314,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             // --- End: Fix Linter Error ---
             itemJobIds.forEach(jobId => {
                 const state = jobStates.get(jobId);
-                if (state && state.lastStatus === 'pending') {
+                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
                     const attempt = createAttempt(planningDateStr, false, ineligible.reason);
                     state.attempts.push(attempt);
                     if (isPersistentFailure(ineligible.reason)) {
@@ -355,6 +355,12 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             if (optimizationPayloadToday.items.length > 0) {
                  logger.info('Step 1.5: Calling optimization microservice for today...');
                  const optimizationResponseToday = await callOptimizationService(optimizationPayloadToday);
+                 
+                 // <<< Add Logging for Raw Optimizer Response >>>
+                 logger.debug("Received raw optimizer response (Today Pass)", { 
+                    response: optimizationResponseToday 
+                 });
+                 // <<< End Logging >>>
 
                  logger.info('Step 1.6: Processing optimization results for today...');
                  const processedResultsToday = processOptimizationResults(optimizationResponseToday, eligibleItemMapForPass);
@@ -369,6 +375,15 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                          }; 
                          finalAssignments.set(update.jobId, assignment);
                          const attempt = createAttempt(planningDateStr, true, null, assignment);
+                         // <<< Add Logging for Job State Update >>>
+                         logger.debug("Updating job state (Scheduled)", {
+                             jobId: update.jobId,
+                             newStatus: 'scheduled',
+                             planningDay: planningDateStr,
+                             passNumber: 1,
+                             assignment: assignment
+                         });
+                         // <<< End Logging >>>
                          state.attempts.push(attempt);
                          state.lastStatus = 'scheduled';
                          jobStates.set(update.jobId, state);
@@ -387,6 +402,16 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                         const state = jobStates.get(jobId);
                         if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
                              const attempt = createAttempt(planningDateStr, false, FailureReason.OPTIMIZER_OTHER);
+                             const newStatus = 'failed_transient';
+                             // <<< Add Logging for Job State Update >>>
+                             logger.debug("Updating job state (Optimizer Unassigned)", {
+                                 jobId: jobId,
+                                 newStatus: newStatus,
+                                 failureReason: FailureReason.OPTIMIZER_OTHER,
+                                 planningDay: planningDateStr,
+                                 passNumber: 1
+                             });
+                             // <<< End Logging >>>
                              state.attempts.push(attempt);
                              state.lastStatus = 'failed_transient';
                              jobStates.set(jobId, state);
@@ -400,14 +425,74 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                     });
                  });
 
+                 // --- BEGIN: Update fixed job states for this pass --- 
+                 const fixedTimeJobsForThisPass = allFixedTimeJobs.filter(job => 
+                    job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
+                 );
+                 logger.info(`Step 1.7.1: Confirming schedule for ${fixedTimeJobsForThisPass.length} fixed time job(s) on ${planningDateStr}...`);
+
+                 for (const fixedJob of fixedTimeJobsForThisPass) {
+                    // Find the job's state (it might not be in jobStates if it wasn't 'queued' initially, but we process all relevant fixed jobs)
+                    // Let's ensure we update the final assignment regardless of initial state if the pass succeeded.
+                    const state = jobStates.get(fixedJob.id);
+
+                    if (state && state.lastStatus === 'failed_persistent') {
+                        logger.warn(`Fixed job ${fixedJob.id} was marked persistently failed earlier. It will not be scheduled.`);
+                        continue; // Skip this one
+                    }
+
+                    if (fixedJob.assigned_technician !== null && fixedJob.fixed_schedule_time) {
+                        const assignment: FinalAssignment = {
+                            technicianId: fixedJob.assigned_technician,
+                            estimatedSchedISO: fixedJob.fixed_schedule_time, // Use the fixed time!
+                        };
+                        finalAssignments.set(fixedJob.id, assignment);
+
+                        // If the job was being tracked in jobStates, update its status
+                        if (state) {
+                            const attempt = createAttempt(planningDateStr, true, null, assignment);
+                            state.attempts.push(attempt);
+                            state.lastStatus = 'scheduled'; // Mark internally as scheduled
+                            jobStates.set(fixedJob.id, state);
+                            logger.debug(`Updating job state (Fixed Time Confirmed)`, {
+                                jobId: fixedJob.id,
+                                newStatus: state.lastStatus, // 'scheduled' internally
+                                planningDay: planningDateStr,
+                                passNumber: 1, // Always 1 for today pass
+                                assignment: assignment
+                            });
+                        } else {
+                            // If not in jobStates (e.g., started as en_route but fixed), still log confirmation
+                            logger.debug(`Confirmed fixed time schedule for job ${fixedJob.id} (not in initial state map)`);
+                        }
+                    } else {
+                        logger.warn(`Skipping update for fixed job ${fixedJob.id}: Missing fixed_schedule_time or assigned_technician.`);
+                    }
+                 }
+                 // --- END: Update fixed job states for this pass ---
+
                  const currentScheduledCount = Array.from(jobStates.values()).filter(s => s.lastStatus === 'scheduled').length;
                  const currentPendingCount = Array.from(jobStates.values()).filter(s => s.lastStatus === 'pending' || s.lastStatus === 'failed_transient').length;
                  logger.info(`Pass 1 State: ${currentScheduledCount} jobs scheduled, ${currentPendingCount} jobs remain pending/transiently failed.`);
 
             } else {
+                // <<< Add Logging for Optimizer Skip >>>
+                logger.info("Optimizer call skipped for today: No items in prepared payload.", {
+                    reason: "no_prepared_items",
+                    targetDate: planningDateStr,
+                    passNumber: 1
+                });
+                // <<< End Logging >>>
                 logger.info('No items could be prepared for optimization payload for today (all filtered?).');
             }
         } else {
+            // <<< Add Logging for Optimizer Skip >>>
+            logger.info("Optimizer call skipped for today: No eligible items.", {
+                reason: "no_eligible_items",
+                targetDate: planningDateStr,
+                passNumber: 1
+            });
+            // <<< End Logging >>>
             logger.info('No initial jobs to plan for today.');
         }
     } else {
@@ -425,15 +510,65 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         const currentPlanningDate = new Date(basePlanningDate);
         currentPlanningDate.setUTCDate(basePlanningDate.getUTCDate() + loopCount);
         const planningDateStr = formatDateToString(currentPlanningDate); // Use helper
+        
+        // <<< Add Logging for Overflow Pass Target Date >>>
+        logger.info(`Starting overflow planning pass`, {
+            passNumber: loopCount,
+            targetDate: planningDateStr
+        });
+        // <<< End Logging >>>
+
         logger.info(`\n--- Overflow Pass ${loopCount}: Planning for ${planningDateStr} ---`);
         eligibleItemMapForPass.clear(); // Clear map for this pass
 
         logger.info(`Step ${loopCount}.1: Fetching technicians with home locations...`);
-        const techsForLoop = await getActiveTechnicians();
+        const techsForLoop = await getActiveTechnicians(); // Re-fetch to ensure latest data?
         if (techsForLoop.length === 0) {
             logger.warn(`No active technicians found for ${planningDateStr}. Cannot plan overflow. Stopping loop.`);
             break;
         }
+
+        // <<< Calculate availability for this specific date >>>
+        let isAnyTechAvailable = false;
+        for (const tech of techsForLoop) {
+            const techWindows = calculateWindowsForTechnician(tech, currentPlanningDate, currentPlanningDate);
+            if (techWindows.has(planningDateStr) && (techWindows.get(planningDateStr)?.length ?? 0) > 0) {
+                isAnyTechAvailable = true;
+                break; // Found at least one available tech, no need to check further
+            }
+        }
+
+        // <<< Add check to skip if no techs have availability >>>
+        if (!isAnyTechAvailable) {
+            logger.info(`Optimizer call skipped for overflow pass ${loopCount}: No technicians have availability windows for ${planningDateStr}.`, {
+                reason: "no_available_technicians_for_date",
+                targetDate: planningDateStr,
+                passNumber: loopCount
+            });
+            // Update job states to transient failure for this day if they weren't already persistent
+            const jobIdsToUpdate = Array.from(jobStates.keys()); // Get all job IDs being tracked
+            jobIdsToUpdate.forEach(jobId => {
+                const state = jobStates.get(jobId);
+                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
+                    const attempt = createAttempt(planningDateStr, false, FailureReason.NO_TECHNICIAN_AVAILABILITY);
+                    state.attempts.push(attempt);
+                    state.lastStatus = 'failed_transient'; 
+                    jobStates.set(jobId, state);
+                    
+                    logger.debug(`Updating job state (No Tech Availability)`, {
+                        jobId: jobId,
+                        newStatus: state.lastStatus,
+                        failureReason: FailureReason.NO_TECHNICIAN_AVAILABILITY,
+                        planningDay: planningDateStr,
+                        passNumber: loopCount
+                    });
+                } else if (!state) {
+                    logger.error(`Could not find state for job ID ${jobId} during no-tech-availability update.`);
+                }
+            });
+            continue; // Skip to the next day
+        }
+        // <<< End check >>>
         
         const jobIdsToAttemptThisLoop = Array.from(jobStates.values())
             .filter(state => state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')
@@ -498,6 +633,15 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                     } else {
                         state.lastStatus = 'failed_transient';
                     }
+                    // <<< Add Logging for Job State Update >>>
+                    logger.debug("Updating job state (Ineligible)", {
+                        jobId: jobId,
+                        newStatus: state.lastStatus,
+                        failureReason: ineligible.reason,
+                        planningDay: planningDateStr,
+                        passNumber: loopCount
+                    });
+                    // <<< End Logging >>>
                     jobStates.set(jobId, state);
                 }
             });
@@ -514,8 +658,45 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         logger.info(`   -> Found ${eligibleItemCountLoop} eligible item(s) for Overflow Pass ${loopCount}.`);
         
         if (eligibleItemCountLoop === 0) {
+            // <<< Add Logging for Optimizer Skip >>>
+            logger.info(`Optimizer call skipped for overflow pass ${loopCount}: No eligible items.`, {
+                reason: "no_eligible_items",
+                targetDate: planningDateStr,
+                passNumber: loopCount
+            });
+            // <<< End Logging >>>
             logger.info(`No eligible items for ${planningDateStr} after bundling and eligibility (all filtered?). Continuing loop.`);
             continue;
+        }
+
+        // Only proceed if there are applicable jobs OR fixed jobs for this specific day
+        const fixedJobsForThisSpecificDay = allFixedTimeJobs.filter(job =>
+            job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
+        );
+
+        if (jobsForThisPassFiltered.length === 0 && fixedJobsForThisSpecificDay.length === 0) {
+            logger.info(`Optimizer call skipped for overflow pass ${loopCount}: No applicable queued jobs or fixed jobs for ${planningDateStr}.`);
+            // Mark remaining transient jobs as failed for this day
+            jobIdsToAttemptThisLoop.forEach(jobId => {
+                const state = jobStates.get(jobId);
+                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
+                    const attempt = createAttempt(planningDateStr, false, FailureReason.NO_TECHNICIAN_AVAILABILITY);
+                    state.attempts.push(attempt);
+                    state.lastStatus = 'failed_transient';
+                    jobStates.set(jobId, state);
+                    
+                    logger.debug(`Updating job state (No Applicable Jobs)`, {
+                        jobId: jobId,
+                        newStatus: state.lastStatus,
+                        failureReason: FailureReason.NO_TECHNICIAN_AVAILABILITY,
+                        planningDay: planningDateStr,
+                        passNumber: loopCount
+                    });
+                } else if (!state) {
+                    logger.error(`Could not find state for job ID ${jobId} during no-applicable-jobs update.`);
+                }
+            });
+            continue; // Skip to the next day
         }
 
         logger.info(`Step ${loopCount}.5: Preparing optimization payload for ${planningDateStr}...`);
@@ -531,12 +712,25 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         );
 
         if (optimizationPayloadLoop.items.length === 0) {
+            // <<< Add Logging for Optimizer Skip >>>
+            logger.info(`Optimizer call skipped for overflow pass ${loopCount}: No items in prepared payload.`, {
+                reason: "no_prepared_items",
+                targetDate: planningDateStr,
+                passNumber: loopCount
+            });
+            // <<< End Logging >>>
             logger.info(`No items could be prepared for optimization for ${planningDateStr} (all filtered?). Continuing loop.`);
             continue;
         }
 
         logger.info(`Step ${loopCount}.6: Calling optimization microservice for ${planningDateStr}...`);
         const optimizationResponseLoop = await callOptimizationService(optimizationPayloadLoop);
+
+        // <<< Add Logging for Raw Optimizer Response >>>
+        logger.debug(`Received raw optimizer response (Overflow Pass ${loopCount})`, { 
+            response: optimizationResponseLoop 
+        });
+        // <<< End Logging >>>
 
         logger.info(`Step ${loopCount}.7: Processing optimization results for ${planningDateStr}...`);
         const processedResultsLoop = processOptimizationResults(optimizationResponseLoop, eligibleItemMapForPass);
@@ -551,6 +745,15 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                  };
                  finalAssignments.set(update.jobId, assignment);
                  const attempt = createAttempt(planningDateStr, true, null, assignment);
+                 // <<< Add Logging for Job State Update >>>
+                 logger.debug("Updating job state (Scheduled - Overflow)", {
+                     jobId: update.jobId,
+                     newStatus: 'scheduled',
+                     planningDay: planningDateStr,
+                     passNumber: loopCount,
+                     assignment: assignment
+                 });
+                 // <<< End Logging >>>
                  state.attempts.push(attempt);
                  state.lastStatus = 'scheduled';
                  jobStates.set(update.jobId, state);
@@ -569,6 +772,16 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                 const state = jobStates.get(jobId);
                 if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
                      const attempt = createAttempt(planningDateStr, false, FailureReason.OPTIMIZER_OTHER);
+                     const newStatus = 'failed_transient';
+                     // <<< Add Logging for Job State Update >>>
+                     logger.debug("Updating job state (Optimizer Unassigned - Overflow)", {
+                         jobId: jobId,
+                         newStatus: newStatus,
+                         failureReason: FailureReason.OPTIMIZER_OTHER,
+                         planningDay: planningDateStr,
+                         passNumber: loopCount
+                     });
+                     // <<< End Logging >>>
                      state.attempts.push(attempt);
                      state.lastStatus = 'failed_transient';
                      jobStates.set(jobId, state);
@@ -577,6 +790,48 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             });
         });
         
+        // --- BEGIN: Update fixed job states for this overflow pass --- 
+        const fixedTimeJobsForThisOverflowPass = allFixedTimeJobs.filter(job => 
+            job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
+        );
+        logger.info(`Step ${loopCount}.8.1: Confirming schedule for ${fixedTimeJobsForThisOverflowPass.length} fixed time job(s) on ${planningDateStr}...`);
+
+        for (const fixedJob of fixedTimeJobsForThisOverflowPass) {
+            const state = jobStates.get(fixedJob.id);
+
+            if (state && state.lastStatus === 'failed_persistent') {
+                logger.warn(`Fixed job ${fixedJob.id} was marked persistently failed earlier. It will not be scheduled.`);
+                continue; // Skip this one
+            }
+
+            if (fixedJob.assigned_technician !== null && fixedJob.fixed_schedule_time) {
+                const assignment: FinalAssignment = {
+                    technicianId: fixedJob.assigned_technician,
+                    estimatedSchedISO: fixedJob.fixed_schedule_time, // Use the fixed time!
+                };
+                finalAssignments.set(fixedJob.id, assignment);
+
+                if (state) {
+                    const attempt = createAttempt(planningDateStr, true, null, assignment);
+                    state.attempts.push(attempt);
+                    state.lastStatus = 'scheduled'; // Mark internally as scheduled
+                    jobStates.set(fixedJob.id, state);
+                    logger.debug(`Updating job state (Fixed Time Confirmed - Overflow)`, {
+                        jobId: fixedJob.id,
+                        newStatus: state.lastStatus, // 'scheduled' internally
+                        planningDay: planningDateStr,
+                        passNumber: loopCount,
+                        assignment: assignment
+                    });
+                } else {
+                     logger.debug(`Confirmed fixed time schedule for job ${fixedJob.id} (not in initial state map)`);
+                }
+            } else {
+                logger.warn(`Skipping update for fixed job ${fixedJob.id}: Missing fixed_schedule_time or assigned_technician.`);
+            }
+        }
+        // --- END: Update fixed job states for this overflow pass ---
+
         const remainingJobsCountLoop = Array.from(jobStates.values()).filter(s => s.lastStatus === 'pending' || s.lastStatus === 'failed_transient').length;
         logger.info(`--- Overflow Pass ${loopCount} Complete. ${remainingJobsCountLoop} jobs remaining to plan. ---`);
 
@@ -589,27 +844,41 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
     jobStates.forEach((state, jobId) => {
         logger.debug(`  Job ${jobId}: Status = ${state.lastStatus}, Attempts = ${state.attempts.length}`);
     });
+    logger.debug('DEBUG: Final Assignments before DB Update:');
+    finalAssignments.forEach((assignment, jobId) => {
+        logger.debug(`  Job ${jobId}: Tech = ${assignment.technicianId}, Time = ${assignment.estimatedSchedISO}`);
+    });
     
     const finalUpdates: JobUpdateOperation[] = [];
+    const processedJobIds = new Set<number>(); // Track IDs processed to avoid duplicates
 
+    // Process jobs based on their final internal state
     jobStates.forEach((state, jobId) => {
+        processedJobIds.add(jobId);
+        const originalJob = allFetchedJobsMap.get(jobId);
+
         if (state.lastStatus === 'scheduled') {
             const assignment = finalAssignments.get(jobId);
-            if (assignment) {
+            if (assignment && originalJob) {
+                const finalDbStatus: JobStatus = originalJob.status === 'fixed_time'
+                    ? 'fixed_time' // Keep original fixed_time status
+                    : FINAL_SUCCESS_STATUS; // Otherwise use standard success status (e.g., 'queued')
+                
                 finalUpdates.push({
                     jobId: jobId,
                     data: {
-                        status: FINAL_SUCCESS_STATUS, // 'queued'
+                        status: finalDbStatus,
                         assigned_technician: assignment.technicianId,
-                        estimated_sched: assignment.estimatedSchedISO,
+                        estimated_sched: assignment.estimatedSchedISO, 
                     }
                 });
             } else {
-                 logger.error(`CRITICAL: Job ${jobId} has final status 'scheduled' but no assignment found in finalAssignments map! Setting to pending_review.`);
-                 finalUpdates.push({ jobId: jobId, data: { status: PENDING_REVIEW_STATUS, assigned_technician: null, estimated_sched: null } });
+                logger.error(`CRITICAL: Job ${jobId} has final internal status 'scheduled' but no assignment or original data found! Setting to pending_review.`);
+                finalUpdates.push({ jobId: jobId, data: { status: PENDING_REVIEW_STATUS, assigned_technician: null, estimated_sched: null } });
             }
         } else if (state.lastStatus === 'failed_persistent' || state.lastStatus === 'failed_transient' || state.lastStatus === 'pending') {
-             finalUpdates.push({
+            // Jobs that ended up unschedulable or were never eligible/processed
+            finalUpdates.push({
                 jobId: jobId,
                 data: {
                     status: PENDING_REVIEW_STATUS,
@@ -618,12 +887,38 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                 }
             });
         } 
+        // No 'else' needed: jobs still locked (en_route, in_progress) aren't in jobStates map
+    });
+
+    // Process any fixed_time jobs that might not have been in the initial jobStates map
+    // but were confirmed via finalAssignments
+    allFixedTimeJobs.forEach(fixedJob => {
+        if (!processedJobIds.has(fixedJob.id)) {
+            // Check if it got a final assignment (meaning its planning day succeeded)
+            const assignment = finalAssignments.get(fixedJob.id);
+            if (assignment && fixedJob.assigned_technician) {
+                logger.info(`Applying confirmed schedule for fixed job ${fixedJob.id} (not in initial state map).`);
+                 finalUpdates.push({
+                    jobId: fixedJob.id,
+                    data: {
+                        status: 'fixed_time', // Keep fixed status
+                        assigned_technician: fixedJob.assigned_technician, // Keep original assignment
+                        estimated_sched: assignment.estimatedSchedISO, // Update with the confirmed fixed time
+                    }
+                });
+            } else {
+                 // This fixed job's planning day might have failed, or it was invalid
+                 // It shouldn't be updated to pending_review unless it was ALREADY pending_review
+                 // If it started as fixed_time and its day failed, leave it as fixed_time with null sched?
+                 logger.warn(`Fixed job ${fixedJob.id} (not in initial state map) did not receive a final assignment confirmation. No DB update.`);
+            }
+        }
     });
 
     if (finalUpdates.length > 0) {
-        const scheduledCount = finalUpdates.filter(u => u.data.status === FINAL_SUCCESS_STATUS).length;
+        const scheduledCount = finalUpdates.filter(u => u.data.status === FINAL_SUCCESS_STATUS || u.data.status === 'fixed_time').length;
         const pendingCount = finalUpdates.filter(u => u.data.status === PENDING_REVIEW_STATUS).length;
-        logger.info(`Applying final updates: ${scheduledCount} jobs to '${FINAL_SUCCESS_STATUS}', ${pendingCount} jobs to '${PENDING_REVIEW_STATUS}'.`);
+        logger.info(`Applying final updates: ${scheduledCount} jobs to scheduled states ('${FINAL_SUCCESS_STATUS}'/'fixed_time'), ${pendingCount} jobs to '${PENDING_REVIEW_STATUS}'.`);
         await updateJobs(dbClient, finalUpdates);
     } else {
         logger.info('No final database updates required (no jobs processed or state changed).');

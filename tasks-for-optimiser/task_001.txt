@@ -1,0 +1,43 @@
+# Task ID: 1
+# Title: Refactor Technician Data Retrieval and Availability Calculation
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Update the technician data retrieval process to fetch all availability records from the database and refactor the availability calculation logic to handle multiple time windows and locked jobs.
+# Details:
+Modify `apps/scheduler/src/supabase/technicians.ts` to fetch related availability records from `technician_default_hours` and `technician_availability_exceptions` tables. Update the `Technician` interface in `apps/scheduler/src/types/database.types.ts` to include these records. Rewrite the calculations in `apps/scheduler/src/scheduler/availability.ts` to use DB data and handle multiple windows per day. Implement logic to account for time blocked by locked jobs (`en_route`, `in_progress`) for today's planning. The output should represent all available time blocks for each technician, not just the earliest availability.
+
+# Test Strategy:
+Create unit tests for the availability calculation logic with various scenarios: technicians with default hours only, with exceptions, with locked jobs, with multiple availability windows in a day. Verify that the output correctly represents all available time blocks.
+
+# Subtasks:
+## 1. Update Technician interface to include availability records [done]
+### Dependencies: None
+### Description: Modify the Technician interface in the database types file to include related availability records from technician_default_hours and technician_availability_exceptions tables.
+### Details:
+In apps/scheduler/src/types/database.types.ts, update the Technician interface to include two new properties: defaultHours (array of technician_default_hours records) and availabilityExceptions (array of technician_availability_exceptions records). Define appropriate types for these records including fields like day_of_week, start_time, end_time for default hours and date, start_time, end_time, is_available for exceptions. Ensure the interface properly represents the relationship between these entities.
+
+## 2. Modify technician data retrieval to fetch availability records [done]
+### Dependencies: 1.1
+### Description: Update the technician data retrieval function to fetch related availability records from the database alongside technician data.
+### Details:
+In apps/scheduler/src/supabase/technicians.ts, modify the existing query that fetches technicians to include a join or additional queries that retrieve related records from technician_default_hours and technician_availability_exceptions tables. Use Supabase's .select() with nested selections or multiple queries with Promise.all to fetch the related data. Ensure the returned data structure matches the updated Technician interface from subtask 1.
+
+## 3. Create data structures for representing multiple availability windows [done]
+### Dependencies: 1.1
+### Description: Design and implement data structures to represent multiple availability time windows per day for each technician.
+### Details:
+In apps/scheduler/src/scheduler/availability.ts, create new types/interfaces to represent availability windows. Each window should have start and end times. Create a structure that can group these windows by date for each technician. Consider using a Map with dates as keys and arrays of time windows as values. Include helper functions to add, merge, and manipulate these time windows, which will be needed for the calculation logic.
+
+## 4. Implement core availability calculation logic [done]
+### Dependencies: 1.2, 1.3
+### Description: Rewrite the availability calculation logic to use the database records and handle multiple time windows per day.
+### Details:
+In apps/scheduler/src/scheduler/availability.ts, implement the core algorithm that calculates availability windows based on default hours and exceptions. The algorithm should: 1) Start with default hours for each day of the week, 2) Apply any exceptions that override the defaults, 3) Handle special cases like holidays or time-off, 4) Generate a complete set of availability windows for each technician for the requested date range. Ensure the logic correctly merges overlapping time windows and handles gaps appropriately.
+
+## 5. Add logic to account for locked jobs in availability [done]
+### Dependencies: 1.4
+### Description: Extend the availability calculation to subtract time blocked by locked jobs (en_route, in_progress) from today's availability windows.
+### Details:
+In apps/scheduler/src/scheduler/availability.ts, add logic to account for jobs that are already locked in (en_route or in_progress status). For each locked job, subtract its time block from the technician's availability for today. This will require: 1) Identifying which jobs are locked for each technician, 2) Determining the time blocks these jobs occupy, 3) Subtracting these blocks from the availability windows calculated in subtask 4. The result should be a set of availability windows that accurately reflect when technicians are truly available, accounting for both their scheduled hours and current job commitments.
+

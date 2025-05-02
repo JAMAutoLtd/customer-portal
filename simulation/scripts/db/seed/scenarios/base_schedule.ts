@@ -60,11 +60,15 @@ export async function seedScenario_base_schedule(
   // --- Seed Orders and Jobs (using baseline customers/addresses/vehicles) --- 
   const ordersToCreate: OrderInsert[] = [];
   const jobTemplates: Omit<JobInsert, 'order_id'>[] = [];
-  const numberOfOrders = 10; // Or make dynamic based on techCount (now technicianDbIds.length)?
+  const numberOfOrders = 20; // Or make dynamic based on techCount (now technicianDbIds.length)?
 
   for (let i = 0; i < numberOfOrders; i++) {
     const customerId = getRandomElement(baselineRefs.customerIds);
     const addressId = getRandomElement(baselineRefs.addressIds);
+    // Get a vehicle ID from baseline refs
+    if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+        throw new Error('BaselineRefs is missing customerVehicleIds.');
+    }
     const vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
     const serviceId = getRandomElement(BASIC_SERVICE_IDS);
 

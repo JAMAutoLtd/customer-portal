@@ -20,8 +20,6 @@ describe('Scheduler Integration - Base Schedule', () => {
     // Variables to hold metadata read from files
     let currentScenarioResult: ScenarioSeedResult;
     let baselineRefs: BaselineRefs;
-    // Use a fixed technician count for consistency in tests
-    const technicianCount = 4;
 
     beforeAll(async () => {
         supabase = getSupabaseClient();

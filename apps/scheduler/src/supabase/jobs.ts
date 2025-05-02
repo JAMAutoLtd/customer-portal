@@ -45,7 +45,11 @@ export async function getRelevantJobs(): Promise<Job[]> {
         fixed_schedule_time,
         addresses ( id, street_address, lat, lng ),
         services ( id, service_name, service_category ),
-        order_details:orders ( earliest_available_time )
+        order_details:orders ( 
+          earliest_available_time,
+          vehicle_id, 
+          customer_vehicles ( make, model, year ) 
+        )
       `)
       // Filter for statuses IN the list OR status IS NULL
       .or(`status.in.(${RELEVANT_JOB_STATUSES.map(s => `"${s}"`).join(',')}),status.is.null`);
@@ -149,7 +153,11 @@ export async function getJobsByStatus(statuses: JobStatus[]): Promise<Job[]> {
       fixed_schedule_time,
       addresses ( id, street_address, lat, lng ),
       services ( id, service_name, service_category ),
-      order_details:orders ( earliest_available_time )
+      order_details:orders ( 
+        earliest_available_time,
+        vehicle_id, 
+        customer_vehicles ( make, model, year ) 
+      )
     `)
     // Use the provided statuses array for filtering
     .in('status', statuses);

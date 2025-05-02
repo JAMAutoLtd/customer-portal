@@ -1,0 +1,37 @@
+# Task ID: 3
+# Title: Enhance Fixed Time Job Handling for Multi-Day Planning
+# Status: done
+# Dependencies: 1, 2
+# Priority: high
+# Description: Refactor the orchestrator to correctly handle fixed time jobs across multiple planning days, including overflow days.
+# Details:
+Modify `apps/scheduler/src/scheduler/orchestrator.ts` to ensure that jobs with `fixed_schedule_time` constraints are included in the `fixedConstraints` list passed to the optimizer for the specific day they occur, including overflow days. This requires checking each job's fixed time against the current planning day and only including it in the constraints if it falls on that day. Update the overflow planning loop to maintain this behavior consistently across all planning passes.
+
+# Test Strategy:
+Create integration tests that verify fixed time jobs are correctly constrained on their specific days, including overflow days. Test scenarios where fixed time jobs fall on different days of the planning horizon and verify they are scheduled at their exact required times.
+
+# Subtasks:
+## 1. Analyze current fixed time job handling in orchestrator [done]
+### Dependencies: None
+### Description: Review and document how fixed time jobs are currently processed in the orchestrator, particularly focusing on how they're added to the fixedConstraints list and how the overflow planning loop works.
+### Details:
+Examine the `apps/scheduler/src/scheduler/orchestrator.ts` file to understand: 1) How jobs with `fixed_schedule_time` are currently identified and processed, 2) How the `fixedConstraints` list is constructed and passed to the optimizer, 3) The current implementation of the overflow planning loop, 4) How date/time comparisons are performed to determine which day a job belongs to. Document any issues with the current implementation that prevent fixed time jobs from being correctly assigned to their specific days.
+
+## 2. Implement date-based filtering for fixed time constraints [done]
+### Dependencies: 3.1
+### Description: Modify the orchestrator to filter fixed time jobs based on the planning day, ensuring jobs are only included in the constraints for the specific day they should occur.
+### Details:
+Update the code that builds the `fixedConstraints` list to check each job's `fixed_schedule_time` against the current planning day's date range. Implement a helper function like `isJobScheduledForDay(job, planningDay)` that compares a job's fixed time with a given planning day's boundaries. Modify the existing constraint building logic to only include fixed time jobs that belong to the current planning day. Ensure proper timezone handling when comparing dates.
+
+## 3. Update overflow planning logic for fixed time jobs [done]
+### Dependencies: 3.2
+### Description: Refactor the overflow planning loop to maintain consistent handling of fixed time jobs across all planning passes, including overflow days.
+### Details:
+Modify the overflow planning loop to correctly identify and include fixed time jobs that belong to overflow days. Ensure that the date-based filtering implemented in subtask 2 is consistently applied during overflow planning. Update any state tracking or job collection mechanisms to properly track which fixed time jobs have been scheduled and which still need to be scheduled in overflow days. Verify that fixed time jobs are not duplicated across multiple planning days.
+
+## 4. Add tests and validate multi-day fixed time job handling [done]
+### Dependencies: 3.3
+### Description: Create comprehensive tests to verify that fixed time jobs are correctly assigned to their specific days across multi-day planning scenarios.
+### Details:
+Implement unit tests that verify: 1) Fixed time jobs are only included in the constraints for their specific day, 2) Fixed time jobs that fall on overflow days are correctly handled, 3) Edge cases like jobs at day boundaries are processed correctly, 4) The system behaves correctly with a mix of fixed and flexible time jobs across multiple days. Include integration tests that verify the end-to-end behavior of the scheduler with fixed time jobs spanning multiple planning days.
+

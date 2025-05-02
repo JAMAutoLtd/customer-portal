@@ -1,0 +1,37 @@
+# Task ID: 12
+# Title: Implement scheduler raw optimizer response logging (FEAT-LOG-006 part 3)
+# Status: done
+# Dependencies: 10
+# Priority: high
+# Description: Add logging for the full raw optimization response payload received from the optimizer.
+# Details:
+In apps/scheduler/src/scheduler/orchestrator.ts, add DEBUG level logging immediately after receiving the response from callOptimizationService. Log the full raw OptimizationResponsePayload before any processing occurs. This will provide a complete record of what was returned by the optimizer for debugging purposes.
+
+# Test Strategy:
+Run optimization scenarios and verify logs contain the complete optimizer response with all expected fields and data structures.
+
+# Subtasks:
+## 1. Review and Identify Logging Location in orchestrator.ts [done]
+### Dependencies: None
+### Description: Locate the exact point in apps/scheduler/src/scheduler/orchestrator.ts where the response from callOptimizationService is received, ensuring this is before any processing of the payload occurs.
+### Details:
+Open orchestrator.ts and search for the function or section where callOptimizationService is invoked. Identify the line immediately after the response is received, prior to any transformation or handling of the OptimizationResponsePayload. Mark this location for insertion of logging code.
+
+## 2. Implement DEBUG Level Logging for Raw Optimization Response [done]
+### Dependencies: 12.1
+### Description: Add a DEBUG level log statement that records the full raw OptimizationResponsePayload at the identified location.
+### Details:
+Use the project's logging utility (e.g., a logger supporting DEBUG level such as typescript-logging or similar). Log the entire response object, ensuring the log level is set to DEBUG. If the logger supports lazy evaluation or message formatting, use it to avoid unnecessary serialization overhead when DEBUG is disabled[4][5].
+
+## 3. Handle Large Payloads and Sensitive Data in Logs [done]
+### Dependencies: 12.2
+### Description: Implement safeguards to prevent log flooding or accidental exposure of sensitive data when logging large payloads.
+### Details:
+If the OptimizationResponsePayload can be large, consider truncating the log output or summarizing it (e.g., logging only the first N characters or a hash of the payload). Review the payload structure to ensure no sensitive information is logged, or mask/redact fields as necessary.
+
+## 4. Test and Verify Logging Functionality [done]
+### Dependencies: 12.3
+### Description: Test the logging implementation by triggering the optimizer response and verifying that the raw payload is logged at DEBUG level as intended.
+### Details:
+Run the scheduler in a development environment with DEBUG logging enabled. Trigger the optimizer to return a response and confirm that the full raw payload appears in the logs at the correct location. Check that the log output is readable, appropriately truncated or redacted if needed, and does not impact application performance.
+

@@ -1,0 +1,37 @@
+# Task ID: 9
+# Title: Implement Final Database Update Logic
+# Status: done
+# Dependencies: 4, 7
+# Priority: high
+# Description: Develop logic to perform the final database update after all planning passes are complete.
+# Details:
+Implement logic in `apps/scheduler/src/scheduler/orchestrator.ts` to perform a single bulk update to the database after all planning passes are complete. Update successfully assigned jobs to `status: 'queued'` with their assignments. Update jobs identified as persistently unschedulable or remaining after `MAX_OVERFLOW_ATTEMPTS` to `status: 'pending_review'`. Ensure this update is performed as a single operation or transaction if possible, as specified in NFR-RELY-003.
+
+# Test Strategy:
+Create integration tests that verify the final database state after various scheduling scenarios. Test that jobs are correctly updated to 'queued' or 'pending_review' based on their scheduling outcome.
+
+# Subtasks:
+## 1. Define database update interfaces and models [done]
+### Dependencies: None
+### Description: Create interfaces and models for the final database update operation in the orchestrator
+### Details:
+In `apps/scheduler/src/scheduler/orchestrator.ts`, define TypeScript interfaces for job status updates. Create models for: 1) Jobs that were successfully assigned and should be updated to 'queued' status with their assignments, 2) Jobs that were identified as unschedulable or remaining after MAX_OVERFLOW_ATTEMPTS that should be updated to 'pending_review' status. Include appropriate fields for tracking the reason for pending review. Ensure these models align with the existing database schema.
+
+## 2. Implement job categorization logic [done]
+### Dependencies: 9.1
+### Description: Create functions to categorize jobs based on their scheduling outcome
+### Details:
+Implement functions in the orchestrator that categorize jobs after all planning passes are complete. Create a method that takes the final planning state and separates jobs into: 1) Successfully scheduled jobs (to be set as 'queued'), 2) Persistently unschedulable jobs (to be set as 'pending_review'), and 3) Jobs remaining after MAX_OVERFLOW_ATTEMPTS (to be set as 'pending_review' with appropriate reason). Ensure proper error handling and logging for edge cases.
+
+## 3. Implement database transaction logic [done]
+### Dependencies: 9.1, 9.2
+### Description: Create a function to perform the bulk database update as a single transaction
+### Details:
+Implement a function in the orchestrator that performs the database update as a single transaction or bulk operation. Use the database client's transaction capabilities to ensure atomicity as specified in NFR-RELY-003. The function should take the categorized jobs from subtask 2 and update all relevant records in a single operation. Include proper error handling with rollback capabilities if the transaction fails. Add logging for transaction success or failure.
+
+## 4. Integrate database update with orchestrator flow [done]
+### Dependencies: 9.3
+### Description: Connect the database update logic to the main orchestrator execution flow
+### Details:
+Modify the main orchestrator execution flow to call the database update function after all planning passes are complete. Ensure the update happens only once at the end of the scheduling process. Add appropriate error handling to manage database connection issues or transaction failures. Implement retry logic if necessary for transient failures. Add comprehensive logging to track the number of jobs updated to each status. Finally, add unit and integration tests to verify the database update logic works correctly with different job scenarios.
+

@@ -29,6 +29,8 @@ class OptimizationItem(BaseModel):
 class OptimizationFixedConstraint(BaseModel):
     itemId: str             # ID of the OptimizationItem this applies to
     fixedTimeISO: str       # ISO 8601 string for the mandatory start time
+    assignedTechnicianId: int # Tech assigned to this fixed job
+    durationSeconds: int    # Duration of the fixed job
 
 # Type alias for the nested dictionary structure
 TravelTimeMatrix = Dict[int, Dict[int, int]]

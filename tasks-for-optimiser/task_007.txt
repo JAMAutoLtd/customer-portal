@@ -1,0 +1,43 @@
+# Task ID: 7
+# Title: Enhance Job Bundling and Eligibility Determination
+# Status: done
+# Dependencies: 1
+# Priority: medium
+# Description: Refactor the job bundling logic and eligibility determination to handle complex scenarios and provide better failure reporting.
+# Details:
+The codebase already implements job bundling in `bundleQueuedJobs` function and eligibility determination in `findEligibleTechnicians` helper within `determineTechnicianEligibility`. The current implementation handles grouping jobs by order_id, filtering technicians based on equipment requirements, checking van assignments, and breaking bundles when necessary. The focus now should be on enhancing the failure reporting system to provide more detailed reasons for eligibility failures beyond the basic `FailureReason.NO_ELIGIBLE_TECHNICIAN_EQUIPMENT` that is currently implemented.
+
+# Test Strategy:
+Create unit tests for the bundling logic with various scenarios including multiple jobs per order and jobs with different equipment requirements. Test eligibility determination with various combinations of technician equipment and job requirements.
+
+# Subtasks:
+## 1. Refactor job bundling logic to group by order_id [done]
+### Dependencies: None
+### Description: Update the job bundling logic in bundling.ts to correctly identify and group jobs that belong to the same order_id
+### Details:
+Modify the bundling algorithm in `apps/scheduler/src/scheduler/bundling.ts` to properly identify jobs with the same order_id. Create a new function `groupJobsByOrderId()` that collects jobs with matching order_ids into potential bundles. Ensure the function handles edge cases like null/undefined order_ids. Add unit tests to verify the grouping logic works correctly for various scenarios including multiple jobs with the same order_id and jobs without order_ids.
+
+## 2. Enhance eligibility determination based on equipment requirements [done]
+### Dependencies: None
+### Description: Update the eligibility determination logic to filter technicians based on required equipment for jobs
+### Details:
+Modify `apps/scheduler/src/scheduler/eligibility.ts` to add a new function `filterTechniciansByEquipment(technicians, requiredEquipment)` that returns only technicians who have all the required equipment. Update the main eligibility determination function to use this new filter. Ensure the function properly handles the case where a job requires multiple pieces of equipment. Add appropriate unit tests to verify technicians without required equipment are filtered out correctly.
+
+## 3. Implement van assignment eligibility check [done]
+### Dependencies: 7.2
+### Description: Add logic to filter technicians based on van assignments and requirements
+### Details:
+Extend the eligibility determination in `apps/scheduler/src/scheduler/eligibility.ts` to consider van assignments. Create a new function `filterTechniciansByVanAssignment(technicians, vanRequirements)` that checks if technicians have the appropriate van type assigned to them. Integrate this function into the main eligibility pipeline after the equipment check. Add unit tests to verify technicians without appropriate van assignments are filtered out correctly.
+
+## 4. Implement bundle breaking logic for equipment constraints [done]
+### Dependencies: 7.1, 7.2
+### Description: Add logic to break job bundles when no single technician has all required equipment
+### Details:
+Create a new function in `apps/scheduler/src/scheduler/bundling.ts` called `breakBundlesByEquipmentConstraints(bundles, technicians)` that analyzes each bundle to determine if any technician has all the equipment required for all jobs in the bundle. If not, break the bundle into smaller bundles that can be assigned to available technicians. This function should return the new set of bundles after breaking. Integrate this function into the main bundling pipeline after the initial bundling is done. Add unit tests that verify bundles are correctly broken when equipment constraints cannot be satisfied.
+
+## 5. Enhance failure reason reporting [done]
+### Dependencies: 7.2, 7.3, 7.4
+### Description: Improve the failure reporting system to provide detailed reasons for eligibility failures
+### Details:
+Expand upon the existing basic implementation that uses `FailureReason.NO_ELIGIBLE_TECHNICIAN_EQUIPMENT`. Create a more comprehensive failure reporting system in `apps/scheduler/src/scheduler/failureReporting.ts` that defines additional failure types (e.g., UNAVAILABLE_TIMEFRAME, MISSING_VAN_TYPE, SKILL_MISMATCH). Update the `findEligibleTechnicians` helper and `determineTechnicianEligibility` functions to return more specific failure reasons when a technician is ineligible. Modify the scheduler to collect these reasons and associate them with each job or bundle that couldn't be scheduled. Update the API response format to include these detailed failure reasons. Add unit tests to verify the correct failure reasons are reported for different scenarios.
+

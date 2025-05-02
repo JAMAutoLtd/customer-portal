@@ -75,6 +75,20 @@ async function listScenarioFiles(): Promise<string[]> {
 }
 
 /**
+ * Gets a list of available integration test file names.
+ * @returns Promise resolving to an array of test file names (e.g., 'base_schedule.test.ts').
+ */
+async function listTestFiles(): Promise<string[]> {
+    try {
+        const files = await fs.readdir(INTEGRATION_TESTS_DIR);
+        return files.filter(file => file.endsWith('.test.ts'));
+    } catch (error) {
+        console.error(chalk.red('Error reading integration tests directory:'), error);
+        return [];
+    }
+}
+
+/**
  * Prompts the user for the number of technicians.
  */
 async function promptForTechnicianCount(): Promise<number> {
@@ -158,9 +172,10 @@ enum MainMenuChoice {
     CLEAN_DB = 'Clean Staging Database',
     SEED_BASELINE = 'Seed Baseline Data',
     SEED_SCENARIO = 'Seed Specific Scenario',
-    RUN_BACKEND_TESTS = 'Run Backend Integration Tests (Jest)',
+    RUN_SPECIFIC_BACKEND_TEST = 'Run Specific Backend Test (Jest)',
     RUN_UI_TESTS = 'Run UI E2E Tests (Playwright)',
     RUN_SCENARIO_TEST = 'Run Specific Scenario Test (Seed -> Jest)',
+    RUN_ALL_SCENARIO_TESTS = 'Run ALL Scenario Tests (Seed -> Jest)',
     MIGRATE_PROD = 'Migrate Production Data to Staging (WARNING: Use with extreme caution!)',
     EXIT = 'Exit',
 }
@@ -254,8 +269,26 @@ async function mainMenu() {
                     ]);
                     break;
 
-                case MainMenuChoice.RUN_BACKEND_TESTS:
-                    success = await executeCommand('pnpm', ['test:integration']);
+                case MainMenuChoice.RUN_SPECIFIC_BACKEND_TEST:
+                    const testFiles = await listTestFiles();
+                    if (testFiles.length === 0) {
+                        console.log(chalk.red('No integration test files found.'));
+                        success = false;
+                        break;
+                    }
+                    const { selectedTestFile } = await inquirer.prompt([
+                        {
+                            type: 'list',
+                            name: 'selectedTestFile',
+                            message: 'Select a backend integration test to run:',
+                            choices: testFiles,
+                        },
+                    ]);
+                    const testFilePathAbsoluteRun = path.join(INTEGRATION_TESTS_DIR, selectedTestFile);
+                    const testFilePathRelativeRun = path.relative(process.cwd(), testFilePathAbsoluteRun).replace(/\\/g, '/'); // Force forward slashes
+                    console.log(chalk.blue(`Running specific test: ${selectedTestFile}...`));
+                    console.log(chalk.gray(` (Relative path: ${testFilePathRelativeRun})`)); 
+                    success = await executeCommand('jest', [testFilePathRelativeRun]);
                     break;
 
                 case MainMenuChoice.RUN_UI_TESTS:
@@ -279,6 +312,17 @@ async function mainMenu() {
                             break;
                         }
                     }
+
+                    // Ensure debug directory exists
+                    try {
+                        await fs.mkdir('debug', { recursive: true });
+                    } catch (mkdirError) {
+                        console.error(chalk.red('Failed to create debug directory:'), mkdirError);
+                        // Decide if this is fatal or just warn
+                    }
+
+                    const scenarioStartTime = new Date(); // Record start time for logs
+
                     // 1. Seed the scenario
                     console.log(chalk.blue(`\nStep 1: Seeding scenario '${selectedScenarioTest}'...`));
                     const seedSuccess = await executeCommand('pnpm', [
@@ -294,24 +338,127 @@ async function mainMenu() {
                     if (!seedSuccess) {
                         console.log(chalk.red('Scenario seeding failed. Skipping test execution.'));
                         success = false;
-                        break;
+                        // Capture logs even if seed fails?
+                        // break;
+                    } else {
+                        // 2. Run the specific test file
+                        console.log(chalk.blue(`\nStep 2: Running integration test for '${selectedScenarioTest}'...`));
+                        const testFilePathAbsolute = path.join(INTEGRATION_TESTS_DIR, `${selectedScenarioTest}.test.ts`);
+                        const testFileExists = await fileExists(testFilePathAbsolute);
+                        if (!testFileExists) {
+                            console.log(chalk.red(`Error: Test file not found at ${testFilePathAbsolute}`));
+                            console.log(chalk.yellow('Please ensure a corresponding .test.ts file exists for the selected scenario.'));
+                            success = false;
+                            // break;
+                        } else {
+                            // Use path relative to CWD for Jest argument, force forward slashes
+                            const testFilePathRelative = path.relative(process.cwd(), testFilePathAbsolute).replace(/\\/g, '/'); // Force forward slashes
+                            console.log(chalk.gray(` (Relative path: ${testFilePathRelative})`)); 
+                            // Use jest directly to run the specific file, bypassing pnpm recursive script
+                            success = await executeCommand('jest', [testFilePathRelative]);
+                        }
                     }
 
-                    // 2. Run the specific test file
-                    console.log(chalk.blue(`\nStep 2: Running integration test for '${selectedScenarioTest}'...`));
-                    const testFilePathAbsolute = path.join(INTEGRATION_TESTS_DIR, `${selectedScenarioTest}.test.ts`);
-                    const testFileExists = await fileExists(testFilePathAbsolute);
-                    if (!testFileExists) {
-                        console.log(chalk.red(`Error: Test file not found at ${testFilePathAbsolute}`));
-                        console.log(chalk.yellow('Please ensure a corresponding .test.ts file exists for the selected scenario.'));
+                    // --- Step 3: Capture Logs (Always attempt after seed/test) --- 
+                    const scenarioEndTime = new Date(); // Record end time
+                    console.log(chalk.blue(`\nStep 3: Capturing logs for ${selectedScenarioTest}...`));
+                    const schedulerLogPath = path.join('debug', `${selectedScenarioTest}_scheduler.log`);
+                    const optimiserLogPath = path.join('debug', `${selectedScenarioTest}_optimiser.log`);
+                    const startTimeISO = scenarioStartTime.toISOString();
+                    const endTimeISO = scenarioEndTime.toISOString();
+
+                    try {
+                        // Use shell redirection via executeCommand
+                        const schedulerCmd = `docker logs --since ${startTimeISO} --until ${endTimeISO} test_scheduler > "${schedulerLogPath}"`;
+                        const optimiserCmd = `docker logs --since ${startTimeISO} --until ${endTimeISO} test_optimiser > "${optimiserLogPath}"`;
+                        
+                        // Execute log capture commands (best effort)
+                        const logCaptureSchedulerSuccess = await executeCommand(schedulerCmd, []);
+                        if (!logCaptureSchedulerSuccess) console.warn(chalk.yellow(`  Warning: Failed to capture scheduler logs for ${selectedScenarioTest}.`));
+                        
+                        const logCaptureOptimiserSuccess = await executeCommand(optimiserCmd, []);
+                        if (!logCaptureOptimiserSuccess) console.warn(chalk.yellow(`  Warning: Failed to capture optimiser logs for ${selectedScenarioTest}.`));
+                        
+                        if (logCaptureSchedulerSuccess && logCaptureOptimiserSuccess) {
+                            console.log(chalk.gray(`  Logs saved to debug/${selectedScenarioTest}_*.log`));
+                        }
+                    } catch (logError) {
+                        console.error(chalk.red(`  Error during log capture for ${selectedScenarioTest}:`), logError);
+                    }
+                    // --- End Log Capture ---
+                    break;
+
+                case MainMenuChoice.RUN_ALL_SCENARIO_TESTS:
+                    console.log(chalk.blue('Starting batch run for ALL scenario integration tests (Seed -> Jest)...'));
+                    const allScenarios = await listScenarioFiles();
+                    if (allScenarios.length === 0) {
+                        console.log(chalk.red('No scenario files found to run.'));
                         success = false;
                         break;
                     }
-                    // Use path relative to CWD for Jest argument, force forward slashes
-                    const testFilePathRelative = path.relative(process.cwd(), testFilePathAbsolute).replace(/\\/g, '/'); // Force forward slashes
-                    console.log(chalk.gray(` (Relative path: ${testFilePathRelative})`)); 
-                    // Use jest directly to run the specific file, bypassing pnpm recursive script
-                    success = await executeCommand('jest', [testFilePathRelative]);
+
+                    const defaultTechCount = 4; // Use default tech count for batch runs
+                    let overallSuccess = true;
+                    const resultsSummary: { scenario: string; seeded: boolean; tested: boolean | null }[] = [];
+
+                    console.log(chalk.yellow(`Found ${allScenarios.length} scenarios. Using default technician count: ${defaultTechCount}`));
+
+                    for (const scenario of allScenarios) {
+                        console.log(chalk.cyan(`\n--- Processing Scenario: ${scenario} ---`));
+                        let seededOk = false;
+                        let testedOk: boolean | null = null;
+
+                        // --- Step 1: Seed --- 
+                        console.log(chalk.blue(`  Seeding...`));
+                        const seedSuccess = await executeCommand('pnpm', [
+                            'db:seed:staging',
+                            '--',
+                            '--action', 'scenario',
+                            '--name', scenario,
+                            '--techs', defaultTechCount.toString(),
+                            '--baseline-metadata', BASELINE_METADATA_PATH,
+                            '--output-metadata', CURRENT_SCENARIO_METADATA_PATH,
+                        ]);
+                        seededOk = seedSuccess;
+
+                        if (!seedSuccess) {
+                            console.log(chalk.red(`  Seeding failed for ${scenario}. Skipping test.`));
+                            testedOk = null; // Mark test as skipped
+                            overallSuccess = false;
+                        } else {
+                            // --- Step 2: Test --- 
+                            const testFilePathAbsolute = path.join(INTEGRATION_TESTS_DIR, `${scenario}.test.ts`);
+                            const testFileExists = await fileExists(testFilePathAbsolute);
+                            
+                            if (!testFileExists) {
+                                console.log(chalk.yellow(`  Test file not found for ${scenario} at ${testFilePathAbsolute}. Skipping test.`));
+                                testedOk = null; // Mark test as skipped
+                            } else {
+                                console.log(chalk.blue(`  Running test...`));
+                                const testFilePathRelative = path.relative(process.cwd(), testFilePathAbsolute).replace(/\\/g, '/');
+                                const testSuccess = await executeCommand('jest', [testFilePathRelative]);
+                                testedOk = testSuccess;
+                                if (!testSuccess) {
+                                    overallSuccess = false;
+                                }
+                            }
+                        }
+                        resultsSummary.push({ scenario, seeded: seededOk, tested: testedOk });
+                        console.log(chalk.cyan(`--- Finished Scenario: ${scenario} ---`));
+                    }
+
+                    // --- Summary --- 
+                    console.log(chalk.cyan('\n=== Batch Run Summary ==='));
+                    resultsSummary.forEach(res => {
+                        let status = '';
+                        if (res.seeded && res.tested === true) status = chalk.green('PASSED');
+                        else if (!res.seeded) status = chalk.red('SEED FAILED');
+                        else if (res.tested === false) status = chalk.red('TEST FAILED');
+                        else if (res.tested === null) status = chalk.yellow('TEST SKIPPED');
+                        console.log(`  - ${res.scenario}: ${status}`);
+                    });
+                    console.log(chalk.cyan('========================='));
+                    success = overallSuccess; // Reflect overall success/failure
                     break;
 
                 case MainMenuChoice.MIGRATE_PROD:

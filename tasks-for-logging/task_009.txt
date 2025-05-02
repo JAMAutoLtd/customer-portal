@@ -1,0 +1,43 @@
+# Task ID: 9
+# Title: Implement scheduler optimization payload summary logging (FEAT-LOG-005 part 3)
+# Status: done
+# Dependencies: 8
+# Priority: medium
+# Description: Add logging for the final optimization payload being sent to the optimizer.
+# Details:
+In apps/scheduler/src/scheduler/payload.ts, add INFO level logging for a summary of the final payload object being sent to the optimizer. Include counts (technicians, items, constraints), technician window summaries, item IDs with priorities, and fixed constraint summaries. Avoid logging the full travel matrix as specified in the PRD. This log should provide a comprehensive overview of what's being sent to the optimizer without excessive detail.
+
+# Test Strategy:
+Generate test payloads and verify logs contain all required summary information without including the full travel matrix.
+
+# Subtasks:
+## 1. Analyze and Identify Payload Summary Elements [done]
+### Dependencies: None
+### Description: Review the structure of the final optimization payload in apps/scheduler/src/scheduler/payload.ts and determine which elements are required for the summary log: counts of technicians, items, constraints; technician window summaries; item IDs with priorities; and fixed constraint summaries. Exclude the travel matrix as specified.
+### Details:
+Inspect the payload object and document the exact properties and nested structures needed for logging. Ensure understanding of how to extract counts and summaries without including excessive detail or sensitive data.
+
+## 2. Implement Payload Summary Extraction Functions [done]
+### Dependencies: 9.1
+### Description: Develop utility functions to extract and format the required summary information from the payload object, including counts, summaries, and lists as specified.
+### Details:
+Write modular functions for each summary element (e.g., countTechnicians, summarizeTechnicianWindows, listItemIdsWithPriorities, summarizeFixedConstraints). Ensure these functions avoid including the full travel matrix and are easily testable.
+
+## 3. Integrate INFO Level Logging for Payload Summary [done]
+### Dependencies: 9.2
+### Description: Add INFO level logging in payload.ts to log the formatted summary when the final payload is sent to the optimizer.
+### Details:
+Use the application's logging framework to emit a single, well-structured INFO log message containing the summary. Ensure the log message is clear, concise, and does not include the full payload or travel matrix, following best practices for log clarity and separation of payload data from log messages[2].
+
+## 4. Test Logging Output for Coverage and Clarity [done]
+### Dependencies: 9.3
+### Description: Verify that the logging output includes all required summary elements, is readable, and does not expose excessive or sensitive information.
+### Details:
+Create or use existing test payloads to trigger the logging. Review the logs to ensure all specified summary details are present and formatted correctly, and that the travel matrix is excluded. Adjust extraction or formatting logic as needed.
+
+## 5. Document Logging Behavior and Update PRD References [done]
+### Dependencies: 9.4
+### Description: Update internal documentation and code comments to describe the new logging behavior, referencing the PRD requirement to exclude the travel matrix and summarizing what is logged.
+### Details:
+Add comments in payload.ts explaining the summary logging logic. Update any relevant developer documentation or PRD references to clarify what is included in the log and why, ensuring future maintainers understand the rationale and requirements.
+

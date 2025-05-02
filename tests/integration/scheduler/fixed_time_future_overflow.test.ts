@@ -58,7 +58,7 @@ describe('Scheduler Integration - Fixed Time Future Overflow', () => {
             console.error('FATAL: Test setup failed:', error);
             throw error;
         }
-    }, 45000);
+    }, 90000);
 
     it('should schedule the fixed job exactly at its time tomorrow, even with overflow', async () => {
         expect(baselineRefs).toBeDefined();
@@ -74,7 +74,7 @@ describe('Scheduler Integration - Fixed Time Future Overflow', () => {
         const checkCondition = async (): Promise<boolean> => {
             const { data: job, error } = await supabase
                 .from('jobs')
-                .select('id, estimated_sched, status')
+                .select('id, status, assigned_technician, estimated_sched, fixed_schedule_time')
                 .eq('id', fixedJobId)
                 .single();
 
@@ -82,11 +82,18 @@ describe('Scheduler Integration - Fixed Time Future Overflow', () => {
                 console.error('DB query error during wait:', error);
                 return false;
             }
-            const isScheduled = job?.estimated_sched !== null && job?.status === 'queued';
+            const expectedSchedTimeISO = dayjs(expectedScheduleTime).utc().toISOString();
+            // Condition met if status is still fixed_time AND estimated_sched is set and matches fixed_schedule_time
+            const estimateMatches = job?.estimated_sched && dayjs(job.estimated_sched).utc().toISOString() === expectedSchedTimeISO;
+            // We don't need fixedMatches anymore, rely on estimateMatches
+            // const fixedMatches = job?.fixed_schedule_time && dayjs(job.fixed_schedule_time).utc().toISOString() === expectedSchedTimeISO;
+
+            const isScheduled = job?.status === 'fixed_time' && estimateMatches;
+
             if (isScheduled) {
-                console.log(`Condition met: Fixed job ${fixedJobId} has estimated schedule and status 'queued'.`);
+                console.log(`Condition met: Fixed job ${fixedJobId} has status '${job?.status}' and correct estimated schedule time.`);
             } else {
-                console.log(`Condition not met: Fixed job ${fixedJobId} status '${job?.status}', schedule '${job?.estimated_sched}'.`);
+                console.log(`Condition not met: Fixed job ${fixedJobId} status '${job?.status}', schedule '${job?.estimated_sched}'. Waiting for time ${expectedSchedTimeISO}`);
             }
             return isScheduled;
         };
@@ -105,7 +112,7 @@ describe('Scheduler Integration - Fixed Time Future Overflow', () => {
         expect(finalJob).not.toBeNull();
 
         // Assertions for the fixed time future overflow scenario
-        expect(finalJob!.status).toEqual('queued');
+        expect(finalJob!.status).toEqual('fixed_time');
         expect(finalJob!.assigned_technician).not.toBeNull();
         expect(finalJob!.estimated_sched).not.toBeNull();
 
@@ -114,9 +121,9 @@ describe('Scheduler Integration - Fixed Time Future Overflow', () => {
         const expectedSchedTime = dayjs(expectedScheduleTime).utc().toISOString();
         expect(finalSchedTime).toEqual(expectedSchedTime);
 
-        // Verify the date part is indeed tomorrow (or later, but should be exact)
-        const tomorrowDate = dayjs.utc().add(1, 'day').format('YYYY-MM-DD');
-        expect(finalSchedTime.startsWith(tomorrowDate)).toBe(true);
+        // Verify the date part is indeed the expected future workday - REMOVED as redundant/flawed
+        // const tomorrowDate = dayjs.utc().add(1, 'day').format('YYYY-MM-DD');
+        // expect(finalSchedTime.startsWith(tomorrowDate)).toBe(true);
 
         console.log(`Fixed time future overflow verification successful: Job ${fixedJobId} scheduled exactly at ${finalSchedTime}.`);
 

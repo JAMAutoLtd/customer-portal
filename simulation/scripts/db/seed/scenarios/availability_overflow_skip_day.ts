@@ -81,7 +81,7 @@ export const seedScenario_availability_overflow_skip_day = async (
         logInfo(`Inserted ${insertedIds.technician_availability_exceptions.length} availability exceptions for ${tomorrow}.`);
 
         // 3. Create enough jobs today to cause overflow
-        const numberOfJobs = 15; // Seed enough jobs to likely cause overflow
+        const numberOfJobs = 25; // Seed enough jobs to likely cause overflow
         const ordersData: TablesInsert<'orders'>[] = [];
         const jobsData: Omit<TablesInsert<'jobs'>, 'order_id'>[] = [];
 
@@ -89,10 +89,16 @@ export const seedScenario_availability_overflow_skip_day = async (
             const customerId = baselineRefs.customerIds[faker.number.int({ min: 0, max: baselineRefs.customerIds.length - 1 })];
             const addressId = baselineRefs.addressIds[faker.number.int({ min: 0, max: baselineRefs.addressIds.length - 1 })];
             const serviceId = baselineRefs.serviceIds[faker.number.int({ min: 0, max: baselineRefs.serviceIds.length - 1 })];
+            // Get a vehicle ID from baseline refs
+            if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+                throw new Error('BaselineRefs is missing customerVehicleIds.');
+            }
+            const vehicleId = baselineRefs.customerVehicleIds[faker.number.int({ min: 0, max: baselineRefs.customerVehicleIds.length - 1 })];
 
             ordersData.push({
                 user_id: customerId,
                 address_id: addressId,
+                vehicle_id: vehicleId,
                 notes: `Order ${i + 1} for ${scenarioName}.`,
                 earliest_available_time: dayjs.utc().toISOString(), // Available today
             });
@@ -100,7 +106,7 @@ export const seedScenario_availability_overflow_skip_day = async (
             jobsData.push({
                 address_id: addressId,
                 service_id: serviceId,
-                status: 'pending_review',
+                status: 'queued',
                 priority: faker.number.int({ min: 1, max: 5 }),
                 job_duration: faker.number.int({ min: 60, max: 120 }),
                 notes: `Job ${i + 1} for ${scenarioName}.`,

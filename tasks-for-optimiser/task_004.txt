@@ -1,0 +1,43 @@
+# Task ID: 4
+# Title: Implement State Management for Unschedulable Jobs
+# Status: done
+# Dependencies: 3
+# Priority: medium
+# Description: Develop logic to differentiate between persistently unschedulable jobs and those that could be scheduled on overflow days.
+# Details:
+Enhance `apps/scheduler/src/scheduler/orchestrator.ts` to implement state management for tracking job scheduling attempts and failure reasons. Modify the overflow loop to filter out persistently unschedulable jobs from subsequent attempts. Update `apps/scheduler/src/scheduler/eligibility.ts` and `apps/scheduler/src/scheduler/results.ts` to provide more detailed failure reason reporting. Implement logic to identify jobs as persistently unschedulable (e.g., due to equipment requirements) versus transiently unschedulable (e.g., due to lack of time slots on a specific day).
+
+# Test Strategy:
+Create unit tests for the failure reason identification logic. Create integration tests that verify persistently unschedulable jobs are correctly identified and removed from subsequent planning attempts, while transiently unschedulable jobs remain in the pool for overflow days.
+
+# Subtasks:
+## 1. Define Job Scheduling Attempt State Model [done]
+### Dependencies: None
+### Description: Create data structures and interfaces to track job scheduling attempts and failure reasons
+### Details:
+In `apps/scheduler/src/scheduler/types.ts`, define interfaces for tracking job scheduling attempts. Create types for: 1) SchedulingAttempt (containing timestamp, result, and failure reason), 2) JobSchedulingState (containing job ID, array of attempts, and current status), 3) FailureReason enum (with values like EQUIPMENT_UNAVAILABLE, TIME_CONSTRAINT, RESOURCE_CONFLICT, etc.). Include a classification for each failure reason as either 'persistent' or 'transient'. This will serve as the foundation for the state management system.
+
+## 2. Enhance Eligibility Module with Detailed Failure Reporting [done]
+### Dependencies: 4.1
+### Description: Update the eligibility checking logic to provide specific failure reasons
+### Details:
+Modify `apps/scheduler/src/scheduler/eligibility.ts` to return detailed failure reasons instead of simple boolean results. Update the eligibility checking functions to return objects that include both the result and a specific FailureReason when a job cannot be scheduled. Add helper functions to categorize failure reasons as persistent (e.g., equipment requirements that cannot be met) or transient (e.g., temporary resource unavailability). This will provide the necessary information for the state management system to make intelligent decisions about retry attempts.
+
+## 3. Implement State Tracking in Orchestrator [done]
+### Dependencies: 4.1, 4.2
+### Description: Add state management logic to the orchestrator to track scheduling attempts
+### Details:
+Enhance `apps/scheduler/src/scheduler/orchestrator.ts` to maintain a map of JobSchedulingState objects for each job. Update the scheduling logic to record each attempt in the job's state, including the timestamp, result, and failure reason. Implement functions to analyze a job's scheduling history to determine if it should be considered persistently unschedulable based on the pattern of failure reasons. Create a method to reset transient failure states when moving to overflow days, while preserving persistent failure states.
+
+## 4. Modify Overflow Logic to Filter Unschedulable Jobs [done]
+### Dependencies: 4.3
+### Description: Update the overflow day scheduling logic to exclude persistently unschedulable jobs
+### Details:
+In `apps/scheduler/src/scheduler/orchestrator.ts`, modify the overflow scheduling loop to filter the job queue before each attempt. Implement logic that examines each job's scheduling state to determine if it should be included in the next scheduling attempt. Jobs with persistent failure reasons should be excluded from further attempts, while jobs with only transient failures should be retried. Add logging to track which jobs are being excluded and why. Update the overflow day allocation logic to be more efficient by not considering jobs that cannot be scheduled due to persistent constraints.
+
+## 5. Enhance Results Reporting with Scheduling State Information [done]
+### Dependencies: 4.3, 4.4
+### Description: Update the results module to include detailed information about scheduling attempts and failure reasons
+### Details:
+Modify `apps/scheduler/src/scheduler/results.ts` to include the complete scheduling state information in the final results. For each unscheduled job, include the history of scheduling attempts, the specific failure reasons, and a classification of whether the job is persistently or transiently unschedulable. Add summary statistics about scheduling efficiency, such as the number of attempts made for each job and the distribution of failure reasons. Implement formatting functions to present this information in a clear and actionable way for the API consumers.
+

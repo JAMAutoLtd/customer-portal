@@ -295,6 +295,24 @@ export async function prepareOptimizationPayload(
 
             // --- Find Gaps and Create Breaks ---
             const gaps = findAvailabilityGaps(techWindows, workDayStart, workDayEnd);
+            
+            // <<< Add Logging for Availability Gaps >>>
+            if (gaps.length > 0) {
+                logger.debug(`Found ${gaps.length} availability gaps for technician ${tech.id} on ${formatDateToString(targetDate)}`);
+                gaps.forEach((gap, index) => {
+                    logger.debug(`Gap ${index + 1}: Start=${gap.start.toISOString()}, End=${gap.end.toISOString()}`, {
+                        technicianId: tech.id,
+                        targetDate: formatDateToString(targetDate),
+                        gapIndex: index + 1,
+                        gapStartISO: gap.start.toISOString(),
+                        gapEndISO: gap.end.toISOString(),
+                    });
+                });
+            } else {
+                 logger.debug(`No availability gaps found for technician ${tech.id} on ${formatDateToString(targetDate)}`);
+            }
+            // <<< End Logging >>>
+
             gaps.forEach((gap, index) => {
                 const breakId = `break_${tech.id}_${formatDateToString(targetDate)}_${index}`;
                 const durationSeconds = Math.round((gap.end.getTime() - gap.start.getTime()) / 1000);
@@ -314,7 +332,20 @@ export async function prepareOptimizationPayload(
                     tempBreakConstraints.push({
                         itemId: breakId,
                         fixedTimeISO: gap.start.toISOString(), // Fix break to the start of the gap
+                        assignedTechnicianId: tech.id,
+                        durationSeconds: durationSeconds
                     });
+                    // <<< Add Logging for Dummy Break >>>
+                    logger.debug("Generated dummy break item and constraint", {
+                        technicianId: tech.id,
+                        breakId: breakId,
+                        breakDurationSeconds: durationSeconds,
+                        breakLocationIndex: startLocation.index,
+                        constraintFixedTimeISO: gap.start.toISOString(),
+                        originalGapStartISO: gap.start.toISOString(),
+                        originalGapEndISO: gap.end.toISOString()
+                    });
+                    // <<< End Logging >>>
                 }
             });
              // --- End Gap Finding ---
@@ -458,20 +489,29 @@ export async function prepareOptimizationPayload(
     // 5. Format Fixed Constraints
     let optimizationFixedConstraints: OptimizationFixedConstraint[] = fixedTimeJobs
         .map(job => {
-            // Find the corresponding OptimizationItem ID
             const itemId = `job_${job.id}`;
-            const correspondingItem = optimizationItems.find(optItem => optItem.id === itemId);
-            if (!correspondingItem) {
-                logger.warn(`Fixed time job ${job.id} was not found in the list of schedulable items. Skipping constraint.`);
-                return null;
-            }
+            
             if (!job.fixed_schedule_time) {
                 logger.warn(`Job ${job.id} is marked fixed but has no fixed_schedule_time. Skipping constraint.`);
                 return null;
             }
+
+            // <<< ADDED: Check for assigned technician ID and duration >>>
+            if (job.assigned_technician === null || job.assigned_technician === undefined) {
+                logger.warn(`Fixed time job ${job.id} is missing assigned_technician. Skipping constraint.`);
+                return null;
+            }
+            if (job.job_duration === null || job.job_duration === undefined) {
+                 logger.warn(`Fixed time job ${job.id} is missing job_duration. Skipping constraint.`);
+                 return null;
+            }
+            // <<< END ADDED >>>
+
             return {
                 itemId: itemId,
                 fixedTimeISO: new Date(job.fixed_schedule_time).toISOString(),
+                assignedTechnicianId: job.assigned_technician,
+                durationSeconds: job.job_duration * 60
             };
         })
         .filter((constraint): constraint is OptimizationFixedConstraint => constraint !== null);
@@ -491,6 +531,35 @@ export async function prepareOptimizationPayload(
     // console.log('Optimization payload prepared successfully.'); // Commented out for cleaner test logs
     // console.log(JSON.stringify(payload, null, 2)); // Optional: Log the full payload for debugging
     // logger.debug('Full Payload:', JSON.stringify(payload)); // Debug log if needed
+    
+    // <<< Add INFO Summary Logging (Task 9) >>>
+    const payloadSummary = {
+      technicianCount: payload.technicians.length,
+      itemCount: payload.items.length,
+      locationCount: payload.locations.length,
+      fixedConstraintCount: payload.fixedConstraints.length,
+      technicianSummaries: payload.technicians.map(t => ({
+        id: t.id,
+        startIdx: t.startLocationIndex,
+        endIdx: t.endLocationIndex,
+        startISO: t.earliestStartTimeISO,
+        endISO: t.latestEndTimeISO
+      })),
+      itemSummaries: payload.items.map(i => ({ 
+        id: i.id, 
+        priority: i.priority, 
+        locIdx: i.locationIndex,
+        earliestStartISO: i.earliestStartTimeISO // Include if present
+      })),
+      fixedConstraintSummaries: payload.fixedConstraints.map(fc => ({
+        itemId: fc.itemId,
+        fixedTimeISO: fc.fixedTimeISO
+      }))
+      // travelTimeMatrix is intentionally excluded as per requirement
+    };
+    logger.info("Prepared optimization payload summary", { payloadSummary });
+    // <<< End INFO Summary Logging >>>
+
     return payload;
 }
 

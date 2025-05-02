@@ -106,11 +106,21 @@ export async function seedScenario_technician_unavailable_today(
 
   for (let i = 0; i < numberOfJobs; i++) {
     const customerId = getRandomElement(baselineRefs.customerIds);
-    const addressId = getRandomElement(baselineRefs.addressIds);
-    const vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
-    const serviceId = getRandomElement(BASIC_SERVICE_IDS);
+    const addressId = baselineRefs.addressIds[faker.number.int({ min: 0, max: baselineRefs.addressIds.length - 1 })];
+    const serviceId = baselineRefs.serviceIds[faker.number.int({ min: 0, max: baselineRefs.serviceIds.length - 1 })];
+    // Get a vehicle ID from baseline refs
+    if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+        throw new Error('BaselineRefs is missing customerVehicleIds.');
+    }
+    const vehicleId = baselineRefs.customerVehicleIds[faker.number.int({ min: 0, max: baselineRefs.customerVehicleIds.length - 1 })];
 
-    const order: OrderInsert = { user_id: customerId, address_id: addressId, vehicle_id: vehicleId, notes: `Order for unavailable tech test ${i + 1}` };
+    const order: OrderInsert = {
+      user_id: customerId,
+      address_id: addressId,
+      vehicle_id: vehicleId,
+      notes: `Order ${i + 1} for ${scenarioName}`,
+      earliest_available_time: dayjs.utc().toISOString(), // Available today
+    };
     const { data: orderData, error: orderErr } = await insertData(supabaseAdmin, 'orders', [order], `${scenarioName} order ${i + 1}`);
     if (orderErr || !orderData || orderData.length === 0) {
       logError(`Failed to insert order ${i+1}`, orderErr);

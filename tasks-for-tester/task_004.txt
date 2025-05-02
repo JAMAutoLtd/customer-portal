@@ -1,0 +1,20 @@
+# Task ID: 4
+# Title: Implement baseline data seeding script
+# Status: done
+# Dependencies: 2, 3
+# Priority: high
+# Description: Create a script to seed the Staging database with baseline data
+# Details:
+Implement the baseline seeding script (`simulation/scripts/db/seed/baseline.ts`) that:
+1. Accepts a parameter for the number of technicians (1-4) to include
+2. Calls the cleanup function before inserting data
+3. Creates static data arrays for addresses, equipment, services, YMM refs, users, technicians, vans, requirements
+4. Creates auth.users using the Supabase Admin API
+5. Creates corresponding public user profiles
+6. Handles "user already exists" errors gracefully
+7. Returns metadata about created entities (IDs, counts)
+
+Ensure the script maintains relational integrity between created entities.
+
+# Test Strategy:
+Run the script with different technician counts and verify the correct number of records are created in each table. Check that auth users are created correctly and that the script handles existing users gracefully.

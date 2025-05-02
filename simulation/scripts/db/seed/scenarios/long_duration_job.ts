@@ -46,9 +46,16 @@ export const seedScenario_long_duration_job = async (
             throw new Error('BaselineRefs is missing customer IDs.');
         }
         const customerId = baselineRefs.customerIds[0];
+        // Get a vehicle ID from baseline refs
+        if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+            throw new Error('BaselineRefs is missing customerVehicleIds.');
+        }
+        const vehicleId = baselineRefs.customerVehicleIds[0]; // Use first baseline vehicle
+
         const orderData: TablesInsert<'orders'> = {
             user_id: customerId,
             address_id: addressId,
+            vehicle_id: vehicleId,
             notes: `Order for ${scenarioName} scenario.`,
             earliest_available_time: faker.date.soon({ days: 1 }).toISOString(),
         };
@@ -70,7 +77,7 @@ export const seedScenario_long_duration_job = async (
             order_id: orderId,
             address_id: addressId,
             service_id: serviceId,
-            status: 'pending_review',
+            status: 'queued',
             priority: faker.number.int({ min: 1, max: 3 }), // High to medium priority
             job_duration: longDurationMinutes,
             notes: `Job for ${scenarioName}. Duration: ${longDurationMinutes} mins. Service ID: ${serviceId}`,

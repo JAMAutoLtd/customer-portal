@@ -74,10 +74,16 @@ export const seedScenario_fixed_time_today = async (
         const customerId = baselineRefs.customerIds[0];
         const addressId = baselineRefs.addressIds[0];
         const serviceId = BASIC_SERVICE_IDS[0]; // Use a basic service
+        // Get a vehicle ID from baseline refs
+        if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+            throw new Error('BaselineRefs is missing customerVehicleIds.');
+        }
+        const vehicleId = baselineRefs.customerVehicleIds[0];
 
         const orderData: TablesInsert<'orders'> = {
             user_id: customerId,
             address_id: addressId,
+            vehicle_id: vehicleId,
             notes: `Order for ${scenarioName} - Fixed Job`,
         };
         // Pass as array

@@ -1,0 +1,37 @@
+# Task ID: 13
+# Title: Implement scheduler job state update logging (FEAT-LOG-006 part 4)
+# Status: done
+# Dependencies: 12
+# Priority: medium
+# Description: Add logging for job state updates after processing optimization results.
+# Details:
+In apps/scheduler/src/scheduler/orchestrator.ts, add DEBUG level logging when updating jobStates after processing optimization results. For each job, log the jobId and FailureReason (if applicable) to show how the optimization affected the internal state of each job. This will help track how specific jobs are handled across multiple planning days.
+
+# Test Strategy:
+Run scenarios with jobs that get scheduled, remain unscheduled, or fail, and verify logs accurately reflect the state changes for each job with appropriate reasons.
+
+# Subtasks:
+## 1. Analyze job state update mechanism in orchestrator.ts [done]
+### Dependencies: None
+### Description: Identify and analyze the code sections in orchestrator.ts where job states are updated after processing optimization results
+### Details:
+Examine the orchestrator.ts file to locate where job state updates occur after optimization processing. Focus on functions that handle optimization results and update job states. Document the flow of data from optimization results to job state updates, identifying key variables that contain jobId and FailureReason information. Map out the different possible state transitions that can occur for jobs after optimization. This analysis will provide the foundation for implementing appropriate logging points.
+
+## 2. Design logging strategy for job state updates [done]
+### Dependencies: 13.1
+### Description: Define what information should be logged and at which points in the code to capture meaningful job state transitions
+### Details:
+Based on the analysis from subtask 1, design a comprehensive logging strategy that captures key job state transitions. Determine which specific attributes should be logged for each job (jobId, previous state, new state, FailureReason if applicable, timestamp). Identify optimal insertion points for logging statements that will provide visibility into how optimization affects each job without creating excessive log volume. Consider creating helper functions for formatting log messages consistently if multiple logging points are needed. Ensure the logging strategy follows the project's existing DEBUG level logging patterns.
+
+## 3. Implement DEBUG level logging for job state updates [done]
+### Dependencies: 13.2
+### Description: Add logging statements to orchestrator.ts that capture job state changes after optimization processing
+### Details:
+Implement the logging strategy defined in subtask 2 by adding appropriate DEBUG level logging statements to orchestrator.ts. For each job state update, add code that logs the jobId and any applicable FailureReason. Use structured logging format consistent with the rest of the codebase. Ensure logging statements are placed strategically to capture state transitions without impacting performance. If the state update occurs in a loop processing multiple jobs, ensure each job's state change is logged individually. Use conditional logging to only include FailureReason when it exists.
+
+## 4. Test and validate job state update logging [done]
+### Dependencies: 13.3
+### Description: Verify that the implemented logging correctly captures job state updates across multiple planning days
+### Details:
+Test the implemented logging by running the scheduler with DEBUG level enabled and verifying that job state updates are properly logged. Create test scenarios that trigger different job state transitions, including both successful jobs and those with failure reasons. Verify that logs show how specific jobs are handled across multiple planning days as required. Check that the log format is consistent and contains all required information (jobId and FailureReason when applicable). Ensure logging doesn't negatively impact performance, especially when processing large batches of jobs. Make any necessary adjustments to the logging implementation based on test results.
+

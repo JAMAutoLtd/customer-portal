@@ -199,6 +199,7 @@ export enum FailureReason {
   
   // Unknown/Other
   UNKNOWN = 'UNKNOWN',
+  NO_TECHNICIAN_AVAILABILITY = 'no_technician_availability' // Added for this scenario
 }
 
 // Helper to check if a reason is considered persistent

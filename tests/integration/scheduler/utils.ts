@@ -80,7 +80,9 @@ export async function readBaselineMetadata(): Promise<BaselineRefs> {
         if (error instanceof z.ZodError) {
             throw new Error(`Baseline metadata validation failed: ${JSON.stringify(error.errors)}`);
         }
-        throw new Error(`Failed to read or parse baseline metadata: ${error.message}. Ensure the baseline seeding script ran successfully and generated the file.`);
+        // Add type check for error message access
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to read or parse baseline metadata: ${errorMessage}. Ensure the baseline seeding script ran successfully and generated the file.`);
     }
 }
 
@@ -101,7 +103,9 @@ export async function readCurrentScenarioMetadata(): Promise<ScenarioSeedResult>
         if (error instanceof z.ZodError) {
             throw new Error(`Scenario metadata validation failed: ${JSON.stringify(error.errors)}`);
         }
-        throw new Error(`Failed to read or parse current scenario metadata: ${error.message}. Ensure the scenario seeding script ran successfully and generated the file.`);
+        // Add type check for error message access
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to read or parse current scenario metadata: ${errorMessage}. Ensure the scenario seeding script ran successfully and generated the file.`);
     }
 }
 
@@ -191,7 +195,8 @@ export async function cleanupScenarioData(insertedIds: ScenarioSeedResult['inser
                 const numericIds = idsToDelete.filter((id): id is number => typeof id === 'number' && !isNaN(id));
                 if (numericIds.length > 0) {
                     logInfo(`Attempting to delete ${numericIds.length} record(s) from ${tableName} with IDs: [${numericIds.join(', ')}]`);
-                    const { data, error } = await supabase
+                    // Only destructure error, as data is unused
+                    const { error } = await supabase
                         .from(tableName as string)
                         .delete()
                         .in('id', numericIds);

@@ -1,0 +1,355 @@
+# Task ID: 5
+# Title: Implement scenario seeding scripts
+# Status: pending
+# Dependencies: 4
+# Priority: high
+# Description: Create scripts for seeding specific test scenarios on top of baseline data
+# Details:
+Implement 10 scenario seeding scripts in `simulation/scripts/db/seed/scenarios/` for:
+1. base_schedule.ts: Standard scheduling flow
+2. equipment_conflict.ts: Job requires equipment no technician has
+3. bundle_equipment_conflict.ts: Multi-job order requires equipment split across techs
+4. fixed_time_today.ts: Job fixed for today
+5. fixed_time_future_overflow.ts: Job fixed for tomorrow
+6. technician_unavailable_today.ts: Tech unavailable for a block today
+7. availability_overflow_skip_day.ts: All techs unavailable tomorrow, jobs skip to Day+2
+8. priority_conflict.ts: High vs. Low priority jobs compete for limited capacity
+9. same_location_jobs.ts: Multiple jobs at one address
+10. long_duration_job.ts: One very long job impacting capacity
+
+Each script should:
+- Use IDs/references from baseline seed run to maintain relational integrity
+- Generate dynamic data using @faker-js/faker
+- Return metadata (IDs of created records) for test verification
+- Import core DB types (Database, Tables, TablesInsert, Enums) from 'simulation/scripts/utils/index.ts'
+- Use TablesInsert<'table_name'> to type data arrays for insertion
+- Use the insertData utility which returns Promise<{ data: Row[] | null, error: PostgrestError | null }>
+- Check returned objects for 'error' and null 'data'
+- Use actual IDs from returned 'data' arrays when linking records
+- Return actual created record IDs in the ScenarioMetadataUpdate object
+- Use technician IDs provided via the router - DO NOT call seedScenarioTechnicians directly
+
+Each scenario subtask (5.1, 5.2, etc.) must implement its seed function to return an object conforming to the standard `ScenarioSeedResult` interface defined in `./scenarios/types.ts`, including the `scenarioName` and `insertedIds` for records created by that specific scenario.
+
+Scenario seeding scripts (subtasks 5.1+) should focus on creating scenario-specific data using the provided `BaselineRefs` argument (which includes technician IDs) and returning the `ScenarioSeedResult`. They do *not* read or write metadata files themselves; file I/O is handled by the main seeding script (`index.ts`).
+
+# Test Strategy:
+Test each scenario script individually after running the baseline seed. Verify that the correct records are created with the expected relationships and that the returned metadata is accurate. Ensure each scenario correctly uses the technician IDs provided via the router rather than attempting to seed its own technicians.
+
+# Subtasks:
+## 1. Define shared types for scenario seeding [done]
+### Dependencies: None
+### Description: Create TypeScript interfaces for baseline references and scenario metadata that will be used across all scenario seeding scripts
+### Details:
+1. Create a new file `simulation/scripts/db/seed/scenarios/types.ts`
+2. Define `BaselineRefs` interface to contain references to baseline data (IDs of customers, technicians, equipment, etc.)
+3. Define `ScenarioMetadataUpdate` interface to track IDs of newly created records for test verification
+4. Define any helper types needed for specific scenarios
+5. Export all types for use in scenario scripts
+6. Test by importing types in a test file to verify they compile correctly
+
+## 2. Implement base_schedule.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create the standard scheduling flow scenario script that builds on baseline data
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/base_schedule.ts`
+2. Implement `seedScenario_base_schedule` function that accepts `baselineData: BaselineRefs`
+3. Create standard jobs with normal priority, duration, and equipment requirements
+4. Ensure jobs are schedulable with available technicians
+5. Return `ScenarioMetadataUpdate` with IDs of created records
+6. Add appropriate comments explaining the scenario
+7. Test by running the script and verifying jobs are created and schedulable
+
+## 3. Implement equipment_conflict.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario where a job requires equipment that no technician has
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/equipment_conflict.ts`
+2. Implement `seedScenario_equipment_conflict` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types (Database, Tables, TablesInsert, Enums) and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Use the technician IDs provided in baselineData.technicianDbIds
+5. Create a new equipment type not assigned to any technician using TablesInsert<'equipment'>
+6. Use insertData utility to insert the equipment and check for errors
+7. Create a job that requires this equipment using TablesInsert<'jobs'>
+8. Use the actual equipment ID from the returned data when creating the job
+9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+10. Add appropriate comments explaining the expected scheduling outcome
+11. Test by running the script and verifying the equipment conflict exists
+12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+13. Do NOT call seedScenarioTechnicians - use the technician IDs provided in baselineData
+
+<info added on 2025-04-30T23:28:12.046Z>
+Here's additional information to add to the subtask:
+
+```
+14. Ensure the scenario follows the PRD equipment requirements model:
+   - Create a service_type entry if needed
+   - Create a year_make_model (YMM) entry for the job
+   - Set up proper *_equipment_requirements lookup records linking the service_type/YMM to the new equipment
+   - Use the job's service_type_id and ymm_id to trigger the equipment requirement indirectly
+
+15. For all technicians in baselineData.technicianDbIds:
+   - Retrieve their associated vans using the technician_vans table
+   - Ensure NO van has the required equipment by checking van_equipment records
+   - If needed, add other equipment types to technician vans to demonstrate they have some equipment, just not the required one
+
+16. Verify the job status transitions to "pending_review" during scheduling due to the equipment conflict
+   - Add a comment explaining this is the expected behavior per the PRD
+   - Note that the optimizer should detect no eligible technician has the required equipment
+
+17. Include a function to validate the scenario was properly seeded by querying the DB to confirm:
+   - The job requires equipment (via service/YMM requirements)
+   - No technician's van has the required equipment
+   - The job status is "pending_review" after scheduling
+```
+</info added on 2025-04-30T23:28:12.046Z>
+
+## 4. Implement bundle_equipment_conflict.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario with a multi-job order requiring equipment split across different technicians
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/bundle_equipment_conflict.ts`
+2. Implement `seedScenario_bundle_equipment_conflict` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Use the technician IDs provided in baselineData.technicianDbIds
+5. Create a service order using TablesInsert<'service_orders'>
+6. Use insertData to insert the order and check for errors
+7. Create multiple jobs using TablesInsert<'jobs'> with different equipment requirements
+8. Use the actual order ID from the returned data when creating the jobs
+9. Ensure each job requires different equipment possessed by different technicians
+10. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+11. Add appropriate comments explaining the expected scheduling challenge
+12. Test by running the script and verifying the equipment distribution across technicians
+13. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+14. Do NOT call seedScenarioTechnicians - use the technician IDs provided in baselineData
+
+<info added on 2025-04-30T23:28:19.847Z>
+Add the following to the details section:
+
+15. Create two distinct equipment sets: one for Job 1 and another for Job 2, ensuring no overlap
+16. Assign equipment to technician vans using TablesInsert<'van_inventory'> such that:
+    - Technician A has all equipment needed for Job 1 but lacks equipment for Job 2
+    - Technician B has all equipment needed for Job 2 but lacks equipment for Job 1
+17. Use equipment_requirements table to link jobs to their required equipment
+18. Add a comment explaining that the optimizer should recognize this order cannot be bundled due to equipment constraints
+19. Include validation logic to verify neither technician has the complete set of equipment needed for both jobs
+20. Set up the order with a bundling preference but equipment constraints that make bundling impossible
+21. Document expected outcome: optimizer should split the bundle and schedule jobs to different technicians based on equipment availability
+</info added on 2025-04-30T23:28:19.847Z>
+
+## 5. Implement fixed_time_today.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario with a job that must be scheduled at a specific time today
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/fixed_time_today.ts`
+2. Implement `seedScenario_fixed_time_today` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Use the technician IDs provided in baselineData.technicianDbIds
+5. Create a service order using TablesInsert<'service_orders'>
+6. Use insertData to insert the order and check for errors
+7. Create a job with a fixed time slot for today using TablesInsert<'jobs'>
+8. Use the actual order ID from the returned data when creating the job
+9. Ensure the time slot is during working hours
+10. When creating the job with fixed assignment, use one of the technician IDs from baselineData.technicianDbIds
+11. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+12. Add appropriate comments explaining the fixed time constraint
+13. Test by running the script and verifying the job has the correct fixed time
+14. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+15. Do NOT call seedScenarioTechnicians - use the technician IDs provided in baselineData
+
+<info added on 2025-04-30T23:28:29.281Z>
+Here's additional information to add:
+
+When implementing the fixed_time_today scenario:
+
+1. Set job.status to 'fixed_time' explicitly to match the PRD requirements
+2. The fixed_schedule_time should be set to a timestamp within today's date
+3. Before assigning a technician, verify their availability window by:
+   - Checking their shift hours in the technicians table
+   - Ensuring the fixed_schedule_time falls within their working hours
+   - Avoiding any overlap with their existing assignments
+4. Include validation logic to confirm the selected time is viable:
+   ```typescript
+   // Example validation check
+   const technicianShift = await db.query.technicians.findFirst({
+     where: eq(technicians.id, selectedTechId),
+     columns: { shift_start, shift_end }
+   });
+   
+   if (fixedTime < technicianShift.shift_start || fixedTime > technicianShift.shift_end) {
+     throw new Error('Fixed time must be within technician shift hours');
+   }
+   ```
+5. Add verification code to ensure the job is scheduled exactly at the specified time
+6. Consider adding a duration field to the job to properly represent the time window
+7. Document that this scenario tests the optimizer's ability to respect fixed time constraints
+</info added on 2025-04-30T23:28:29.281Z>
+
+## 6. Implement fixed_time_future_overflow.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario with a job fixed for tomorrow that may cause scheduling overflow
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/fixed_time_future_overflow.ts`
+2. Implement `seedScenario_fixed_time_future_overflow` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Use the technician IDs provided in baselineData.technicianDbIds
+5. Create a service order using TablesInsert<'service_orders'>
+6. Use insertData to insert the order and check for errors
+7. Create several jobs for tomorrow to fill capacity using TablesInsert<'jobs'>
+8. Create an additional job with a fixed time for tomorrow
+9. Use the actual order ID from the returned data when creating the jobs
+10. When creating the fixed time job, use one of the technician IDs from baselineData.technicianDbIds
+11. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+12. Add appropriate comments explaining the expected overflow behavior
+13. Test by running the script and verifying the capacity constraints
+14. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+15. Do NOT call seedScenarioTechnicians - use the technician IDs provided in baselineData
+
+<info added on 2025-04-30T23:28:37.638Z>
+For this scenario, we need to ensure the fixed time job is properly scheduled despite capacity constraints. Here's additional information to add:
+
+```
+16. Set the fixed job's status to 'fixed_time' and provide a specific fixed_schedule_time within a technician's working window for tomorrow
+17. When creating other jobs for tomorrow, ensure their combined duration exceeds the technician's available capacity minus the fixed job's duration
+18. Use baselineData.technicianDbIds to select a specific technician and reference their working hours from the technicians table
+19. Calculate tomorrow's date using `new Date(Date.now() + 86400000).toISOString()`
+20. For the fixed job, select a time slot (e.g., "10:00:00") within the technician's working window and set fixed_schedule_time to tomorrow's date with that time
+21. Set priority levels appropriately - the fixed time job should have higher priority (lower number)
+22. Include validation logic to verify the technician's capacity is indeed exceeded by the scheduled jobs
+23. Add a comment explaining that this scenario tests the optimizer's ability to honor fixed time constraints even when capacity is exceeded
+24. Include expected outcome: the fixed time job should be scheduled at exactly the specified time on Day+1, while other jobs may overflow to subsequent days
+```
+</info added on 2025-04-30T23:28:37.638Z>
+
+## 7. Implement technician_unavailable_today.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario where a technician is unavailable for a specific time block today
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/technician_unavailable_today.ts`
+2. Implement `seedScenario_technician_unavailable_today` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Create a technician unavailability record for a specific time block today using TablesInsert<'technician_unavailability'>
+5. Use insertData to insert the unavailability and check for errors
+6. Create a service order using TablesInsert<'service_orders'>
+7. Create jobs that would normally be assigned to this technician using TablesInsert<'jobs'>
+8. Use the actual order ID from the returned data when creating the jobs
+9. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+10. Add appropriate comments explaining the unavailability constraint
+11. Test by running the script and verifying the technician unavailability is correctly set
+12. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+
+<info added on 2025-04-30T23:34:19.597Z>
+Here's additional information to enhance the subtask based on the PRD:
+
+1. Use the `technician_availability_exceptions` table instead of `technician_unavailability` to create the unavailability records
+2. Create two test cases within the scenario:
+   - Case 1: Create a significant time-off gap (4+ hours) with `is_available=false` for one technician today
+   - Case 2: Create multiple distinct unavailable windows using `custom_hours` exception type for the same technician
+3. For Case 1, set `exception_type='full_day_exception'` and `is_available=false`
+4. For Case 2, set `exception_type='custom_hours'` with JSON in `custom_hours_config` defining 2-3 separate time blocks
+5. Create multiple jobs that would normally be assigned to this technician, with some falling within unavailable windows
+6. Include jobs with varying priorities to test scheduler behavior around unavailable windows
+7. Add validation logic to verify the scheduler correctly assigns jobs around the unavailability gaps or to other technicians
+8. Document expected behavior in comments: jobs should either be scheduled outside unavailable windows or assigned to different technicians
+9. Include sample custom_hours_config JSON structure in comments
+</info added on 2025-04-30T23:34:19.597Z>
+
+## 8. Implement availability_overflow_skip_day.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario where all technicians are unavailable tomorrow, forcing jobs to be scheduled on Day+2
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/availability_overflow_skip_day.ts`
+2. Implement `seedScenario_availability_overflow_skip_day` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Use the technician IDs provided in baselineData.technicianDbIds
+5. Create unavailability records for all technicians for the entire day tomorrow using TablesInsert<'technician_unavailability'>
+6. Use insertData to insert the unavailabilities and check for errors
+7. Create a service order using TablesInsert<'service_orders'>
+8. Create several jobs that need to be scheduled using TablesInsert<'jobs'>
+9. Use the actual order ID from the returned data when creating the jobs
+10. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+11. Add appropriate comments explaining the expected day-skipping behavior
+12. Test by running the script and verifying all technicians are unavailable tomorrow
+13. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+14. Do NOT call seedScenarioTechnicians - use the technician IDs provided in baselineData
+
+<info added on 2025-04-30T23:28:02.741Z>
+Here's additional information to add:
+
+Update the implementation to use `technician_availability_exceptions` table instead of `technician_unavailability`:
+
+1. Create availability exceptions with `is_available=false` for all technicians for tomorrow (Day+1)
+2. Use `TablesInsert<'technician_availability_exceptions'>` with appropriate fields (technician_id, date, is_available=false)
+3. Seed at least 10-15 jobs for today with varying priorities and durations to ensure scheduling overflow
+4. Include jobs with different service_types to test diverse scheduling scenarios
+5. Add validation code that verifies no jobs are scheduled on Day+1 and confirms jobs appear on Day+2 or later
+6. Include a comment explaining that this scenario tests the optimizer's ability to skip unavailable days entirely
+7. Add assertions to verify the expected behavior matches the PRD requirements
+8. Consider adding a few high-priority jobs to test prioritization when overflow occurs
+</info added on 2025-04-30T23:28:02.741Z>
+
+## 9. Implement priority_conflict.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario with high and low priority jobs competing for limited capacity
+### Details:
+1. Create `simulation/scripts/db/seed/scenarios/priority_conflict.ts`
+2. Implement `seedScenario_priority_conflict` function that accepts `baselineData: BaselineRefs`
+3. Import core DB types and insertData utility from 'simulation/scripts/utils/index.ts'
+4. Use the technician IDs provided in baselineData.technicianDbIds
+5. Create service orders for high and low priority jobs using TablesInsert<'service_orders'>
+6. Use insertData to insert the orders and check for errors
+7. Create several high-priority jobs using TablesInsert<'jobs'>
+8. Create several low-priority jobs for the same time period using TablesInsert<'jobs'>
+9. Use the actual order IDs from the returned data when creating the jobs
+10. Ensure there's not enough capacity for all jobs by creating more jobs than available technician capacity
+11. Return a `ScenarioSeedResult` object with `scenarioName` and `insertedIds` for created records
+12. Add appropriate comments explaining the priority resolution expectations
+13. Test by running the script and verifying the priority levels are set correctly
+14. Focus only on creating scenario-specific data and returning the result - do not handle file I/O
+15. Do NOT call seedScenarioTechnicians - use the technician IDs provided in baselineData
+
+<info added on 2025-04-30T23:27:51.601Z>
+Here's additional information to enhance the subtask:
+
+The scenario should specifically test the priority scheduling mechanism by creating a controlled environment with these characteristics:
+
+1. Create exactly one technician with a limited availability window (e.g., 4 hours on a specific day)
+2. Create two service orders with different priority levels:
+   - One P1 (highest priority) order requiring 3 hours to complete
+   - One P5 (lowest priority) order requiring 3 hours to complete
+3. Both jobs should:
+   - Be eligible for only this specific technician (through skills/qualifications)
+   - Have the same time window constraints
+   - Have the same start date/time requirements
+   - Be impossible to schedule together due to the 4-hour constraint
+
+The expected outcome is that the scheduler will prioritize the P1 job and schedule it, while the P5 job will remain unscheduled. This provides a clear test case for verifying that the priority mechanism is working correctly when resources are constrained.
+
+Include validation code that checks the final schedule to confirm the P1 job is scheduled and the P5 job is not.
+</info added on 2025-04-30T23:27:51.601Z>
+
+## 13. Test all scenarios with updated technician handling [pending]
+### Dependencies: None
+### Description: Verify all scenarios work correctly with the new centralized technician seeding approach
+### Details:
+1. Run each scenario individually to verify it correctly uses the provided technician IDs
+2. Verify that jobs are correctly assigned to the provided technicians
+3. Check that equipment assignments work correctly with the provided technicians
+4. Verify that technician unavailability scenarios function as expected
+5. Test the scheduling algorithm with the updated scenarios to ensure it produces expected results
+6. Document any issues or unexpected behaviors
+7. Fix any issues found during testing
+8. Confirm that the main seeder correctly adds technician IDs to the output metadata JSON
+
+## 14. Implement unschedulable_fixed_time.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario based on PRD (prd-opimiser.txt): Job has fixed_schedule_time impossible to meet across all days/techs (use DB exceptions). Verify job status becomes pending_review.
+### Details:
+
+
+## 15. Implement locked_job_impact.ts scenario script [done]
+### Dependencies: 5.1
+### Description: Create scenario based on PRD (prd-opimiser.txt): Seed a job with status en_route/in_progress today, blocking a tech's DB-defined availability window. Verify scheduler respects this blockage and schedules other jobs around it.
+### Details:
+
+

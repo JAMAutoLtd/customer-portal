@@ -1,0 +1,37 @@
+# Task ID: 11
+# Title: Implement scheduler optimizer skip logging (FEAT-LOG-006 part 2)
+# Status: done
+# Dependencies: 10
+# Priority: medium
+# Description: Add logging for when the optimizer call is skipped and the reason why.
+# Details:
+In apps/scheduler/src/scheduler/orchestrator.ts, add INFO level logging when the decision is made to skip calling the optimizer. Log the specific reason for skipping (e.g., no technicians available, no items to schedule). This will help diagnose situations where expected optimization doesn't occur.
+
+# Test Strategy:
+Create test scenarios that trigger optimizer skipping (e.g., days with no technician availability) and verify logs clearly indicate the skip and the reason.
+
+# Subtasks:
+## 1. Identify all optimizer skip conditions in orchestrator.ts [done]
+### Dependencies: None
+### Description: Analyze the orchestrator.ts file to identify all conditions where the optimizer call might be skipped
+### Details:
+Review the code in apps/scheduler/src/scheduler/orchestrator.ts to identify all decision points where the optimizer might be skipped. Document each condition (e.g., no technicians available, no items to schedule, etc.) and the specific code locations where these checks occur. Create a comprehensive list of all skip scenarios that need logging. This will serve as a reference for implementing the logging statements in subsequent subtasks.
+
+## 2. Set up structured logging with appropriate log levels [done]
+### Dependencies: 11.1
+### Description: Implement or verify the logging framework configuration to ensure INFO level logs are properly captured
+### Details:
+Ensure the logging framework is properly configured in the orchestrator module. Verify that the logger instance supports INFO level logging and structured logging format. If needed, import the appropriate logger from the project's logging utility. Configure the logger to include relevant metadata such as timestamp, service name, and log level. Test that INFO level logs are properly captured in the expected output destination. This setup will ensure that all skip condition logs are properly formatted and captured.
+
+## 3. Implement logging for each skip condition [done]
+### Dependencies: 11.1, 11.2
+### Description: Add INFO level logging statements for each identified skip condition
+### Details:
+For each skip condition identified in subtask 1, add an INFO level logging statement that clearly indicates the optimizer is being skipped and the specific reason why. Use structured logging with appropriate context data. For example: `logger.info('Optimizer call skipped', { reason: 'no technicians available', techniciansCount: 0 })`. Ensure each log message is descriptive and includes relevant context data that would help diagnose the skip condition. Follow the project's logging conventions for message format and structure.
+
+## 4. Test and verify logging implementation [done]
+### Dependencies: 11.3
+### Description: Create test cases to verify that logs are generated correctly for each skip condition
+### Details:
+Create test cases that trigger each skip condition identified in subtask 1. Verify that the appropriate INFO level log messages are generated with the correct reason and context data. Test both local development environment and the target deployment environment to ensure logs are properly captured and accessible. Update any relevant documentation to note the new logging capability. Consider adding a section in the project documentation that explains the possible skip conditions and how to interpret the logs for debugging purposes.
+

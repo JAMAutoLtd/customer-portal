@@ -6,8 +6,8 @@ import { logger } from '../utils/logger'; // Import logger
 // Key format: "originLat,originLng:destLat,destLng:realtime" - for real-time requests
 // Value: duration in seconds
 const travelTimeCache = new Map<string, number>();
-const STANDARD_CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
-const REALTIME_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const REALTIME_CACHE_TTL = 20 * 60 * 1000; // 20 minutes in milliseconds
+const PREDICTIVE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 const cacheTimeStamps = new Map<string, number>();
 
 // Load Google Maps API Key from environment variable
@@ -32,26 +32,32 @@ export type BulkTravelTimeResultMap = Map<string, number | null>;
 // --- End: Add Types for Bulk Operation ---
 
 /**
- * Generates a cache key from origin and destination coordinates, including real-time flag.
+ * Generates a cache key from origin and destination coordinates, including request type suffix.
  */
-function getCacheKey(origin: LatLngLiteral, destination: LatLngLiteral, useRealTime: boolean): string {
-  const suffix = useRealTime ? ':realtime' : '';
+function getCacheKey(
+    origin: LatLngLiteral, 
+    destination: LatLngLiteral, 
+    useRealTime: boolean, 
+    departureTime?: Date
+): string {
+  // Suffix is determined solely by departureTime presence for predictive vs real-time
+  const suffix = departureTime ? ':predictive' : ':realtime'; 
   return `${origin.lat},${origin.lng}:${destination.lat},${destination.lng}${suffix}`;
 }
 
 /**
- * Cleans expired entries from the cache based on their TTL (standard or real-time).
+ * Cleans expired entries from the cache based on their TTL (real-time or predictive).
  */
 function cleanExpiredCache(): void {
     const now = Date.now();
     for (const [key, timestamp] of cacheTimeStamps.entries()) {
-        const isRealTimeEntry = key.endsWith(':realtime');
-        const ttl = isRealTimeEntry ? REALTIME_CACHE_TTL : STANDARD_CACHE_TTL;
+        // Default to REALTIME, use PREDICTIVE only if suffix matches
+        const ttl = key.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
+
         if (now - timestamp > ttl) {
             travelTimeCache.delete(key);
             cacheTimeStamps.delete(key);
-            // console.log(`Cache entry expired and removed: ${key}`); // Less noisy logging
-            logger.debug(`Cache expired for ${key}.`);
+            // logger.debug(`Cache expired for ${key}.`); // Commented out
         }
     }
 }
@@ -78,9 +84,10 @@ export async function getTravelTime(
   useRealTime: boolean = false,
   departureTime?: Date
 ): Promise<number | null> {
-  // --- Start: Cache Check Logic (Consistent with Bulk) ---
-  const cacheKey = getCacheKey(origin, destination, useRealTime || !!departureTime);
-  const cacheTTL = useRealTime || !!departureTime ? REALTIME_CACHE_TTL : STANDARD_CACHE_TTL;
+  // --- Start: Cache Check Logic --- 
+  const cacheKey = getCacheKey(origin, destination, useRealTime, departureTime);
+  // Determine TTL based on key suffix
+  const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
 
   if (travelTimeCache.has(cacheKey)) {
     const cachedTime = travelTimeCache.get(cacheKey);
@@ -91,7 +98,7 @@ export async function getTravelTime(
         travelTimeCache.delete(cacheKey);
         cacheTimeStamps.delete(cacheKey);
         // console.log(`Cache expired for ${cacheKey}.`);
-        logger.debug(`Cache expired for ${cacheKey}.`);
+        // logger.debug(`Cache expired for ${cacheKey}.`); // Commented out
     }
   }
   // --- End: Cache Check Logic ---
@@ -172,15 +179,19 @@ export async function getBulkTravelTimes(
   logger.info(`Starting bulk travel time fetch for ${pairs.length} pairs. Real-time: ${useRealTime}, Predictive: ${!!departureTime}`);
   const results: BulkTravelTimeResultMap = new Map();
   const pairsToFetch: TravelTimePair[] = [];
-  const isPredictiveOrRealtime = useRealTime || !!departureTime;
-  const cacheTTL = isPredictiveOrRealtime ? REALTIME_CACHE_TTL : STANDARD_CACHE_TTL;
+  // const isPredictiveOrRealtime = useRealTime || !!departureTime; // No longer needed for TTL calc here
+  // const cacheTTL = isPredictiveOrRealtime ? REALTIME_CACHE_TTL : REALTIME_CACHE_TTL; // simplified further
 
   // --- Start: Check Cache Before Fetching --- 
   // console.log('Checking cache for existing travel times...');
   logger.debug('Checking cache for existing travel times...');
   let cacheHits = 0;
   pairs.forEach(pair => {
-    const cacheKey = getCacheKey(pair.origin, pair.destination, isPredictiveOrRealtime);
+    // Determine cache key based on request type
+    const cacheKey = getCacheKey(pair.origin, pair.destination, useRealTime, departureTime);
+    // Determine TTL based on key suffix
+    const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
+
     if (travelTimeCache.has(cacheKey)) {
         const cachedTime = travelTimeCache.get(cacheKey);
         const cacheTimestamp = cacheTimeStamps.get(cacheKey) || 0;
@@ -288,7 +299,7 @@ export async function getBulkTravelTimes(
                     row.elements.forEach((element, j) => {
                         const destination = destinationSubBatch[j];
                         const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${destination.lat},${destination.lng}`;
-                        const cacheKey = getCacheKey(singleOrigin, destination, isPredictiveOrRealtime);
+                        const cacheKey = getCacheKey(singleOrigin, destination, useRealTime, departureTime);
 
                         if (element.status === 'OK') {
                           const durationSeconds = (departureTime || useRealTime) && element.duration_in_traffic
@@ -307,6 +318,8 @@ export async function getBulkTravelTimes(
                      // Mark all destinations for this sub-batch as null
                      destinationSubBatch.forEach(dest => { 
                         const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${dest.lat},${dest.lng}`;
+                        // Generate the specific key used for caching this result
+                        const cacheKey = getCacheKey(singleOrigin, dest, useRealTime, departureTime);
                         if (!results.has(resultKeyStandard)) results.set(resultKeyStandard, null);
                      });
                 }
@@ -314,6 +327,7 @@ export async function getBulkTravelTimes(
                 logger.error(`Distance Matrix API error for sub-batch. Origin: ${originKey}, Status: ${data.status}, Error: ${data.error_message || 'N/A'}`);
                 destinationSubBatch.forEach(dest => { 
                     const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${dest.lat},${dest.lng}`;
+                    // No cache entry to make on error
                     if (!results.has(resultKeyStandard)) results.set(resultKeyStandard, null);
                  });
               }
@@ -321,6 +335,7 @@ export async function getBulkTravelTimes(
               logger.error(`Error calling Google Maps API for sub-batch. Origin: ${originKey}:`, error.response?.data || error.message || error);
               destinationSubBatch.forEach(dest => { 
                   const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${dest.lat},${dest.lng}`;
+                  // No cache entry to make on error
                   if (!results.has(resultKeyStandard)) results.set(resultKeyStandard, null);
               });
             }

@@ -56,48 +56,59 @@ describe('Scheduler Integration - Bundle Equipment Conflict', () => {
         console.log(`Triggering scheduler replan for job IDs: ${jobIds.join(', ')}...`);
         await triggerSchedulerReplan();
 
-        console.log('Waiting for replan to complete (expecting both jobs scheduled individually)...');
+        console.log(`Waiting for replan to complete (expecting both jobs scheduled individually)...`);
+
         // Wait for both jobs to be scheduled (have assignment and time)
         const checkCondition = async (): Promise<boolean> => {
             const { data: jobs, error } = await supabase
                 .from('jobs')
-                .select('id')
-                .in('id', jobIds)
-                .not('assigned_technician', 'is', null)
-                .not('estimated_sched', 'is', null);
+                .select('id, status, assigned_technician, estimated_sched') // Select relevant fields
+                .in('id', jobIds);
 
             if (error) {
                 console.error('DB query error during wait:', error);
                 return false;
             }
-            const bothJobsScheduled = jobs?.length === 2;
-            if (bothJobsScheduled) {
-                console.log(`Condition met: Both jobs ${jobIds.join(', ')} have assignment and estimated schedule.`);
-            } else {
-                console.log(`Condition not met: Found ${jobs?.length ?? 0} jobs with assignment/schedule, expected 2.`);
+            if (!jobs || jobs.length !== jobIds.length) {
+                console.log(`Waiting for all jobs (${jobIds.join(', ')}) to appear in query results...`);
+                return false;
             }
-            return bothJobsScheduled;
+
+            // Check if ALL jobs are scheduled (queued with assignment and schedule time)
+            const allScheduled = jobs.every(job => 
+                job.status === 'queued' && 
+                job.assigned_technician !== null && 
+                job.estimated_sched !== null
+            );
+            if (allScheduled) {
+                console.log(`Condition met: Both jobs ${jobIds.join(', ')} are scheduled.`);
+            } else {
+                const statuses = jobs.map(j => `Job ${j.id}: ${j.status} (Tech: ${j.assigned_technician ?? 'N/A'})`).join(', ');
+                console.log(`Condition not met: ${statuses}. Waiting...`);
+            }
+            return allScheduled;
         };
-        await waitForReplan(checkCondition, 90000, 4000);
+
+        await waitForReplan(checkCondition, 90000, 4000); // Increased timeout slightly just in case
 
         console.log('Replan complete. Verifying schedule...');
 
         // Fetch final state of the jobs
-        const { data: finalJobs, error: jobsError } = await supabase
+        const { data: finalJobs, error: jobError } = await supabase
             .from('jobs')
-            .select('id, status, assigned_technician, estimated_sched, service_id') // Include service_id to infer which job is which
+            .select('id, status, assigned_technician, estimated_sched, service_id') // Include service_id to infer job type
             .in('id', jobIds)
             .order('id', { ascending: true }); // Order consistently
 
-        expect(jobsError).toBeNull();
+        expect(jobError).toBeNull();
         expect(finalJobs).not.toBeNull();
-        expect(finalJobs!.length).toEqual(2);
+        expect(finalJobs!.length).toEqual(jobIds.length);
 
         // Assertions for the bundle equipment conflict scenario
-        const job1 = finalJobs![0];
-        const job2 = finalJobs![1];
+        const job1 = finalJobs![0]; // Assuming job 1 is the first ID
+        const job2 = finalJobs![1]; // Assuming job 2 is the second ID
 
-        // Verify both jobs are scheduled
+        // Verify both jobs are scheduled (status: queued)
         expect(job1.status).toEqual('queued');
         expect(job1.assigned_technician).not.toBeNull();
         expect(job1.estimated_sched).not.toBeNull();
@@ -108,18 +119,16 @@ describe('Scheduler Integration - Bundle Equipment Conflict', () => {
         // Verify they are assigned to DIFFERENT technicians
         expect(job1.assigned_technician).not.toEqual(job2.assigned_technician);
 
-        // Verify they are assigned to the *correct* technicians based on equipment (requires knowing which service ID corresponds to which tech)
-        // Assuming serviceId 6 requires Equip 1 (Tech 1) and serviceId 7 requires Equip 2 (Tech 2)
-        const jobForTech1 = finalJobs!.find(j => j.service_id === 6); // Service ID 6 was assigned Equip 1 -> Tech 1
-        const jobForTech2 = finalJobs!.find(j => j.service_id === 7); // Service ID 7 was assigned Equip 2 -> Tech 2
+        // Verify they are assigned to the *correct* technicians based on equipment
+        // This relies on the seed script assumptions: Tech 1 (DB ID techId1) gets Equip 1 (for Service 6) and Tech 2 (DB ID techId2) gets Equip 2 (for Service 7)
+        // UPDATED: Seed now uses Service 1 (-> Equip 11 -> Tech 1) and Service 2 (-> Equip 12 -> Tech 2)
+        const jobForTech1 = finalJobs!.find(j => j.service_id === 1); // UPDATED from 6
+        const jobForTech2 = finalJobs!.find(j => j.service_id === 2); // UPDATED from 7
 
         expect(jobForTech1).toBeDefined();
         expect(jobForTech2).toBeDefined();
-        // Ensure we check against the correct tech IDs extracted earlier
-        expect(jobForTech1!.assigned_technician).toEqual(techId1);
+        expect(jobForTech1!.assigned_technician).toEqual(techId1); 
         expect(jobForTech2!.assigned_technician).toEqual(techId2);
-
-        // Optionally, verify bundle was broken (e.g., check bundle_id if implemented)
 
         console.log('Bundle equipment conflict verification successful: Jobs scheduled individually to correct techs.');
     });

@@ -1,0 +1,37 @@
+# Task ID: 7
+# Title: Implement scheduler availability gaps logging (FEAT-LOG-005 part 1)
+# Status: done
+# Dependencies: 6
+# Priority: medium
+# Description: Add logging for identified availability gaps in the scheduler.
+# Details:
+In apps/scheduler/src/scheduler/payload.ts, add DEBUG level logging after the findAvailabilityGaps function completes. Log each identified gap with technician ID, date, and the gap's start and end times. This will help verify correct gap identification for dummy break generation. Ensure logs are structured to make it easy to correlate gaps with technicians and dates.
+
+# Test Strategy:
+Test with scenarios containing various availability patterns and verify logs correctly identify all gaps between availability windows.
+
+# Subtasks:
+## 1. Analyze the findAvailabilityGaps function and its output structure [done]
+### Dependencies: None
+### Description: Examine the existing findAvailabilityGaps function in apps/scheduler/src/scheduler/payload.ts to understand its output structure and how availability gaps are represented
+### Details:
+Review the findAvailabilityGaps function implementation to identify: 1) The structure of the returned availability gaps data, 2) How technician IDs are associated with gaps, 3) How dates are represented, and 4) The format of start and end times. This analysis will inform how to properly structure the logging statements. Document the data structure to guide the implementation of subsequent subtasks.
+
+## 2. Set up TypeScript logging configuration for DEBUG level [done]
+### Dependencies: 7.1
+### Description: Configure the logging system to support DEBUG level logging in the scheduler module
+### Details:
+Import the appropriate logging library (likely typescript-logging or a similar package based on project standards). Create or update the logging configuration to ensure DEBUG level logs are properly captured. This may involve: 1) Creating a logger instance specifically for the scheduler module, 2) Setting the appropriate log level to DEBUG, and 3) Ensuring the logger is properly exported for use in the payload.ts file. Use a pattern similar to `const log = getLogger("scheduler.payload")` to create a namespaced logger that will make it easy to filter logs by component.
+
+## 3. Implement logging for individual availability gaps [done]
+### Dependencies: 7.1, 7.2
+### Description: Add code to log each identified availability gap with the required information
+### Details:
+After the findAvailabilityGaps function completes, add code to iterate through the identified gaps and log each one at DEBUG level. Each log entry should include: 1) Technician ID, 2) Date, 3) Gap start time, and 4) Gap end time. Structure the log message to clearly show the relationship between these elements, for example: `log.debug(() => `Availability gap identified: technicianId=${techId}, date=${date}, gap=${startTime}-${endTime}`)`. Consider using JSON formatting for complex objects to improve readability in log aggregation tools.
+
+## 4. Add summary logging and verify implementation [done]
+### Dependencies: 7.3
+### Description: Implement a summary log and verify the logging implementation works as expected
+### Details:
+After logging individual gaps, add a summary log that shows the total number of gaps found per technician and date. This will provide a quick overview that can be used to verify that the expected number of gaps are being identified. The summary should be structured as: `log.debug(() => `Found ${gapCount} availability gaps for technician ${techId} on ${date}`)`. Test the implementation by running the scheduler with test data and verifying that: 1) Individual gap logs appear with the correct information, 2) Summary logs show the expected counts, and 3) The logs are properly formatted and easy to read. Make any necessary adjustments to improve clarity or fix issues.
+

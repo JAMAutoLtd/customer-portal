@@ -12,37 +12,47 @@ import { logger } from '../utils/logger';
 export async function getYmmIdForOrder(orderId: number): Promise<number | null> {
   console.log(`Fetching ymm_id for order ${orderId}...`);
 
-  // 1. Fetch the order and its associated vehicle details
+  // --- Step 1: Fetch ONLY the order record to get vehicle_id --- 
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select(`
-      id,
-      vehicle_id,
-      customer_vehicles ( id, year, make, model )
-    `)
+    .select('id, vehicle_id') // Select only needed fields
     .eq('id', orderId)
-    .maybeSingle(); // Use maybeSingle to handle null/not found
+    .maybeSingle();
 
   if (orderError) {
-    // console.error(`Error fetching order ${orderId}:`, orderError);
     logger.error(`Error fetching order ${orderId}:`, orderError);
     return null;
   }
   if (!orderData) {
-    // console.warn(`Order with ID ${orderId} not found.`);
     logger.warn(`Order with ID ${orderId} not found.`);
     return null;
   }
-
-  // customer_vehicles is returned as an array by Supabase join
-  const vehicleArray = orderData.customer_vehicles as CustomerVehicle[] | null;
-  const vehicle = (vehicleArray && vehicleArray.length > 0) ? vehicleArray[0] : null;
-
-  if (!vehicle) {
-    // console.warn(`Order ${orderId} found, but has no associated vehicle information.`);
-    logger.warn(`Order ${orderId} found, but has no associated vehicle information.`);
+  if (!orderData.vehicle_id) {
+    // Specific check if vehicle_id itself is null in the order record
+    logger.warn(`Order ${orderId} found, but has a null vehicle_id.`);
     return null;
   }
+
+  const vehicleId = orderData.vehicle_id;
+
+  // --- Step 2: Fetch the customer_vehicle record using the vehicle_id --- 
+  const { data: vehicleData, error: vehicleError } = await supabase
+    .from('customer_vehicles')
+    .select('id, year, make, model')
+    .eq('id', vehicleId)
+    .single(); // Use single as we expect exactly one vehicle for the ID
+
+  if (vehicleError) {
+    logger.error(`Error fetching customer_vehicle with ID ${vehicleId} for order ${orderId}:`, vehicleError);
+    // Log specific details if helpful
+    if (vehicleError.code === 'PGRST116') { // code for "Fetched primary key differs from local key"
+        logger.warn(`No customer_vehicle found with ID ${vehicleId} (linked from order ${orderId}).`);
+    }
+    return null;
+  }
+  // No need for !vehicleData check if using .single(), it throws an error if not found
+  
+  const vehicle = vehicleData; // Assign directly now
 
   // Check if we have enough info to lookup YMM
   if (!vehicle.year || !vehicle.make || !vehicle.model) {

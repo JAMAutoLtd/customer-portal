@@ -71,9 +71,13 @@ export async function seedScenario_priority_conflict(
 
   // --- Seed Orders and Jobs ---
   const customerId = getRandomElement(baselineRefs.customerIds);
-  const addressId = getRandomElement(baselineRefs.addressIds);
-  const vehicleId = getRandomElement(baselineRefs.customerVehicleIds);
-  const serviceId = getRandomElement(BASIC_SERVICE_IDS);
+  const addressId = baselineRefs.addressIds[faker.number.int({ min: 0, max: baselineRefs.addressIds.length - 1 })];
+  const serviceId = baselineRefs.serviceIds[faker.number.int({ min: 0, max: baselineRefs.serviceIds.length - 1 })];
+  // Get a vehicle ID from baseline refs
+  if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
+    throw new Error('BaselineRefs is missing customerVehicleIds.');
+  }
+  const vehicleId = baselineRefs.customerVehicleIds[faker.number.int({ min: 0, max: baselineRefs.customerVehicleIds.length - 1 })];
   const jobDuration = 240; // 4 hours - likely to cause conflict in an 8-hour window
 
   // High Priority Order & Job

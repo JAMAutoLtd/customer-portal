@@ -1,0 +1,43 @@
+# Task ID: 3
+# Title: Implement optimizer constraint application logging (FEAT-LOG-002)
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Add logging for time ranges and fixed times being applied within the OR-Tools model.
+# Details:
+In the optimizer code where OR-Tools constraints are being applied, add DEBUG level logging that captures: 1) When setting time dimension ranges (SetRange) for technician start/end nodes - log vehicle index, node index, and calculated start/end times relative to planning epoch, 2) When applying fixed constraints for items/breaks - log the item ID, node index, and the fixed time being applied. Ensure logs clearly distinguish between different constraint types and include relevant context.
+
+# Test Strategy:
+Run the optimizer with test data that includes various constraints. Verify logs show the correct translation of ISO times into the solver's relative time model, especially for availability gaps (dummy breaks).
+
+# Subtasks:
+## 1. Create logging utility functions for OR-Tools constraints [done]
+### Dependencies: None
+### Description: Develop utility functions to standardize logging format for different constraint types in the optimizer
+### Details:
+Create a dedicated module or class with methods for logging different constraint types. Implement functions like `log_time_range_constraint()` and `log_fixed_time_constraint()` that format constraint data consistently. Each function should include parameters for the specific data points needed (vehicle index, node index, item ID, time values, etc.) and use the DEBUG log level. Ensure the logging format clearly identifies constraint types and includes relevant context information. These utility functions will be called from various points in the constraint application code.
+
+## 2. Identify and modify SetRange constraint application points [done]
+### Dependencies: 3.1
+### Description: Locate all code locations where time dimension ranges are set for technician start/end nodes and add logging
+### Details:
+Search the codebase for all instances where `SetRange` is called on the time dimension for technician start/end nodes. For each location, add calls to the logging utility function before or after the constraint is applied. The logs should include: vehicle index, node index, and the calculated start/end times relative to the planning epoch. Ensure the log messages clearly indicate whether it's a start or end time constraint. Example log format: 'DEBUG: Applied time range constraint for vehicle {vehicle_idx}, node {node_idx}: start_time={start_time}, end_time={end_time}'
+
+## 3. Implement logging for fixed time constraints on items [done]
+### Dependencies: 3.1
+### Description: Add logging for all fixed time constraints applied to service items in the model
+### Details:
+Identify all locations in the code where fixed time constraints are applied to service items. These are likely implemented as equality constraints on the time dimension. Add logging calls that capture: item ID, node index, and the exact fixed time being applied. The log message should clearly indicate that this is a fixed time constraint for a service item. Example log format: 'DEBUG: Applied fixed time constraint for item {item_id} at node {node_idx}: fixed_time={fixed_time}'
+
+## 4. Implement logging for fixed time constraints on breaks [done]
+### Dependencies: 3.1
+### Description: Add logging for all fixed time constraints applied to break items in the model
+### Details:
+Locate all code sections where fixed time constraints are applied specifically to break items. These may be handled differently from service items. Add logging calls that capture: break ID, node index, and the fixed time being applied. The log message should clearly indicate that this is a fixed time constraint for a break. Example log format: 'DEBUG: Applied fixed time constraint for break {break_id} at node {node_idx}: fixed_time={fixed_time}'. Ensure the logging distinguishes breaks from other item types.
+
+## 5. Add time conversion to human-readable format in logs [done]
+### Dependencies: 3.2, 3.3, 3.4
+### Description: Enhance logs to include both epoch-relative times and human-readable timestamps
+### Details:
+Modify the logging utility functions to convert the epoch-relative times to human-readable date-time format. This will make the logs more interpretable for debugging. Update all logging calls to include both the raw time values (for precise calculations) and the converted human-readable times. For example: 'DEBUG: Applied fixed time constraint for item {item_id} at node {node_idx}: fixed_time={fixed_time} ({human_readable_time})'. Implement a helper function that converts from the planning epoch to a formatted timestamp. Test the logging with various time values to ensure correct conversion.
+

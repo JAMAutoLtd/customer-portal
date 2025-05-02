@@ -1,0 +1,37 @@
+# Task ID: 6
+# Title: Implement scheduler locked jobs impact logging (FEAT-LOG-004 part 2)
+# Status: done
+# Dependencies: 5
+# Priority: medium
+# Description: Add logging for how locked jobs affect availability windows in the scheduler.
+# Details:
+In apps/scheduler/src/scheduler/availability.ts, add DEBUG level logging after the applyLockedJobsToWindows function completes. Log the technician ID, date, and the final TimeWindow[] array after applying locked jobs. Include details about which locked jobs were considered and how they modified the original windows. This should clearly show the impact of locked jobs on availability.
+
+# Test Strategy:
+Create test scenarios with locked jobs and verify logs accurately reflect how these jobs modify the availability windows for technicians.
+
+# Subtasks:
+## 1. Add data collection for locked jobs processing [done]
+### Dependencies: None
+### Description: Modify the applyLockedJobsToWindows function to collect data about which locked jobs are being processed and how they affect the original availability windows
+### Details:
+In apps/scheduler/src/scheduler/availability.ts, enhance the applyLockedJobsToWindows function to track which locked jobs are being considered and how they modify the original time windows. Create a data structure that captures the original windows, the locked jobs being processed, and the resulting modified windows. This might involve creating a new interface like LockedJobsImpact that contains fields for originalWindows, lockedJobs (with job IDs and time ranges), and modifiedWindows. Ensure this data is returned or made accessible for logging purposes without changing the function's existing return signature.
+
+## 2. Implement DEBUG level logging function [done]
+### Dependencies: 6.1
+### Description: Create a dedicated logging function that formats and outputs the locked jobs impact information at DEBUG level
+### Details:
+Create a new function called logLockedJobsImpact in the same file that takes the technician ID, date, and the impact data collected in subtask 1. This function should format the information in a clear, readable way and use the existing logging system to output at DEBUG level. The log should include: technician ID, date, number of original windows, number of locked jobs processed, and the final number of available windows. Format the output to make it easy to understand the relationship between specific jobs and their impact on availability.
+
+## 3. Add detailed window modification logging [done]
+### Dependencies: 6.2
+### Description: Enhance the logging function to show specific changes to each availability window
+### Details:
+Extend the logLockedJobsImpact function to include detailed information about how each original window was modified. For each window that was changed, log the original time range and the resulting time ranges after locked jobs were applied. If a window was completely removed, indicate this in the log. If a window was split into multiple windows, show how the single window became multiple. Use clear formatting with indentation or visual separators to make the relationship between original and modified windows obvious in the logs.
+
+## 4. Integrate logging into the main workflow [done]
+### Dependencies: 6.3
+### Description: Add the logging function call after applyLockedJobsToWindows completes in the main scheduler workflow
+### Details:
+In the main workflow where applyLockedJobsToWindows is called, add the call to the new logLockedJobsImpact function immediately after processing is complete. Ensure all required parameters (technician ID, date, and impact data) are passed correctly. Verify that the logging doesn't interfere with the normal operation of the scheduler and that it only executes when the logging level is set to DEBUG or lower. Test the implementation by running the scheduler with DEBUG logging enabled and verify that the logs clearly show how locked jobs affect availability windows.
+

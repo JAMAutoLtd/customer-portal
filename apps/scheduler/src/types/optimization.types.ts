@@ -41,6 +41,8 @@ export interface OptimizationItem {
 export interface OptimizationFixedConstraint {
     itemId: string; // ID of the OptimizationItem this applies to
     fixedTimeISO: string; // ISO 8601 string for the mandatory start time
+    assignedTechnicianId: number; // Tech assigned to this fixed job
+    durationSeconds: number; // Duration of the fixed job
 }
 
 /**

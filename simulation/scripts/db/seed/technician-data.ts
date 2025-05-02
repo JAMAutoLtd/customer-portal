@@ -52,7 +52,7 @@ export const technicianPublicUsersData: PublicUserSeedData[] = [
     id: '00000000-0000-0000-0000-000000000001', // Matches Auth User
     full_name: 'Tech One',
     phone: '403-100-0001',
-    home_address_id: 1, // Refers to an ID in addressesData
+    home_address_id: 1, // Use new address ID
     is_admin: true,
     customer_type: 'residential', // Although tech, type needed by table
   },
@@ -61,7 +61,7 @@ export const technicianPublicUsersData: PublicUserSeedData[] = [
     id: '00000000-0000-0000-0000-000000000002', // Matches Auth User
     full_name: 'Tech Two',
     phone: '403-100-0002',
-    home_address_id: 2,
+    home_address_id: 2, // Use new address ID
     is_admin: true,
     customer_type: 'residential',
   },
@@ -70,7 +70,7 @@ export const technicianPublicUsersData: PublicUserSeedData[] = [
     id: '00000000-0000-0000-0000-000000000003', // Matches Auth User
     full_name: 'Tech Three',
     phone: '403-100-0003',
-    home_address_id: 3,
+    home_address_id: 3, // Use new address ID
     is_admin: true,
     customer_type: 'residential',
   },
@@ -79,7 +79,7 @@ export const technicianPublicUsersData: PublicUserSeedData[] = [
     id: '00000000-0000-0000-0000-000000000004', // Matches Auth User
     full_name: 'Tech Four',
     phone: '403-100-0004',
-    home_address_id: 4,
+    home_address_id: 4, // Use new address ID
     is_admin: true,
     customer_type: 'residential',
   },
@@ -117,46 +117,46 @@ export const technicianTechniciansData: TechnicianSeedData[] = [
 export const technicianVansData: VanSeedData[] = [
   {
     id: 1, // Used for assigned_van_id in techniciansData and logic
-    vin: faker.vehicle.vin() + '1',
-    onestepgps_device_id: 'VAN001',
-    lat: 51.0447, // Calgary approx center
-    lng: -114.0719,
-    last_service: '2024-01-01', // Added example based on baseline-data
-    next_service: '2024-07-01', // Added example based on baseline-data
+    vin: faker.vehicle.vin() + '1', // Reverted
+    onestepgps_device_id: 'VAN001', // Reverted
+    lat: 51.0447, // Reverted
+    lng: -114.0719, // Reverted
+    last_service: '2024-01-01', 
+    next_service: '2024-07-01', 
   },
   {
     id: 2,
-    vin: faker.vehicle.vin() + '2',
-    onestepgps_device_id: 'VAN002',
-    lat: 51.0447,
-    lng: -114.0719,
+    vin: 'VIN_VAN_2', // Keep updated
+    onestepgps_device_id: 'OSGPS_VAN_2', // Keep updated
+    lat: 51.057274, // Keep updated address 2 coords
+    lng: -114.049297,
     last_service: '2024-01-01',
     next_service: '2024-07-01',
   },
   {
     id: 3,
-    vin: faker.vehicle.vin() + '3',
-    onestepgps_device_id: 'VAN003',
-    lat: 51.0447,
-    lng: -114.0719,
+    vin: faker.vehicle.vin() + '3', // Reverted
+    onestepgps_device_id: 'VAN003', // Reverted
+    lat: 51.0447, // Reverted
+    lng: -114.0719, // Reverted
     last_service: '2024-01-01',
     next_service: '2024-07-01',
   },
   {
     id: 4,
-    vin: faker.vehicle.vin() + '4',
-    onestepgps_device_id: 'VAN004',
-    lat: 51.0447,
-    lng: -114.0719,
+    vin: faker.vehicle.vin() + '4', // Reverted
+    onestepgps_device_id: 'VAN004', // Reverted
+    lat: 51.0447, // Reverted
+    lng: -114.0719, // Reverted
     last_service: '2024-01-01',
     next_service: '2024-07-01',
   },
-  // Add more if more than 4 techs might be needed in scenarios
+  // Keep van 5 as is, assuming it's used for >4 tech scenarios
   {
     id: 5,
-    vin: faker.vehicle.vin() + '5',
+    vin: faker.vehicle.vin() + '5', 
     onestepgps_device_id: 'VAN005',
-    lat: 51.0447,
+    lat: 51.0447, // Keep original or update if needed
     lng: -114.0719,
     last_service: '2024-01-01',
     next_service: '2024-07-01',

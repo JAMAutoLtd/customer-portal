@@ -36,7 +36,7 @@ This document also serves as a guide for the necessary refactoring effort to ali
 **3. Scope**
 
 *   **In Scope (Target State):**
-    *   Processing jobs initially `queued` or `pending_review`.
+    *   Processing jobs initially `queued` ~~or `pending_review`~~.
     *   Determining technician eligibility based on equipment requirements (DB service/YMM lookup + generic fallback) vs. van inventory.
     *   Calculating multi-segment daily availability windows per technician based on DB defaults, DB exceptions, and time blocked by locked jobs.
     *   Respecting job durations.
@@ -105,7 +105,7 @@ This document also serves as a guide for the necessary refactoring effort to ali
 **7. Functional Requirements**
 
 **FR-SCHED-001: Job Ingestion**
-*   The system shall identify jobs relevant for planning: primarily those initially null, `pending_review` or `queued`.
+*   The system shall identify jobs relevant for planning: primarily those initially null ~~`pending_review`~~ or `queued`.
 *   Jobs with statuses `en_route`, `in_progress`, `fixed_time` (locked jobs) shall be considered for calculating technician availability but not actively rescheduled unless their status changes.
 
 **FR-SCHED-002: Technician Data Retrieval (Desired State)**
@@ -222,92 +222,4 @@ This document also serves as a guide for the necessary refactoring effort to ali
 This section summarizes the target design and necessary code modifications.
 
 *   **A. Availability Source & Calculation:**
-    *   **Decision:** Must be driven by DB (`technician_default_hours`, `technician_availability_exceptions`) and account for locked jobs today. Must correctly identify potentially multiple available time windows per day.
-    *   **Refactoring Required:**
-        *   `apps/scheduler/src/supabase/technicians.ts`: Fetch related availability records.
-        *   `apps/scheduler/src/types/database.types.ts`: Update `Technician` interface.
-        *   `apps/scheduler/src/scheduler/availability.ts`: Rewrite calculations to use DB data and handle multiple windows / locked job blockages.
-*   **B. Modeling Availability Gaps for Optimizer:**
-    *   **Decision:** Unavailable periods within a technician's workday (breaks, locked jobs) must be modeled as constraints for OR-Tools.
-    *   **Refactoring Required:**
-        *   `apps/scheduler/src/scheduler/payload.ts` (or potentially `orchestrator.ts`): Implement logic to identify unavailability gaps from the calculated windows (`FR-SCHED-004`) and generate corresponding fixed-time "dummy break" `OptimizationItem`s and `OptimizationFixedConstraint`s in the payload.
-*   **C. Fixed Time Job Handling:**
-    *   **Decision:** Respect `fixed_schedule_time` constraints on the specific day they occur, including overflow days.
-    *   **Refactoring Required:**
-        *   `apps/scheduler/src/scheduler/orchestrator.ts`: Pass correct `fixedConstraints` in overflow loop.
-*   **D. Traffic & Travel Time Calculation:**
-    *   **Decision:** Use Google Maps Distance Matrix API. Use real-time traffic (today) and predictive traffic (future). Optimize API usage.
-    *   **Refactoring Required:**
-        *   `apps/scheduler/src/google/maps.ts`: Add predictive capability (accept/use future `departureTime`).
-        *   `apps/scheduler/src/scheduler/payload.ts`: Calculate and pass future departure time for overflow passes. **Implement bulk API calls** to Distance Matrix instead of per-pair requests.
-*   **E. Early Identification & Logging of Unschedulable Jobs:**
-    *   **Decision:** Differentiate persistent vs. transient failures. Remove persistent failures from subsequent attempts. Log reasons for unschedulable status.
-    *   **Refactoring Required:**
-        *   `apps/scheduler/src/scheduler/orchestrator.ts`: Implement state management for failure reasons; modify overflow loop to filter.
-        *   `apps/scheduler/src/scheduler/eligibility.ts` / `results.ts`: Potentially enhance failure reason reporting.
-        *   **(Logging):** Ensure reasons identified here and from optimizer (if possible) are logged per `FR-SCHED-014`.
-*   **F. Unresolvable Jobs Final Outcome:**
-    *   **Decision:** Final status is `pending_review`. Logging reasons is mandatory (see E).
-*   **G. Equipment Capacity/Skills:**
-    *   **Decision:** Binary eligibility (possess/don't possess). Quantity/skills out of scope **for now**.
-*   **H. Job Priority:**
-    *   **Decision:** Numerical priority (lower=higher importance). Decimal support desirable later.
-*   **I. Database/API Accuracy:**
-    *   **Assumption:** DB availability tables and Google Maps API data are accurate.
-
-**11. Development Roadmap (Logical Phases - No Timelines)**
-
-*   **Phase 1: Foundational Refactoring (Availability & Data)**
-    *   **Goal:** Establish correct data fetching and availability calculation based on DB.
-    *   **Tasks:** Refactor `technicians.ts` (fetch availability records), update `Technician` type, refactor `availability.ts` (use DB data, handle multiple windows/locked jobs).
-    *   **Dependencies:** None.
-*   **Phase 2: Core Constraint Handling Refactoring**
-    *   **Goal:** Ensure optimizer receives correct constraints, including availability gaps and future fixed times.
-    *   **Tasks:** Refactor `payload.ts` (model availability gaps as dummy nodes/constraints), refactor `orchestrator.ts` (pass fixed constraints for overflow days).
-    *   **Dependencies:** Phase 1 completion.
-*   **Phase 3: Intelligent Overflow & Logging Refactoring**
-    *   **Goal:** Implement early filtering of unschedulable jobs and improve diagnostic logging.
-    *   **Tasks:** Refactor `orchestrator.ts` (state management for failure reasons, filtering), enhance `eligibility.ts`/`results.ts` (reason reporting), implement mandatory logging (`FR-SCHED-014`).
-    *   **Dependencies:** Phase 1, Phase 2.
-*   **Phase 4: Travel Time Refinements**
-    *   **Goal:** Implement predictive traffic and optimize API calls.
-    *   **Tasks:** Refactor `maps.ts` (add predictive capability), refactor `payload.ts` (pass future departure time, implement bulk API calls).
-    *   **Dependencies:** Can be done partially in parallel after Phase 1, but bulk calls best after location logic stabilizes (Phase 2/3).
-*   **Phase 5: Integration Testing & Validation**
-    *   **Goal:** Verify the refactored system meets all PRD requirements.
-    *   **Tasks:** Implement comprehensive integration tests (like those in Task 10 discussed previously) for all key scenarios, validating status outcomes, assignments, timings, and constraint handling.
-    *   **Dependencies:** All preceding phases.
-
-**12. Logical Dependency Chain**
-
-1.  **Refactor Availability Data & Logic (Phase 1):** This is fundamental. Correct availability calculations are needed before constraints can be modeled accurately.
-2.  **Refactor Constraint Modeling (Phase 2):** Build upon correct availability data to generate the right inputs (including availability gaps and future fixed times) for the optimizer.
-3.  **Refactor Orchestrator State/Filtering (Phase 3):** Make the overflow process efficient by using the results of eligibility/optimization to filter intelligently.
-4.  **Refactor Travel Time (Phase 4):** Can be done concurrently but ideally after the core scheduling logic is stable.
-5.  **Implement Integration Tests (Phase 5):** Validate the complete refactored system against the desired outcomes defined in this PRD.
-
-*   **MVP Path:** Getting Phases 1 and 2 correct provides the core improvement in constraint handling. Phase 3 adds efficiency. Phase 4 adds accuracy. Phase 5 confirms correctness.
-
-**13. Risks and Mitigations**
-
-*   **Technical Complexity (Availability/Gap Modeling):** Calculating and modeling multi-segment availability windows and translating gaps into OR-Tools constraints is complex. **Mitigation:** Break down into smaller steps, thorough unit testing of `availability.ts` and `payload.ts` logic, potentially use simpler initial models for gaps (e.g., only single breaks per day) if full complexity proves too difficult initially.
-*   **Refactoring Interdependencies:** Changes in one module (e.g., `availability.ts` output) impact others (`payload.ts`). **Mitigation:** Clear interface definition between modules, integration testing early and often.
-*   **External API Reliability/Changes:** Dependency on Google Maps, OneStepGPS. **Mitigation:** Robust error handling, caching (`maps.ts`), monitoring API changes.
-*   **Optimizer Performance/Tuning:** OR-Tools might require parameter tuning for complex scenarios or larger datasets. **Mitigation:** Start with default parameters, monitor solution times, allocate time for tuning if needed (`NFR-PERF-001`).
-*   **Data Accuracy:** System relies on accurate DB availability records and YMM/equipment data. **Mitigation:** Emphasize operational processes for maintaining accurate DB data.
-
-**14. Potential Future Enhancements**
-
-*   Further refine handling of location clashes (tech start vs. job site) if the current perturbance logic proves insufficient in edge cases.
-*   Incorporate business value/SLAs into priority.
-*   Add explicit technician skills.
-*   Add equipment quantity constraints.
-*   Add UI for availability exceptions and `pending_review` jobs.
-*   Explore OR-Tools solution pool or logging callbacks for more detailed optimizer decision insights.
-
-**15. Open Questions**
-
-*   (None currently identified).
-
----
-
+    *   **Decision:** Must be driven by DB (`

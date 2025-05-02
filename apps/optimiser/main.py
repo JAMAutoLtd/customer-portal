@@ -3,6 +3,8 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+import logging # <<< Import logging
+import logging.config # <<< Import logging config
 
 # Load environment variables from root .env file
 root_dir = Path(__file__).parent.parent.parent
@@ -21,6 +23,27 @@ from ortools.constraint_solver import pywrapcp
 from datetime import datetime, timedelta, timezone
 import pytz # For robust timezone handling if needed, though ISO strings often include offset
 from typing import List, Literal
+
+# --- Get logger instance ---
+logger = logging.getLogger(__name__) # <<< Get logger
+
+# --- Basic Logging Configuration --- 
+# Configure basic logging to output DEBUG level messages to console
+# This will be overridden by Uvicorn's logging for access logs, 
+# but ensures our application logs work during development/debugging.
+# For production, consider using dictConfig or fileConfig for more robustness.
+log_level_str = os.environ.get("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_str, logging.INFO)
+
+logging.basicConfig(
+    level=log_level, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout) # Explicitly log to stdout
+    ]
+)
+logger.info(f"Optimizer logging configured with level: {log_level_str} ({log_level})")
+# --- End Basic Logging Configuration ---
 
 # --- Helper Functions ---
 
@@ -46,7 +69,7 @@ def iso_to_seconds(iso_str: str) -> int:
     # Ensure dt is offset-aware (it should be now if it had offset or Z)
     if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
         # This case should be less likely now, but good to keep as fallback
-        print(f"Warning: ISO string '{iso_str}' parsed as naive datetime. Assuming UTC.")
+        logger.warning(f"Warning: ISO string '{iso_str}' parsed as naive datetime. Assuming UTC.")
         dt = dt.replace(tzinfo=timezone.utc)
             
     # Convert to UTC timestamp (seconds since Unix epoch)
@@ -88,30 +111,54 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
     """
     Accepts a detailed scheduling problem description and returns optimized routes.
     """
-    print("--- Entering /optimize-schedule endpoint ---") # Added entry log
+    # print("--- Entering /optimize-schedule endpoint ---") # Added entry log
+    # <<< Replace print with logger call >>>
     try:
-        # Log payload summary (avoid logging full large payload unless necessary)
-        print(f"Received optimization request with {len(payload.items)} items, {len(payload.technicians)} technicians.")
-        # Log details of incoming items
-        if payload.items:
-            print("Incoming items:")
-            for item in payload.items:
-                print(f"  - ID: {item.id}, Duration: {item.durationSeconds}s, Priority: {item.priority}, LocationIdx: {item.locationIndex}, EligibleTechs: {item.eligibleTechnicianIds}")
+        # Prepare context for logging
+        payload_context = {
+            "itemCount": len(payload.items),
+            "technicianCount": len(payload.technicians),
+            "fixedConstraintCount": len(payload.fixedConstraints),
+            "technicians": [
+                {
+                    "id": t.id,
+                    "earliestStartTimeISO": t.earliestStartTimeISO,
+                    "latestEndTimeISO": t.latestEndTimeISO
+                }
+                for t in payload.technicians
+            ],
+            "fixedConstraints": [
+                {
+                    "itemId": fc.itemId,
+                    "fixedTimeISO": fc.fixedTimeISO
+                }
+                for fc in payload.fixedConstraints
+            ]
+        }
+        logger.debug("Received optimization request payload details", extra=payload_context)
+        # <<< End replacement >>>
+
+        # <<< Replace print with logger >>>
+        logger.info(f"Processing optimization request: {len(payload.items)} items, {len(payload.technicians)} technicians.")
+        # if payload.items:
+        #     logger.debug("Incoming items:") # Changed level to DEBUG
+        #     for item in payload.items:
+        #         logger.debug(f"  - ID: {item.id}, Duration: {item.durationSeconds}s, Priority: {item.priority}, LocationIdx: {item.locationIndex}, EligibleTechs: {item.eligibleTechnicianIds}")
         
         if not payload.items:
-            print("No items provided, returning success.")
+            logger.info("No items provided, returning success.") # Changed print to logger.info
             return OptimizationResponsePayload(status='success', message='No items provided for scheduling.', routes=[], unassignedItemIds=[])
         if not payload.technicians:
-            print("No technicians provided, returning error.")
+            logger.error("No technicians provided, returning error.") # Changed print to logger.error
             return OptimizationResponsePayload(status='error', message='No technicians available for scheduling.', routes=[], unassignedItemIds=[item.id for item in payload.items])
 
         # --- Calculate Planning Epoch ---
         # Use the earliest technician start time as the reference point (epoch) for relative time calculations.
         try:
             planning_epoch_seconds = min(iso_to_seconds(t.earliestStartTimeISO) for t in payload.technicians)
-            print(f"Planning Epoch (Earliest Tech Start): {planning_epoch_seconds} ({seconds_to_iso(planning_epoch_seconds)}) UTC")
+            logger.info(f"Planning Epoch (Earliest Tech Start): {planning_epoch_seconds} ({seconds_to_iso(planning_epoch_seconds)}) UTC") # Changed print to logger.info
         except ValueError as e: 
-             print(f"Error calculating planning epoch: {e}")
+             logger.error(f"Error calculating planning epoch: {e}") # Changed print to logger.error
              raise HTTPException(status_code=400, detail="Invalid technician start times provided.")
 
         num_locations = len(payload.locations)
@@ -123,14 +170,14 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
         # Map solver indices back to location IDs/coords for travel matrix lookup
         location_index_map = {loc.index: loc for loc in payload.locations}
         
-        print("Setting up OR-Tools RoutingIndexManager...")
+        logger.info("Setting up OR-Tools RoutingIndexManager...") # Changed print to logger.info
         # Create the routing index manager.
         # Number of nodes = locations. Start/End nodes are defined per vehicle.
         manager = pywrapcp.RoutingIndexManager(num_locations, num_vehicles, 
                                             [t.startLocationIndex for t in payload.technicians],
                                             [t.endLocationIndex for t in payload.technicians])
 
-        print("Setting up OR-Tools RoutingModel...")
+        logger.info("Setting up OR-Tools RoutingModel...") # Changed print to logger.info
         # Create Routing Model.
         routing = pywrapcp.RoutingModel(manager)
 
@@ -150,7 +197,7 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                 to_loc_idx = location_index_map.get(to_node)
                 
                 if from_loc_idx is None or to_loc_idx is None:
-                    print(f"Warning: Invalid node index encountered in travel_time_callback ({from_node} or {to_node})")
+                    logger.warning(f"Warning: Invalid node index encountered in travel_time_callback ({from_node} or {to_node})") # Changed print to logger.warning
                     return INFEASIBLE_COST # Use defined constant
 
                 from_loc_payload_idx = from_loc_idx.index 
@@ -165,11 +212,11 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                 travel_time = payload.travelTimeMatrix.get(from_loc_payload_idx, {}).get(to_loc_payload_idx, INFEASIBLE_COST)
                 # Add a check for negative travel times, which are invalid
                 if travel_time < 0:
-                    print(f"Warning: Negative travel time ({travel_time}) found for {from_loc_payload_idx} -> {to_loc_payload_idx}. Using INFEASIBLE_COST.")
+                    logger.warning(f"Warning: Negative travel time ({travel_time}) found for {from_loc_payload_idx} -> {to_loc_payload_idx}. Using INFEASIBLE_COST.")
                     return INFEASIBLE_COST
                 return travel_time
             except Exception as e:
-                print(f"TRAVEL_CALLBACK EXCEPTION: Nodes {from_node} -> {to_node}. Error: {e}. Large cost.")
+                logger.error(f"TRAVEL_CALLBACK EXCEPTION: Nodes {from_node} -> {to_node}. Error: {e}. Large cost.", exc_info=True)
                 return INFEASIBLE_COST
 
         transit_callback_index = routing.RegisterTransitCallback(travel_time_callback)
@@ -265,9 +312,16 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
 
         # --- Constraints ---
 
+        # +++ START FIX +++
+        # *** Initialize the mapping BEFORE the loop ***
+        tech_id_to_vehicle_index = {} # Initialize empty dict
+        # +++ END FIX +++
+
         # Technician Time Windows
-        print("Applying Technician Time Windows...")
+        logger.info("Applying Technician Time Windows...")
         for i, tech in enumerate(payload.technicians):
+            # *** Populate the mapping INSIDE the loop ***
+            tech_id_to_vehicle_index[tech.id] = i
             start_seconds_abs = iso_to_seconds(tech.earliestStartTimeISO)
             end_seconds_abs = iso_to_seconds(tech.latestEndTimeISO)
             
@@ -277,27 +331,37 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
 
             # Ensure start <= end (basic sanity check)
             if start_seconds_rel > end_seconds_rel:
-                print(f"Warning: Tech {tech.id} relative start > end ({start_seconds_rel} > {end_seconds_rel}). Clamping end.")
+                logger.warning(f"Warning: Tech {tech.id} relative start > end ({start_seconds_rel} > {end_seconds_rel}). Clamping end.")
                 end_seconds_rel = start_seconds_rel
             
             # print(f"  Tech {tech.id}: Rel Window [{start_seconds_rel}, {end_seconds_rel}]") # Less verbose
             time_dimension.CumulVar(routing.Start(i)).SetRange(start_seconds_rel, end_seconds_rel)
             time_dimension.CumulVar(routing.End(i)).SetRange(start_seconds_rel, end_seconds_rel)
+            # <<< Add Logging >>>
+            logger.debug("Applied technician time window constraint", extra={
+                "technicianId": tech.id,
+                "vehicleIndex": i,
+                "startTimeRelative": start_seconds_rel,
+                "endTimeRelative": end_seconds_rel,
+                "startTimeISO": tech.earliestStartTimeISO,
+                "endTimeISO": tech.latestEndTimeISO
+            })
+            # <<< End Logging >>>
 
         # Item Constraints (Fixed Time AND Earliest Start Time)
-        print("Applying Item Time Constraints (Fixed & Earliest Start)...")
+        logger.info("Applying Item Time Constraints (Fixed & Earliest Start)...")
         found_time_constraints = False # Flag to track if any constraints were applied/attempted
         for item_payload_idx, item in enumerate(payload.items):
             item_loc_index = item.locationIndex
             # Skip if item has no valid location index
             if not (0 <= item_loc_index < num_locations):
-                 print(f"Warning: Item {item.id} has invalid locationIndex {item.locationIndex}. Skipping constraints.")
+                 logger.warning(f"Warning: Item {item.id} has invalid locationIndex {item.locationIndex}. Skipping constraints.")
                  continue
 
             try:
                 solver_index = manager.NodeToIndex(item_loc_index)
                 if solver_index == -1:
-                    print(f"Warning: Could not get solver index for item {item.id} at loc {item_loc_index}. Skipping constraints.")
+                    logger.warning(f"Warning: Could not get solver index for item {item.id} at loc {item_loc_index}. Skipping constraints.")
                     continue
                 
                 # Apply Earliest Start Time constraint ONLY if present
@@ -307,9 +371,17 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                         earliest_start_abs = iso_to_seconds(item.earliestStartTimeISO)
                         earliest_start_rel = max(0, earliest_start_abs - planning_epoch_seconds)
                         time_dimension.CumulVar(solver_index).SetMin(earliest_start_rel)
+                        # <<< Add Logging >>>
+                        logger.debug("Applied item earliest start time constraint", extra={
+                            "itemId": item.id,
+                            "solverIndex": solver_index,
+                            "startTimeRelative": earliest_start_rel,
+                            "startTimeISO": item.earliestStartTimeISO
+                        })
+                        # <<< End Logging >>>
                     except ValueError as e:
                         # Log error ONLY if parsing the existing value fails
-                        print(f"Error applying earliest start for item {item.id}: Invalid ISO format '{item.earliestStartTimeISO}'. Error: {e}")
+                        logger.error(f"Error applying earliest start for item {item.id}: Invalid ISO format '{item.earliestStartTimeISO}'. Error: {e}")
                 
                 # Apply Fixed Time Constraint if present
                 fixed_constraint = next((fc for fc in payload.fixedConstraints if fc.itemId == item.id), None)
@@ -319,17 +391,25 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                         fixed_time_seconds_abs = iso_to_seconds(fixed_constraint.fixedTimeISO)
                         fixed_time_seconds_rel = max(0, fixed_time_seconds_abs - planning_epoch_seconds)
                         time_dimension.CumulVar(solver_index).SetRange(fixed_time_seconds_rel, fixed_time_seconds_rel)
+                        # <<< Add Logging >>>
+                        logger.debug("Applied item fixed time constraint", extra={
+                            "itemId": item.id,
+                            "solverIndex": solver_index,
+                            "fixedTimeRelative": fixed_time_seconds_rel,
+                            "fixedTimeISO": fixed_constraint.fixedTimeISO
+                        })
+                        # <<< End Logging >>>
                     except ValueError as e:
                         # Log error ONLY if parsing the existing value fails
-                        print(f"Error applying fixed time for item {item.id}: Invalid ISO format '{fixed_constraint.fixedTimeISO}'. Error: {e}")
+                        logger.error(f"Error applying fixed time for item {item.id}: Invalid ISO format '{fixed_constraint.fixedTimeISO}'. Error: {e}")
 
             except Exception as e:
                 # Catch other potential errors during solver index lookup etc.
-                print(f"General error applying time constraints for item {item.id}: {e}")
+                logger.error(f"General error applying time constraints for item {item.id}: {e}", exc_info=True)
         
         # Log if no time constraints were found at all
         if not found_time_constraints:
-            print("No applicable earliest start or fixed time constraints found for any items.")
+            logger.warning("No applicable earliest start or fixed time constraints found for any items.")
 
         # Technician Eligibility (Disjunctions) & Priority Penalties
         # Get lists of all start and end location indices for depot check
@@ -346,23 +426,23 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
         # Ensure penalty outweighs reasonable travel times. If max travel is ~1hr (3600s), penalty should be higher.
         base_penalty = 100000 
 
-        print("Applying Disjunctions (Eligibility & Priority)...")
+        logger.info("Applying Disjunctions (Eligibility & Priority)...")
         for i, item in enumerate(payload.items):
             # Ensure locationIndex is valid
             if not (0 <= item.locationIndex < num_locations):
-                 print(f"Warning: Item {item.id} has invalid locationIndex {item.locationIndex}. Skipping disjunction.")
+                 logger.warning(f"Warning: Item {item.id} has invalid locationIndex {item.locationIndex}. Skipping disjunction.")
                  continue
 
             # Check if item is AT a depot location *before* getting solver index
             is_at_depot_location = item.locationIndex in starts or item.locationIndex in ends
             if is_at_depot_location:
-                print(f"Info: Item {item.id} is at a depot location ({item.locationIndex}). Skipping disjunction.")
+                logger.info(f"Info: Item {item.id} is at a depot location ({item.locationIndex}). Skipping disjunction.")
                 continue
                 
             # Get solver index ONLY for non-depot items
             solver_index = manager.NodeToIndex(item.locationIndex)
             if solver_index == -1:
-                print(f"Warning: Item {item.id} locIdx {item.locationIndex} resulted in invalid solver index -1. Skipping disjunction.")
+                logger.warning(f"Warning: Item {item.id} locIdx {item.locationIndex} resulted in invalid solver index -1. Skipping disjunction.")
                 continue # Should not happen due to check above, but safety first
 
             eligible_vehicles = [
@@ -372,12 +452,12 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
 
             # If a non-depot item has NO eligible vehicles, it cannot be served.
             if not eligible_vehicles:
-                print(f"Info: Item {item.id} has no eligible vehicles. Skipping disjunction.")
+                logger.info(f"Info: Item {item.id} has no eligible vehicles. Skipping disjunction.")
                 continue 
 
             # Priority calculation (ensure priority is not None)
             if item.priority is None:
-                 print(f"Warning: Item {item.id} has None priority. Using default base penalty.")
+                 logger.warning(f"Warning: Item {item.id} has None priority. Using default base penalty.")
                  priority_penalty = base_penalty
             else:
                 # REVIEW NOTE (Priority Penalty Calculation):
@@ -390,7 +470,7 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
 
             # Ensure penalty is non-negative
             if priority_penalty < 0:
-                print(f"Warning: Calculated negative penalty ({priority_penalty}) for item {item.id}. Clamping to 0.")
+                logger.warning(f"Warning: Calculated negative penalty ({priority_penalty}) for item {item.id}. Clamping to 0.") # Changed print to logger.warning
                 priority_penalty = 0
 
             # Allow the solver to drop the NON-DEPOT node (item) with the calculated penalty.
@@ -400,15 +480,80 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                  routing.AddDisjunction([solver_index], priority_penalty, 1)
                  # print(f"Added disjunction for item {item.id} (idx {solver_index}), penalty {priority_penalty}") # Less verbose
             except Exception as e:
-                 print(f"!!! CRITICAL ERROR adding disjunction for item {item.id} (locIdx: {item.locationIndex}, solverIdx: {solver_index}, penalty: {priority_penalty}): {e}")
+                 # <<< Use logger.exception for critical errors >>>
+                 logger.exception(f"CRITICAL ERROR adding disjunction for item {item.id} (locIdx: {item.locationIndex}, solverIdx: {solver_index}, penalty: {priority_penalty})", exc_info=True)
                  raise # Re-raise critical error
             # --- End logic for non-depot nodes ---
 
-        # Calculation of total travel time in post-processing seems complex and might need review later.
-        # Consider if OR-Tools provides a simpler way to get route travel times.
+        # --- Pre-computation: Apply Fixed Constraints as Technician Unavailability --- 
+        logger.info("Pre-applying fixed constraints to technician time dimensions...")
+        skipped_fixed_constraints = 0
+        if payload.fixedConstraints:
+            for constraint in payload.fixedConstraints:
+                try:
+                    # *** Now this lookup should work because tech_id_to_vehicle_index is defined and populated ***
+                    vehicle_index = tech_id_to_vehicle_index.get(constraint.assignedTechnicianId)
+
+                    if vehicle_index is None:
+                        logger.warning(f"Technician ID {constraint.assignedTechnicianId} not found in vehicle mapping for fixed constraint item {constraint.itemId}. Skipping.")
+                        skipped_fixed_constraints += 1
+                        continue
+
+                    # Calculate absolute start/end times in seconds since Unix epoch
+                    fixed_start_abs = iso_to_seconds(constraint.fixedTimeISO)
+                    # Note: End time isn't strictly needed for FixedDurationIntervalVar, but useful for context/debugging
+                    # fixed_end_abs = fixed_start_abs + constraint.durationSeconds
+
+                    # Calculate relative start/end times from the planning epoch
+                    fixed_start_rel = fixed_start_abs - planning_epoch_seconds
+                    # fixed_end_rel = fixed_end_abs - planning_epoch_seconds
+
+                    # *** Check for None before calling OR-Tools ***
+                    if constraint.durationSeconds is None:
+                        logger.error(f"CRITICAL: DurationSeconds is None for fixed constraint item {constraint.itemId}. Skipping.")
+                        skipped_fixed_constraints += 1
+                        continue
+                    if fixed_start_rel is None: # Less likely, but possible if time parsing failed silently
+                        logger.error(f"CRITICAL: fixed_start_rel is None for fixed constraint item {constraint.itemId}. Skipping.")
+                        skipped_fixed_constraints += 1
+                        continue
+
+                    # Ensure types are explicitly int before passing
+                    start_val_int = int(fixed_start_rel)
+                    duration_val_int = int(constraint.durationSeconds)
+
+                    # Log the values being passed
+                    logger.debug(f"Attempting FixedDurationIntervalVar with start={start_val_int}, duration={duration_val_int}, name=FixedJob_{constraint.itemId}_Tech_{constraint.assignedTechnicianId}")
+
+                    break_interval_var = routing.solver().FixedDurationIntervalVar(
+                        start_val_int,                         # Use explicit int
+                        duration_val_int,                      # Use explicit int
+                        f"FixedJob_{constraint.itemId}_Tech_{constraint.assignedTechnicianId}"
+                    )
+
+                    # Apply the interval as a break for the specific technician
+                    interval_list = [break_interval_var]
+                    # For SetBreakIntervalsOfVehicle, the third argument `node_visit_transits`
+                    # specifies penalties/costs associated with visits happening during breaks.
+                    # We assume 0 cost here, meaning the break simply makes the time unavailable.
+                    node_visit_transits = [0] * len(interval_list)
+                    logger.debug(f"Applying interval {interval_list} with transits {node_visit_transits} for tech {constraint.assignedTechnicianId} (vehicle {vehicle_index}) due to fixed job {constraint.itemId}")
+                    time_dimension.SetBreakIntervalsOfVehicle(interval_list, vehicle_index, node_visit_transits)
+
+                except TypeError as e:
+                    logger.error(f"TypeError pre-applying fixed constraint for item {constraint.itemId}: {e}. Arguments were: start={fixed_start_rel}, duration={constraint.durationSeconds}")
+                    skipped_fixed_constraints += 1
+                except Exception as e:
+                    # Catch other potential errors during constraint processing
+                    logger.error(f"Unexpected error pre-applying fixed constraint for item {constraint.itemId}: {e}")
+                    import traceback
+                    traceback.print_exc() # Print detailed traceback for debugging
+                    skipped_fixed_constraints += 1
+            if skipped_fixed_constraints > 0:
+                 logger.warning(f"Skipped pre-applying {skipped_fixed_constraints} fixed constraints due to errors.")
 
         # --- Solve ---
-        print("Setting search parameters...")
+        logger.info("Setting search parameters...") # Changed print to logger.info
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
         search_parameters.first_solution_strategy = (
             routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
@@ -416,21 +561,41 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
         search_parameters.local_search_metaheuristic = (
             routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
         )
-        # search_parameters.time_limit.seconds = 30 # Example time limit
-        search_parameters.time_limit.FromSeconds(5) # Use short limit for testing
-        # <<< Add solution limit to stop after first solution >>>
-        # search_parameters.solution_limit = 1 # <<< REMOVED
+        search_parameters.time_limit.FromSeconds(5)
 
         print("Starting OR-Tools solver...")
         assignment = routing.SolveWithParameters(search_parameters)
         print("Solver finished.")
+        # <<< Add Logging for Solver Status >>>
+        status_code = routing.status()
+
+        # <<< Temporary Debugging: Print available attributes >>>
+        # print(dir(routing))
+        # <<< End Temporary Debugging >>>
+
+        # Simple mapping based on common OR-Tools routing statuses
+        status_map = {
+            # Reverting to integer values as constant lookup failed repeatedly
+            0: "ROUTING_NOT_SOLVED", # Assuming 0 based on pywrapcp common use, but CHECK docs if different
+            1: "ROUTING_SUCCESS",    # Assuming 1 based on pywrapcp common use
+            2: "ROUTING_FAIL",       # Assuming 2 based on pywrapcp common use
+            3: "ROUTING_FAIL_TIMEOUT", # Assuming 3 based on pywrapcp common use
+            4: "ROUTING_INVALID"     # Assuming 4 based on pywrapcp common use
+            # Check OR-Tools documentation for the definitive integer mapping if needed
+        }
+        status_str = status_map.get(status_code, "UNKNOWN_STATUS")
+        logger.info("Optimizer solver finished", extra={
+            "solverStatusCode": status_code,
+            "solverStatusStr": status_str
+        })
+        # <<< End Logging >>>
 
         # --- Process Results ---
         routes: List[TechnicianRoute] = []
         assigned_item_ids = set()
 
         if assignment:
-            print("Solution found. Processing assignment...")
+            logger.info("Solution found. Processing assignment...") # Changed print to logger.info
             # Define helper to find item by location index safely
             def find_item_by_location(loc_idx):
                 for item in payload.items:
@@ -627,7 +792,7 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                 unassignedItemIds=unassigned_item_ids
             )
         else:
-            print("No solution found by the solver.")
+            logger.error("No solution found by the solver.") # Changed print to logger.error
             # No solution found
             return OptimizationResponsePayload(
                 status='error',
@@ -654,6 +819,3 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
             unassignedItemIds=[item.id for item in payload.items] # Assume all failed
         )
 
-# Example of how to run this locally (requires uvicorn):
-# uvicorn main:app --reload --port 8000 
-# You can then access the interactive API docs at http://127.0.0.1:8000/docs

@@ -5,6 +5,13 @@ module.exports = {
   // Setup file for existing scheduler tests
   // setupFiles: ['<rootDir>/apps/scheduler/tests/setupEnv.ts'], // Keep or remove based on need
 
+  // Point ts-jest to the correct tsconfig
+  globals: {
+    'ts-jest': {
+      tsconfig: 'tsconfig.base.json'
+    }
+  },
+
   // Specify test file patterns
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',

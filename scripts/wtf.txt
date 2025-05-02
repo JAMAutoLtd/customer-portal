@@ -1,0 +1,155 @@
+
+You are absolutely correct to be suspicious, despite the test passing! The test passed because we fixed the specific assertions it was checking (status and exact time for the fixed job). However, looking closely at the final state reveals a significant problem.
+
+**Verification of Overlap:**
+
+*   **Job 1 (Fixed):** Assigned Tech 1, `estimated_sched: 2025-05-05 10:00:00+00`, duration 120 min. Occupies **10:00:00 - 12:00:00** on May 5th.
+*   **Job 6 (Filler):** Assigned Tech 1, `estimated_sched: 2025-05-05 09:14:17+00`, duration 103 min. Occupies **09:14:17 - 10:57:17** on May 5th.
+
+These two jobs, assigned to the **same technician (Tech 1)**, clearly overlap between 10:00:00 and 10:57:17 on May 5th. This should not happen.
+
+**Analysis and Hypothesis:**
+
+1.  **Scheduler Role:** The scheduler log (`debug/fixed_time_future_overflow_scheduler.log`) for the May 5th planning pass shows:
+    *   It correctly identifies Job 6 as the schedulable item (`itemCount: 1`).
+    *   It correctly identifies Job 1 as the relevant fixed constraint for that day (`fixedConstraintCount: 1`).
+    *   It sends *both* pieces of information to the optimizer.
+
+2.  **Optimizer Role:** The optimizer log (`debug/fixed_time_future_overflow_optimiser.log`) confirms it received a payload with 1 item and 1 fixed constraint for the May 5th request. It then successfully scheduled the 1 item (Job 6) at 09:14:17.
+
+3.  **The Disconnect:** The scheduler seems to be sending the correct information, but the optimizer isn't using the `fixedConstraint` information to block out Technician 1's time window *before* scheduling Job 6. It appears the optimizer might only apply `fixedConstraints` directly to the `itemId` mentioned within the constraint itself, but *not* using it to modify the general availability of the assigned technician for scheduling *other* items.
+
+**Hypothesis:** The bug lies within the **Python optimizer code (`apps/optimiser/main.py`)**. It correctly parses the `fixedConstraints` from the payload but fails to translate those constraints into actual unavailability periods on the time dimension for the assigned technician when evaluating placement options for *other* jobs in the same optimization request. It seems to only enforce the fixed time *on the fixed job item itself*, which isn't helpful when the fixed job isn't an item in the current optimization set.
+
+**Requesting Gemini Analysis:**
+
+Let's get Gemini to scrutinize the optimizer's constraint handling logic.
+
+```bash
+vibe-tools repo --subdir=apps/optimiser "Analyze apps/optimiser/main.py. Focus on how the /optimize-schedule endpoint parses the 'fixedConstraints' array from the JSON payload. Trace how these fixed constraints are applied to the OR-Tools RoutingModel. Specifically, does the code use the fixed constraint times to adjust the overall availability windows (e.g., using AddDisjunction or modifying CumulVar ranges) for the *assigned technician* of the fixed job, preventing other jobs from being scheduled during that time? Or does it only apply the constraint to the fixed job *item* itself (which might be missing in overflow scenarios)? Identify the specific code section responsible for applying these constraints to technician availability and pinpoint any logic errors causing the overlap observed." --with-doc=scripts/prd-opimiser.txt
+```
+The command appears to have been interrupted again. I'll retry the analysis request for the optimizer code.
+
+```bash
+vibe-tools repo --subdir=apps/optimiser "Analyze apps/optimiser/main.py. Focus on how the /optimize-schedule endpoint parses the 'fixedConstraints' array from the JSON payload. Trace how these fixed constraints are applied to the OR-Tools RoutingModel. Specifically, does the code use the fixed constraint times to adjust the overall availability windows (e.g., using AddDisjunction or modifying CumulVar ranges) for the *assigned technician* of the fixed job, preventing other jobs from being scheduled during that time? Or does it only apply the constraint to the fixed job *item* itself (which might be missing in overflow scenarios)? Identify the specific code section responsible for applying these constraints to technician availability and pinpoint any logic errors causing the overlap observed." --with-doc=scripts/prd-opimiser.txt
+```
+Okay, Gemini's analysis of the Python optimizer code confirms our previous hypothesis about *how* the constraint application fails, but clarifies *where*.
+
+**Key Findings from Gemini's Analysis:**
+
+1.  **Constraint Parsing:** The Python optimizer correctly parses the `fixedConstraints` array from the payload.
+2.  **Constraint Application Target:** The code applies the `fixedTimeISO` constraint using `time_dimension.CumulVar(solver_index).SetRange(...)`. Crucially, `solver_index` refers to the **node representing the specific job item** listed in the `items` array of the payload.
+3.  **Technician Availability:** The code **does not** directly modify the technician's overall time window based on `fixedConstraints`. It relies on the OR-Tools solver's internal logic: by fixing the *item's* start time and duration, the assigned technician *implicitly* becomes unavailable during that slot for other tasks.
+4.  **The Critical Flaw (as identified by Gemini):** The constraint application logic includes this check: `fixed_constraint = next((fc for fc in payload.fixedConstraints if fc.itemId == item.id), None)`. It **only applies a fixed constraint if the `itemId` from the constraint list matches an `item.id` in the *current payload's `items` list***.
+
+**Why this Causes the Overlap:**
+
+*   In the `fixed_time_future_overflow` scenario, when planning for the future day (May 5th), the `items` list sent to the optimizer contains only the *overflowed* filler jobs (like Job 6).
+*   The `fixedConstraints` list *correctly includes* the constraint for Job 1 (the actual fixed job for May 5th).
+*   However, because Job 1's ID is **not** present in the `items` list for that May 5th payload, the check `if fc.itemId == item.id` never matches for Job 1's constraint.
+*   Therefore, the optimizer **never applies the `SetRange` constraint** derived from Job 1's `fixed_schedule_time`.
+*   Without the constraint applied, the optimizer freely schedules the overflow items (Job 6) into the time slot that should have been reserved by Job 1.
+
+**Conclusion:**
+
+The hypothesis is confirmed. The issue isn't that the optimizer ignores constraints, but rather that the **optimizer code currently only applies a fixed constraint if the job being constrained is *also* one of the jobs being actively scheduled in that specific API call's `items` list.** This fails in overflow scenarios where the fixed job acts purely as a time block and isn't part of the overflow `items`.
+
+**Solution:**
+
+The fix needs to be in the **optimizer code (`apps/optimiser/main.py`)**. The logic for applying time constraints needs to be separated:
+
+1.  **Apply Technician Time Windows:** This is already done correctly based on the `technicians` array in the payload.
+2.  **Apply Fixed Job Constraints to Technician Availability:** *Before* applying constraints to the schedulable items, iterate through the `payload.fixedConstraints`. For each constraint:
+    *   Find the `assigned_technician` for that `fixedJob` (this might require the scheduler to add the assigned tech ID to the `fixedConstraints` object payload, or the optimizer might need to look it up based on the `itemId` if the full `items` list including fixed jobs is somehow available, though the former is cleaner).
+    *   Calculate the start and end time (relative to epoch) of the fixed job (fixed time + duration).
+    *   Get the OR-Tools index for the *assigned technician*.
+    *   Use the `time_dimension` for that technician and **add an interval** or modify its range to explicitly block out the time occupied by the fixed job. This might involve `AddDisjunction` with a high penalty or directly manipulating the `CumulVar` ranges for the technician's start/end nodes if possible (though `AddDisjunction` for intervals is often preferred for blocking time).
+3.  **Apply Earliest Start Time Constraints to Items:** Iterate through `payload.items` and apply `earliestStartTimeISO` using `time_dimension.CumulVar(solver_index).SetMin(...)`.
+4.  **Solve.**
+
+This ensures the fixed job's time block is carved out of the technician's availability *before* the solver tries to place the regular queued items.
+
+Read file: apps/optimiser/main.py
+
+Okay, let's re-evaluate based on the latest test results and logs.
+
+*   **Test Result:** Passed. All assertions in `fixed_time_future_overflow.test.ts` are now met.
+*   **DB State (Screenshot):** Shows the final state after the successful test run.
+    *   Job 1 (Fixed): `id: 1`, `assigned_technician: 1`, `status: fixed_time`, `estimated_sched: 2025-05-05 10:00:00+00`. Duration 120 mins (Ends 12:00:00).
+    *   Job 6 (Filler): `id: 6`, `assigned_technician: 1`, `status: queued`, `estimated_sched: 2025-05-05 09:14:17+00`. Duration 103 mins (Ends 10:57:17).
+*   **Scheduler Log:**
+    *   Pass 1 (May 2nd): Schedules jobs 9, 5, 7, 4 for Tech 1. Job 6 is unassigned (`failed_transient`). Jobs 2, 3, 8 marked `failed_persistent` (equipment).
+    *   Pass 2 & 3 (Weekend): Skipped.
+    *   Pass 4 (May 5th): Plans for Job 6. Identifies Job 1 as a fixed constraint. Sends payload with 1 item (Job 6) and 1 fixed constraint (Job 1) to optimizer. Receives result scheduling Job 6 at 09:14:17.
+    *   Final Update: Sets `estimated_sched` for Job 1 to its fixed time, keeping status `fixed_time`. Updates Job 6 to `queued` with its estimated time. Sets failed jobs (2, 3, 8) to `pending_review`.
+*   **Optimizer Log:**
+    *   First Request (May 2nd): Receives 5 eligible items (9, 5, 7, 4, 6). Schedules 4, leaves Job 6 unassigned.
+    *   Second Request (May 5th): Receives 1 item (Job 6) and 1 fixed constraint (Job 1). Schedules Job 6 successfully.
+
+**Verification of Overlap:**
+
+You are absolutely right to question this. Comparing the final DB state for May 5th:
+*   Job 6 (Tech 1): 09:14:17 - 10:57:17
+*   Job 1 (Tech 1): 10:00:00 - 12:00:00
+
+There is **still an overlap** for Technician 1 between 10:00:00 and 10:57:17.
+
+**Why did the test pass?**
+
+The test passed because the *assertions we wrote* were met:
+1.  Job 1's final status is `fixed_time`. (Correct)
+2.  Job 1's `assigned_technician` is not null. (Correct)
+3.  Job 1's `estimated_sched` is not null. (Correct - it was set in the final update)
+4.  Job 1's `estimated_sched` matches its original `fixed_schedule_time`. (Correct)
+
+The test **does not contain an assertion to check for overlaps** between different jobs assigned to the same technician.
+
+**Analysis - What is Happening?**
+
+Our previous analysis and fix addressed *sending* the constraint correctly from the scheduler (`payload.ts` fix). Gemini's analysis suggested the optimizer *should* implicitly handle the time blocking via the time dimension when an item's start time is fixed.
+
+Clearly, this implicit handling is **not working reliably** or is insufficient. The optimizer, despite knowing about the fixed constraint for Job 1, still placed Job 6 in a way that overlaps with Job 1's required time slot for the same technician.
+
+**Revised Hypothesis:**
+
+The implicit time dimension propagation in OR-Tools, when a constraint is applied *only* via `SetRange` on an *item node* (especially one not directly included in the route calculation like our fixed job in the overflow pass), is not sufficient to prevent the solver from scheduling *other* items for the same vehicle during that constrained item's duration.
+
+**Path Forward:**
+
+We need a more explicit way to block the technician's time in the optimizer based on fixed jobs for that day. The most robust way is likely:
+
+1.  **Scheduler (`payload.ts`):** Modify the `OptimizationFixedConstraint` model (in `optimization.types.ts` and Python's `models.py`) to include the `assignedTechnicianId` and the job's `durationSeconds`. The scheduler must populate these when creating the constraint object.
+2.  **Optimizer (`main.py`):**
+    *   *Before* applying item-specific constraints (like earliest start), iterate through the received `fixedConstraints`.
+    *   For each constraint, get the `assignedTechnicianId`, the `fixedTimeISO`, and the `durationSeconds`.
+    *   Find the vehicle index (`vehicle_id`) corresponding to that `assignedTechnicianId`.
+    *   Calculate the fixed start and end times relative to the planning epoch.
+    *   Use the `time_dimension` and **explicitly add a constraint to make that specific technician unavailable during that calculated interval**. The `AddDisjunction` method with a high penalty for the technician's node during that interval might be suitable, effectively forcing the solver to route *around* that time block for that technician.
+
+This ensures the time block is enforced directly on the technician's timeline within the optimizer model *before* it tries to place the other schedulable items.
+
+Let's start by modifying the data structures and the payload creation.
+
+
+
+
+
+
+Okay, the data structures (`OptimizationFixedConstraint`) in both TypeScript and Python, along with the payload creation logic in `payload.ts`, have been updated to include the `assignedTechnicianId` and `durationSeconds` for fixed time constraints.
+
+Now, we need to modify the optimizer (`main.py`) to *use* this information to explicitly block the technician's time.
+
+
+The optimizer code (`main.py`) has been updated:
+
+1.  A new section "Pre-computation: Apply Fixed Constraints as Technician Unavailability" has been added before the solver is called.
+2.  This section iterates through the `payload.fixedConstraints`.
+3.  For each constraint, it finds the corresponding `vehicle_index` for the `assignedTechnicianId`.
+4.  It calculates the start and end time of the fixed job's interval relative to the planning epoch.
+5.  It uses `time_dimension.SetBreakIntervalsOfVehicle(interval_list, vehicle_index)` to explicitly mark the technician as unavailable during that time slot. This is the recommended OR-Tools method for adding breaks or unavailability periods.
+6.  The old code block within the item loop that applied `SetRange` based on `fixedConstraints` has been commented out (as it's now redundant and was potentially causing issues).
+
+This explicit pre-application of fixed job times as unavailability intervals for the assigned technician should robustly prevent the optimizer from scheduling other jobs during those times, resolving the overlap issue.
+
+Please run the `fixed_time_future_overflow` test again.
+
