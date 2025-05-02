@@ -21,7 +21,7 @@ const LOCKED_JOB_STATUSES: JobStatus[] = ['en_route', 'in_progress', 'fixed_time
 const INITIAL_SCHEDULABLE_STATUS: JobStatus = 'queued';
 const PENDING_REVIEW_STATUS: JobStatus = 'pending_review';
 const FINAL_SUCCESS_STATUS: JobStatus = 'queued';
-const MAX_OVERFLOW_ATTEMPTS = 4;
+const MAX_OVERFLOW_ATTEMPTS = 5;
 
 interface FinalAssignment {
     technicianId: number;
@@ -217,9 +217,10 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
 
     // ========================================\n    // == Initial Data Fetch & Setup         ==\n    // ========================================
     logger.info('Step 0: Fetching initial technicians and relevant jobs...');
-    const [fetchedTechnicians, relevantJobsToday] = await Promise.all([
+    const [fetchedTechnicians, relevantJobsToday, allFixedTimeJobsFromDB] = await Promise.all([
       getActiveTechnicians(),
       getRelevantJobs(),
+      getJobsByStatus(['fixed_time'])
     ]);
     allTechnicians = fetchedTechnicians;
 
@@ -274,8 +275,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
     // +++ END One Step GPS Integration +++
 
     const lockedJobsToday = relevantJobsToday.filter(job => LOCKED_JOB_STATUSES.includes(job.status));
-    const allFixedTimeJobs = relevantJobsToday.filter(job => job.status === 'fixed_time' && job.fixed_schedule_time);
-    logger.info(`Found ${allFixedTimeJobs.length} total fixed time jobs initially.`);
+    logger.info(`Found ${allFixedTimeJobsFromDB.length} total fixed time jobs initially.`);
 
     const initialPendingCount = Array.from(jobStates.values()).filter(s => s.lastStatus === 'pending').length;
     logger.info(`Initial state (after GPS check): ${initialPendingCount} jobs to plan, ${lockedJobsToday.length} locked.`);
@@ -341,13 +341,9 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         if (eligibleItemCountPass1 > 0) {
             logger.info('Step 1.4: Preparing optimization payload for today...');
             const targetDateToday = new Date(); 
-            const fixedTimeJobsForThisPass = allFixedTimeJobs.filter(job => isDateOnDay(job.fixed_schedule_time, targetDateToday));
-            logger.info(`   -> Including ${fixedTimeJobsForThisPass.length} fixed time constraints for today.`);
-
             const optimizationPayloadToday = await prepareOptimizationPayload(
                 allTechnicians, 
                 eligibleItemsTodayRaw,
-                fixedTimeJobsForThisPass,
                 lockedJobsToday, 
                 targetDateToday 
             );
@@ -426,7 +422,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                  });
 
                  // --- BEGIN: Update fixed job states for this pass --- 
-                 const fixedTimeJobsForThisPass = allFixedTimeJobs.filter(job => 
+                 const fixedTimeJobsForThisPass = allFixedTimeJobsFromDB.filter(job => 
                     job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
                  );
                  logger.info(`Step 1.7.1: Confirming schedule for ${fixedTimeJobsForThisPass.length} fixed time job(s) on ${planningDateStr}...`);
@@ -608,8 +604,34 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         logger.info(`Step ${loopCount}.2: Determining available technicians for ${planningDateStr}...`);
         const availableTechsThisDay = techsForLoop;
 
+        // --- START: Fix for Fixed Jobs in Overflow (Task 1.1 / PRD) ---
+        // Get the fixed jobs specifically for the current overflow day
+        const fixedJobsForTargetOverflowDay = allFixedTimeJobsFromDB.filter(job => 
+            job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
+        );
+
+        // Combine the remaining queued/failed jobs with the fixed jobs for this day
+        // Ensure deduplication: Use a Map to prioritize fixed job data if ID exists in both lists
+        const combinedJobsMap = new Map<number, Job>();
+        jobsForThisPassFiltered.forEach(job => combinedJobsMap.set(job.id, job));
+        fixedJobsForTargetOverflowDay.forEach(job => combinedJobsMap.set(job.id, job)); // Fixed job data overwrites if duplicate ID
+        
+        const combinedJobsForOverflowPass = Array.from(combinedJobsMap.values());
+
+        if (combinedJobsForOverflowPass.length === 0) {
+            logger.info(`No remaining queued jobs or applicable fixed jobs for planning on ${planningDateStr}. Continuing loop.`);
+            continue;
+        }
+        logger.info(`Attempting to plan ${combinedJobsForOverflowPass.length} combined applicable job(s) (queued/failed + fixed) for ${planningDateStr}.`);
+        // --- END: Fix for Fixed Jobs in Overflow --- 
+
+        // <<< Add logging to inspect combined list before bundling >>>
+        logger.debug("Combined list BEFORE bundling:", JSON.stringify(combinedJobsForOverflowPass.map(j => ({id: j.id, status: j.status, fixed_schedule_time: j.fixed_schedule_time})), null, 2));
+        // <<< End logging >>>
+
         logger.info(`Step ${loopCount}.3: Bundling remaining jobs for ${planningDateStr}...`);
-        const bundledItemsLoop: SchedulableItem[] = bundleQueuedJobs(jobsForThisPassFiltered);
+        // Use the combined list for bundling
+        const bundledItemsLoop: SchedulableItem[] = bundleQueuedJobs(combinedJobsForOverflowPass);
 
         logger.info(`Step ${loopCount}.4: Determining eligibility for ${planningDateStr}...`);
         const { eligibleItems: eligibleItemsLoopRaw, ineligibleItems: ineligibleItemsLoop }: EligibilityResult = 
@@ -669,44 +691,10 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             continue;
         }
 
-        // Only proceed if there are applicable jobs OR fixed jobs for this specific day
-        const fixedJobsForThisSpecificDay = allFixedTimeJobs.filter(job =>
-            job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
-        );
-
-        if (jobsForThisPassFiltered.length === 0 && fixedJobsForThisSpecificDay.length === 0) {
-            logger.info(`Optimizer call skipped for overflow pass ${loopCount}: No applicable queued jobs or fixed jobs for ${planningDateStr}.`);
-            // Mark remaining transient jobs as failed for this day
-            jobIdsToAttemptThisLoop.forEach(jobId => {
-                const state = jobStates.get(jobId);
-                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
-                    const attempt = createAttempt(planningDateStr, false, FailureReason.NO_TECHNICIAN_AVAILABILITY);
-                    state.attempts.push(attempt);
-                    state.lastStatus = 'failed_transient';
-                    jobStates.set(jobId, state);
-                    
-                    logger.debug(`Updating job state (No Applicable Jobs)`, {
-                        jobId: jobId,
-                        newStatus: state.lastStatus,
-                        failureReason: FailureReason.NO_TECHNICIAN_AVAILABILITY,
-                        planningDay: planningDateStr,
-                        passNumber: loopCount
-                    });
-                } else if (!state) {
-                    logger.error(`Could not find state for job ID ${jobId} during no-applicable-jobs update.`);
-                }
-            });
-            continue; // Skip to the next day
-        }
-
         logger.info(`Step ${loopCount}.5: Preparing optimization payload for ${planningDateStr}...`);
-        const fixedTimeJobsForThisPass = allFixedTimeJobs.filter(job => isDateOnDay(job.fixed_schedule_time, currentPlanningDate));
-        logger.info(`   -> Including ${fixedTimeJobsForThisPass.length} fixed time constraints for ${planningDateStr}.`);
-
         const optimizationPayloadLoop = await prepareOptimizationPayload(
             availableTechsThisDay, 
             eligibleItemsLoopRaw,
-            fixedTimeJobsForThisPass,
             [], 
             currentPlanningDate
         );
@@ -791,7 +779,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         });
         
         // --- BEGIN: Update fixed job states for this overflow pass --- 
-        const fixedTimeJobsForThisOverflowPass = allFixedTimeJobs.filter(job => 
+        const fixedTimeJobsForThisOverflowPass = allFixedTimeJobsFromDB.filter(job => 
             job.fixed_schedule_time && isDateOnDay(job.fixed_schedule_time, currentPlanningDate)
         );
         logger.info(`Step ${loopCount}.8.1: Confirming schedule for ${fixedTimeJobsForThisOverflowPass.length} fixed time job(s) on ${planningDateStr}...`);
@@ -892,7 +880,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
 
     // Process any fixed_time jobs that might not have been in the initial jobStates map
     // but were confirmed via finalAssignments
-    allFixedTimeJobs.forEach(fixedJob => {
+    allFixedTimeJobsFromDB.forEach(fixedJob => {
         if (!processedJobIds.has(fixedJob.id)) {
             // Check if it got a final assignment (meaning its planning day succeeded)
             const assignment = finalAssignments.get(fixedJob.id);

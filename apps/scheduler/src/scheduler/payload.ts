@@ -92,7 +92,6 @@ function getItemId(item: SchedulableItem): string {
 export async function prepareOptimizationPayload(
     technicians: Technician[],
     items: SchedulableItem[],
-    fixedTimeJobs: Job[],
     lockedJobs: Job[],
     targetDate: Date
 ): Promise<OptimizationRequestPayload> {
@@ -413,55 +412,25 @@ export async function prepareOptimizationPayload(
                 earliestItemStartTimeISO = schedJob.order_details?.earliest_available_time || undefined;
             }
 
-            // --- Priority Adjustment (Temporarily Disabled) ---
-            // const getOrderCreatedAt = (schedulableItem: SchedulableItem): string | undefined => {
-            //   // Check if it's a JobBundle (check for the 'jobs' property)
-            //   if ('jobs' in schedulableItem) {
-            //     // It's a JobBundle
-            //     const bundle = schedulableItem as JobBundle; // Cast
-            //     if (bundle.jobs.length > 0) {
-            //       const firstJob = bundle.jobs[0]; // This should be SchedulableJob
-            //       // Use the renamed property
-            //       if (firstJob.order_details?.created_at) {
-            //         return firstJob.order_details.created_at;
-            //       }
-            //     }
-            //   }
-            //   // Check if it's a Job (check for the 'order_id' property, which bundles don't have)
-            //   else if ('order_id' in schedulableItem) {
-            //      // It's a Job - Cast it explicitly after the check
-            //      const jobItem = schedulableItem as SchedulableJob; // Cast
-            //      // Use the renamed property
-            //      if (jobItem.order_details?.created_at) {
-            //         return jobItem.order_details.created_at;
-            //      }
-            //   }
-            //   return undefined;
-            // };
+            // --- Start: Add Fixed Time Info to OptimizationItem --- 
+            let isFixed = false;
+            let fixedISO: string | undefined = undefined;
 
-            // const createdAtISO = getOrderCreatedAt(item);
-
-            // if (createdAtISO) {
-            //   try {
-            //     const createdAtDate = new Date(createdAtISO);
-            //     const now = new Date();
-            //     const ageInMillis = now.getTime() - createdAtDate.getTime();
-            //     const ageInDays = Math.floor(ageInMillis / (1000 * 60 * 60 * 24));
-
-            //     if (ageInDays > MAX_AGE_DAYS_THRESHOLD) {
-            //       const daysOverThreshold = ageInDays - MAX_AGE_DAYS_THRESHOLD;
-            //       const priorityBoost = daysOverThreshold * PRIORITY_BOOST_PER_DAY;
-            //       adjustedPriority = Math.max(MIN_PRIORITY_VALUE, item.priority - priorityBoost);
-            //       // console.log(`Adjusted priority for item ${item.id} from ${item.priority} to ${adjustedPriority} (Age: ${ageInDays} days)`);
-            //     }
-            //   } catch (e) {
-            //     console.warn(`Could not parse created_at date ('${createdAtISO}') for item ${getItemId(item)} to adjust priority: ${e}`);
-            //   }
-            // }
-            // --- End Priority Adjustment ---
+            // Only SchedulableJob can be fixed_time (bundles cannot contain fixed jobs)
+            if (!('jobs' in item) && (item as SchedulableJob).status === 'fixed_time') {
+                const fixedJob = item as SchedulableJob;
+                if (fixedJob.fixed_schedule_time) {
+                    isFixed = true;
+                    fixedISO = fixedJob.fixed_schedule_time;
+                    logger.debug(`Marking item ${getItemId(item)} as fixed: ${fixedISO}`);
+                } else {
+                    logger.warn(`Item ${getItemId(item)} has status fixed_time but no fixed_schedule_time value.`);
+                }
+            }
+            // --- End: Add Fixed Time Info to OptimizationItem --- 
 
             // Base item structure
-            const baseOptimizationItem = {
+            const baseOptimizationItem: OptimizationItem = {
                 id: getItemId(item),
                 locationIndex: itemLocation.index,
                 durationSeconds: duration * 60, // Convert minutes to seconds
@@ -471,15 +440,19 @@ export async function prepareOptimizationPayload(
                     : (item as SchedulableJob).eligibleTechnicians.map(t => t.id),
             };
 
-            // Conditionally add the earliestStartTimeISO field
+            // Conditionally add earliestStartTimeISO and fixed time info
+            let finalOptimizationItem = { ...baseOptimizationItem };
             if (earliestItemStartTimeISO) {
-                return {
-                    ...baseOptimizationItem,
-                    earliestStartTimeISO: earliestItemStartTimeISO,
-                };
-            } else {
-                return baseOptimizationItem;
+                finalOptimizationItem.earliestStartTimeISO = earliestItemStartTimeISO;
             }
+            if (isFixed) {
+                finalOptimizationItem.isFixedTime = true;
+                finalOptimizationItem.fixedTimeISO = fixedISO;
+            }
+            
+            logger.debug(`Final Optimization Item for ${getItemId(item)}:`, finalOptimizationItem);
+            
+            return finalOptimizationItem; // Returns the item to be included in the payload
         })
         .filter((item): item is OptimizationItem => item !== null); // Filter out skipped items
 
@@ -487,37 +460,7 @@ export async function prepareOptimizationPayload(
     optimizationItems = optimizationItems.concat(tempBreakItems);
 
     // 5. Format Fixed Constraints
-    let optimizationFixedConstraints: OptimizationFixedConstraint[] = fixedTimeJobs
-        .map(job => {
-            const itemId = `job_${job.id}`;
-            
-            if (!job.fixed_schedule_time) {
-                logger.warn(`Job ${job.id} is marked fixed but has no fixed_schedule_time. Skipping constraint.`);
-                return null;
-            }
-
-            // <<< ADDED: Check for assigned technician ID and duration >>>
-            if (job.assigned_technician === null || job.assigned_technician === undefined) {
-                logger.warn(`Fixed time job ${job.id} is missing assigned_technician. Skipping constraint.`);
-                return null;
-            }
-            if (job.job_duration === null || job.job_duration === undefined) {
-                 logger.warn(`Fixed time job ${job.id} is missing job_duration. Skipping constraint.`);
-                 return null;
-            }
-            // <<< END ADDED >>>
-
-            return {
-                itemId: itemId,
-                fixedTimeISO: new Date(job.fixed_schedule_time).toISOString(),
-                assignedTechnicianId: job.assigned_technician,
-                durationSeconds: job.job_duration * 60
-            };
-        })
-        .filter((constraint): constraint is OptimizationFixedConstraint => constraint !== null);
-
-    // Add generated break constraints to the list
-    optimizationFixedConstraints = optimizationFixedConstraints.concat(tempBreakConstraints);
+    let optimizationFixedConstraints: OptimizationFixedConstraint[] = [...tempBreakConstraints]; // Initialize with breaks
 
     // 6. Construct Final Payload
     const payload: OptimizationRequestPayload = {

@@ -351,6 +351,43 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
         # Item Constraints (Fixed Time AND Earliest Start Time)
         logger.info("Applying Item Time Constraints (Fixed & Earliest Start)...")
         found_time_constraints = False # Flag to track if any constraints were applied/attempted
+        
+        # --- Subtask 7.2: Create Fixed Job Time Lookup (using fixedConstraints initially) ---
+        # This dictionary maps fixed job item IDs to their required start time in seconds relative to the planning epoch.
+        # This approach reads from the separate fixedConstraints list. Task 7.3 will adapt this
+        # to potentially read from item.isFixedTime/item.fixedTimeISO directly later.
+        # --- MODIFIED FOR Subtask 7.3: Support both fixedConstraints and item flags ---
+        fixed_job_times = {}
+        try:
+            # Approach 1: Check fixedConstraints (legacy or for other constraint types maybe)
+            constraints_based_times = {
+                fc.itemId: iso_to_seconds(fc.fixedTimeISO) - planning_epoch_seconds
+                for fc in payload.fixedConstraints
+                if hasattr(fc, 'itemId') and fc.itemId and fc.itemId.startswith('job_') and hasattr(fc, 'fixedTimeISO') and fc.fixedTimeISO
+            }
+            if constraints_based_times:
+                logger.debug("Found fixed times in fixedConstraints", extra={"fixedJobTimesMap_fromConstraints": constraints_based_times})
+                fixed_job_times.update(constraints_based_times) # Add them first
+            
+            # Approach 2: Check items directly (preferred/newer method)
+            item_based_times = {
+                 item.id: iso_to_seconds(item.fixedTimeISO) - planning_epoch_seconds
+                 for item in payload.items
+                 if hasattr(item, 'isFixedTime') and item.isFixedTime and hasattr(item, 'fixedTimeISO') and item.fixedTimeISO
+            }
+            if item_based_times:
+                logger.debug("Found fixed times in payload items", extra={"fixedJobTimesMap_fromItems": item_based_times})
+                # Update/overwrite with item-based info if IDs conflict, as this is the newer way
+                fixed_job_times.update(item_based_times)
+            
+            if fixed_job_times:
+                 logger.debug("Final fixed_job_times lookup map created", extra={"fixedJobTimesMap_final": fixed_job_times})
+            else:
+                 logger.debug("No fixed jobs found in fixedConstraints or items to create lookup map.")
+        except Exception as e:
+             logger.error(f"Error creating fixed_job_times lookup: {e}", exc_info=True)
+        # --- End Subtask 7.2 / 7.3 ---
+        
         for item_payload_idx, item in enumerate(payload.items):
             item_loc_index = item.locationIndex
             # Skip if item has no valid location index
@@ -364,44 +401,54 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                     logger.warning(f"Warning: Could not get solver index for item {item.id} at loc {item_loc_index}. Skipping constraints.")
                     continue
                 
-                # Apply Earliest Start Time constraint ONLY if present
-                if hasattr(item, 'earliestStartTimeISO') and item.earliestStartTimeISO:
-                    found_time_constraints = True # Mark that we found at least one
-                    try:
-                        earliest_start_abs = iso_to_seconds(item.earliestStartTimeISO)
-                        earliest_start_rel = max(0, earliest_start_abs - planning_epoch_seconds)
-                        time_dimension.CumulVar(solver_index).SetMin(earliest_start_rel)
-                        # <<< Add Logging >>>
-                        logger.debug("Applied item earliest start time constraint", extra={
-                            "itemId": item.id,
-                            "solverIndex": solver_index,
-                            "startTimeRelative": earliest_start_rel,
-                            "startTimeISO": item.earliestStartTimeISO
-                        })
-                        # <<< End Logging >>>
-                    except ValueError as e:
-                        # Log error ONLY if parsing the existing value fails
-                        logger.error(f"Error applying earliest start for item {item.id}: Invalid ISO format '{item.earliestStartTimeISO}'. Error: {e}")
+                # --- Subtask 7.4: Use fixed_job_times lookup ---
+                is_fixed_job = item.id in fixed_job_times
                 
-                # Apply Fixed Time Constraint if present
-                fixed_constraint = next((fc for fc in payload.fixedConstraints if fc.itemId == item.id), None)
-                if fixed_constraint:
-                    found_time_constraints = True # Mark that we found at least one
+                if is_fixed_job:
+                    # Apply Fixed Time Constraint using the pre-calculated lookup
+                    found_time_constraints = True
                     try:
-                        fixed_time_seconds_abs = iso_to_seconds(fixed_constraint.fixedTimeISO)
-                        fixed_time_seconds_rel = max(0, fixed_time_seconds_abs - planning_epoch_seconds)
-                        time_dimension.CumulVar(solver_index).SetRange(fixed_time_seconds_rel, fixed_time_seconds_rel)
-                        # <<< Add Logging >>>
-                        logger.debug("Applied item fixed time constraint", extra={
-                            "itemId": item.id,
-                            "solverIndex": solver_index,
-                            "fixedTimeRelative": fixed_time_seconds_rel,
-                            "fixedTimeISO": fixed_constraint.fixedTimeISO
-                        })
+                        fixed_time_seconds_rel = fixed_job_times[item.id]
+                        # Ensure value is non-negative before applying
+                        if fixed_time_seconds_rel >= 0:
+                            time_dimension.CumulVar(solver_index).SetRange(fixed_time_seconds_rel, fixed_time_seconds_rel)
+                            # <<< Add Logging >>>
+                            logger.debug("Applied item fixed time constraint (from lookup)", extra={
+                                "itemId": item.id,
+                                "solverIndex": solver_index,
+                                "fixedTimeRelative": fixed_time_seconds_rel,
+                                # Attempt to get original ISO from item if possible for logging
+                                "fixedTimeISO": item.fixedTimeISO if hasattr(item, 'fixedTimeISO') else "N/A"
+                            })
+                        else:
+                             logger.warning(f"Skipping fixed time constraint for item {item.id}: Calculated relative time {fixed_time_seconds_rel} is negative.")
                         # <<< End Logging >>>
-                    except ValueError as e:
-                        # Log error ONLY if parsing the existing value fails
-                        logger.error(f"Error applying fixed time for item {item.id}: Invalid ISO format '{fixed_constraint.fixedTimeISO}'. Error: {e}")
+                    except KeyError: # Should not happen if is_fixed_job is true, but safety check
+                         logger.error(f"Error applying fixed time for item {item.id}: ID found in check but not in dictionary? This is unexpected.")
+                    except Exception as e:
+                         logger.error(f"Error applying fixed time constraint for item {item.id} using lookup: {e}", exc_info=True)
+                    # Do NOT apply earliest start time for fixed jobs
+                
+                else:
+                    # Apply Earliest Start Time constraint ONLY if present and NOT a fixed job
+                    if hasattr(item, 'earliestStartTimeISO') and item.earliestStartTimeISO:
+                        found_time_constraints = True # Mark that we found at least one
+                        try:
+                            earliest_start_abs = iso_to_seconds(item.earliestStartTimeISO)
+                            earliest_start_rel = max(0, earliest_start_abs - planning_epoch_seconds)
+                            time_dimension.CumulVar(solver_index).SetMin(earliest_start_rel)
+                            # <<< Add Logging >>>
+                            logger.debug("Applied item earliest start time constraint", extra={
+                                "itemId": item.id,
+                                "solverIndex": solver_index,
+                                "startTimeRelative": earliest_start_rel,
+                                "startTimeISO": item.earliestStartTimeISO
+                            })
+                            # <<< End Logging >>>
+                        except ValueError as e:
+                            # Log error ONLY if parsing the existing value fails
+                            logger.error(f"Error applying earliest start for item {item.id}: Invalid ISO format '{item.earliestStartTimeISO}'. Error: {e}")
+                # --- End Subtask 7.4 ---
 
             except Exception as e:
                 # Catch other potential errors during solver index lookup etc.
@@ -485,72 +532,77 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
                  raise # Re-raise critical error
             # --- End logic for non-depot nodes ---
 
-        # --- Pre-computation: Apply Fixed Constraints as Technician Unavailability --- 
-        logger.info("Pre-applying fixed constraints to technician time dimensions...")
-        skipped_fixed_constraints = 0
-        if payload.fixedConstraints:
-            for constraint in payload.fixedConstraints:
-                try:
-                    # *** Now this lookup should work because tech_id_to_vehicle_index is defined and populated ***
-                    vehicle_index = tech_id_to_vehicle_index.get(constraint.assignedTechnicianId)
-
-                    if vehicle_index is None:
-                        logger.warning(f"Technician ID {constraint.assignedTechnicianId} not found in vehicle mapping for fixed constraint item {constraint.itemId}. Skipping.")
-                        skipped_fixed_constraints += 1
-                        continue
-
-                    # Calculate absolute start/end times in seconds since Unix epoch
-                    fixed_start_abs = iso_to_seconds(constraint.fixedTimeISO)
-                    # Note: End time isn't strictly needed for FixedDurationIntervalVar, but useful for context/debugging
-                    # fixed_end_abs = fixed_start_abs + constraint.durationSeconds
-
-                    # Calculate relative start/end times from the planning epoch
-                    fixed_start_rel = fixed_start_abs - planning_epoch_seconds
-                    # fixed_end_rel = fixed_end_abs - planning_epoch_seconds
-
-                    # *** Check for None before calling OR-Tools ***
-                    if constraint.durationSeconds is None:
-                        logger.error(f"CRITICAL: DurationSeconds is None for fixed constraint item {constraint.itemId}. Skipping.")
-                        skipped_fixed_constraints += 1
-                        continue
-                    if fixed_start_rel is None: # Less likely, but possible if time parsing failed silently
-                        logger.error(f"CRITICAL: fixed_start_rel is None for fixed constraint item {constraint.itemId}. Skipping.")
-                        skipped_fixed_constraints += 1
-                        continue
-
-                    # Ensure types are explicitly int before passing
-                    start_val_int = int(fixed_start_rel)
-                    duration_val_int = int(constraint.durationSeconds)
-
-                    # Log the values being passed
-                    logger.debug(f"Attempting FixedDurationIntervalVar with start={start_val_int}, duration={duration_val_int}, name=FixedJob_{constraint.itemId}_Tech_{constraint.assignedTechnicianId}")
-
-                    break_interval_var = routing.solver().FixedDurationIntervalVar(
-                        start_val_int,                         # Use explicit int
-                        duration_val_int,                      # Use explicit int
-                        f"FixedJob_{constraint.itemId}_Tech_{constraint.assignedTechnicianId}"
-                    )
-
-                    # Apply the interval as a break for the specific technician
-                    interval_list = [break_interval_var]
-                    # For SetBreakIntervalsOfVehicle, the third argument `node_visit_transits`
-                    # specifies penalties/costs associated with visits happening during breaks.
-                    # We assume 0 cost here, meaning the break simply makes the time unavailable.
-                    node_visit_transits = [0] * len(interval_list)
-                    logger.debug(f"Applying interval {interval_list} with transits {node_visit_transits} for tech {constraint.assignedTechnicianId} (vehicle {vehicle_index}) due to fixed job {constraint.itemId}")
-                    time_dimension.SetBreakIntervalsOfVehicle(interval_list, vehicle_index, node_visit_transits)
-
-                except TypeError as e:
-                    logger.error(f"TypeError pre-applying fixed constraint for item {constraint.itemId}: {e}. Arguments were: start={fixed_start_rel}, duration={constraint.durationSeconds}")
-                    skipped_fixed_constraints += 1
-                except Exception as e:
-                    # Catch other potential errors during constraint processing
-                    logger.error(f"Unexpected error pre-applying fixed constraint for item {constraint.itemId}: {e}")
-                    import traceback
-                    traceback.print_exc() # Print detailed traceback for debugging
-                    skipped_fixed_constraints += 1
-            if skipped_fixed_constraints > 0:
-                 logger.warning(f"Skipped pre-applying {skipped_fixed_constraints} fixed constraints due to errors.")
+        # --- Task 8: REMOVED Pre-computation: Apply Fixed Constraints as Technician Unavailability --- 
+        # This entire block implemented the incorrect approach of using SetBreakIntervalsOfVehicle
+        # for fixed-time jobs. The correct approach (implemented in Task 7/9) is to treat 
+        # fixed-time jobs as regular items and apply a SetRange constraint directly to their
+        # time dimension variable in the "Applying Item Time Constraints" loop.
+        # logger.info("Pre-applying fixed constraints to technician time dimensions...")
+        # skipped_fixed_constraints = 0
+        # if payload.fixedConstraints:
+        #     for constraint in payload.fixedConstraints:
+        #         try:
+        #             # *** Now this lookup should work because tech_id_to_vehicle_index is defined and populated ***
+        #             vehicle_index = tech_id_to_vehicle_index.get(constraint.assignedTechnicianId)
+        # 
+        #             if vehicle_index is None:
+        #                 logger.warning(f"Technician ID {constraint.assignedTechnicianId} not found in vehicle mapping for fixed constraint item {constraint.itemId}. Skipping.")
+        #                 skipped_fixed_constraints += 1
+        #                 continue
+        # 
+        #             # Calculate absolute start/end times in seconds since Unix epoch
+        #             fixed_start_abs = iso_to_seconds(constraint.fixedTimeISO)
+        #             # Note: End time isn't strictly needed for FixedDurationIntervalVar, but useful for context/debugging
+        #             # fixed_end_abs = fixed_start_abs + constraint.durationSeconds
+        # 
+        #             # Calculate relative start/end times from the planning epoch
+        #             fixed_start_rel = fixed_start_abs - planning_epoch_seconds
+        #             # fixed_end_rel = fixed_end_abs - planning_epoch_seconds
+        # 
+        #             # *** Check for None before calling OR-Tools ***
+        #             if constraint.durationSeconds is None:
+        #                 logger.error(f"CRITICAL: DurationSeconds is None for fixed constraint item {constraint.itemId}. Skipping.")
+        #                 skipped_fixed_constraints += 1
+        #                 continue
+        #             if fixed_start_rel is None: # Less likely, but possible if time parsing failed silently
+        #                 logger.error(f"CRITICAL: fixed_start_rel is None for fixed constraint item {constraint.itemId}. Skipping.")
+        #                 skipped_fixed_constraints += 1
+        #                 continue
+        # 
+        #             # Ensure types are explicitly int before passing
+        #             start_val_int = int(fixed_start_rel)
+        #             duration_val_int = int(constraint.durationSeconds)
+        # 
+        #             # Log the values being passed
+        #             logger.debug(f"Attempting FixedDurationIntervalVar with start={start_val_int}, duration={duration_val_int}, name=FixedJob_{constraint.itemId}_Tech_{constraint.assignedTechnicianId}")
+        # 
+        #             break_interval_var = routing.solver().FixedDurationIntervalVar(
+        #                 start_val_int,                         # Use explicit int
+        #                 duration_val_int,                      # Use explicit int
+        #                 f"FixedJob_{constraint.itemId}_Tech_{constraint.assignedTechnicianId}"
+        #             )
+        # 
+        #             # Apply the interval as a break for the specific technician
+        #             interval_list = [break_interval_var]
+        #             # For SetBreakIntervalsOfVehicle, the third argument `node_visit_transits`
+        #             # specifies penalties/costs associated with visits happening during breaks.
+        #             # We assume 0 cost here, meaning the break simply makes the time unavailable.
+        #             node_visit_transits = [0] * len(interval_list)
+        #             logger.debug(f"Applying interval {interval_list} with transits {node_visit_transits} for tech {constraint.assignedTechnicianId} (vehicle {vehicle_index}) due to fixed job {constraint.itemId}")
+        #             time_dimension.SetBreakIntervalsOfVehicle(interval_list, vehicle_index, node_visit_transits)
+        # 
+        #         except TypeError as e:
+        #             logger.error(f"TypeError pre-applying fixed constraint for item {constraint.itemId}: {e}. Arguments were: start={fixed_start_rel}, duration={constraint.durationSeconds}")
+        #             skipped_fixed_constraints += 1
+        #         except Exception as e:
+        #             # Catch other potential errors during constraint processing
+        #             logger.error(f"Unexpected error pre-applying fixed constraint for item {constraint.itemId}: {e}")
+        #             import traceback
+        #             traceback.print_exc() # Print detailed traceback for debugging
+        #             skipped_fixed_constraints += 1
+        #     if skipped_fixed_constraints > 0:
+        #          logger.warning(f"Skipped pre-applying {skipped_fixed_constraints} fixed constraints due to errors.")
+        # --- End Task 8 --- 
 
         # --- Solve ---
         logger.info("Setting search parameters...") # Changed print to logger.info

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generatedAt": "2025-05-01T18:19:31.795Z",
+    "generatedAt": "2025-05-02T16:24:26.278Z",
     "tasksAnalyzed": 15,
     "thresholdScore": 5,
     "projectName": "Your Project Name",
@@ -9,123 +9,123 @@
   "complexityAnalysis": [
     {
       "taskId": 1,
-      "taskTitle": "Review and document existing logging infrastructure",
-      "complexityScore": 7,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of reviewing and documenting existing logging infrastructure into specific subtasks covering: 1) Analysis of scheduler's pino-based logger, 2) Analysis of optimizer's Python logging, 3) Comparison of current patterns between services, 4) Creation of logging standards document with specific sections, and 5) Review and approval process for the standards.",
-      "reasoning": "This task involves analyzing two different logging systems across different languages (TypeScript and Python), understanding their integration points, and creating documentation. It requires both technical analysis and documentation skills, with multiple components to investigate."
+      "taskTitle": "Modify Scheduler Orchestrator to Fetch All Fixed-Time Jobs",
+      "complexityScore": 4,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of modifying the scheduler orchestrator to fetch all fixed-time jobs into specific implementation steps, including database query creation, integration with existing code flow, error handling, and testing verification.",
+      "reasoning": "This task involves adding a new database query and storing the results, which is straightforward but requires careful integration with existing code. The complexity is moderate as it requires understanding the current orchestrator flow but doesn't involve complex algorithms."
     },
     {
       "taskId": 2,
-      "taskTitle": "Implement optimizer payload receipt logging (FEAT-LOG-001)",
-      "complexityScore": 4,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of optimizer payload receipt logging into subtasks covering: 1) Identifying the exact location in main.py to add logging, 2) Extracting and formatting the required payload details (technician count, item count, etc.), 3) Implementing the DEBUG level logging with appropriate format, and 4) Testing the implementation with sample payloads.",
-      "reasoning": "This task is relatively straightforward as it involves adding logging at a specific entry point with clearly defined data points to log. The complexity comes from properly extracting and formatting the nested data from the payload."
+      "taskTitle": "Update Today's Planning Pass to Include Fixed Jobs",
+      "complexityScore": 5,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of updating today's planning pass to include fixed-time jobs into specific implementation steps, including filtering logic, data structure integration, format conversion, logging implementation, and testing verification.",
+      "reasoning": "This task builds on Task 1 and requires filtering data, combining job lists, and ensuring correct data formats. It has moderate complexity due to the need to understand and modify the existing planning flow while maintaining data integrity."
     },
     {
       "taskId": 3,
-      "taskTitle": "Implement optimizer constraint application logging (FEAT-LOG-002)",
-      "complexityScore": 6,
+      "taskTitle": "Update Overflow Planning to Include Fixed Jobs",
+      "complexityScore": 5,
       "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the implementation of optimizer constraint application logging into subtasks covering: 1) Identifying all locations where OR-Tools constraints are applied, 2) Implementing logging for time dimension ranges, 3) Implementing logging for fixed constraints, 4) Ensuring consistent format and context across all constraint logs, and 5) Testing with various constraint scenarios.",
-      "reasoning": "This task requires deeper understanding of the OR-Tools model implementation and identifying multiple points where constraints are applied. The developer needs to understand the constraint application logic to add meaningful logs at the right points."
+      "expansionPrompt": "Break down the task of updating overflow planning to include fixed-time jobs into specific implementation steps, including date-based filtering logic, job list integration, duplicate prevention, logging implementation, and testing verification.",
+      "reasoning": "Similar to Task 2 but for overflow planning, this task requires understanding a different part of the planning flow. The added complexity comes from ensuring fixed jobs aren't duplicated if they appear in multiple job lists."
     },
     {
       "taskId": 4,
-      "taskTitle": "Implement optimizer solver status logging (FEAT-LOG-003)",
-      "complexityScore": 3,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of optimizer solver status logging into subtasks covering: 1) Locating the exact code section with routing.SolveWithParameters(), 2) Creating a mapping of status codes to human-readable meanings, 3) Implementing the INFO level logging with the status code and its meaning, and 4) Testing with scenarios that produce different status codes.",
-      "reasoning": "This is a relatively simple task that involves adding logging at a single, specific point in the code. The main work is creating a mapping of status codes to their meanings and ensuring the log is informative."
+      "taskTitle": "Modify Bundling Logic to Exclude Fixed-Time Jobs",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of modifying bundling logic to exclude fixed-time jobs into specific implementation steps, including job status checking, bundle formation logic changes, edge case handling, documentation updates, and testing verification.",
+      "reasoning": "This task involves modifying the bundling algorithm, which is more complex than simple data fetching. It requires careful consideration of how jobs are grouped and ensuring fixed-time jobs remain individual, with potential edge cases to handle."
     },
     {
       "taskId": 5,
-      "taskTitle": "Implement scheduler availability window calculation logging (FEAT-LOG-004 part 1)",
-      "complexityScore": 4,
+      "taskTitle": "Update OptimizationItem Interface for Fixed-Time Flag",
+      "complexityScore": 3,
       "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler availability window calculation logging into subtasks covering: 1) Identifying the exact location after calculateWindowsForTechnician completes, 2) Designing a readable format for TimeWindow[] arrays, 3) Implementing DEBUG level logging with appropriate context fields, and 4) Testing with various technician availability scenarios.",
-      "reasoning": "This task is moderately complex as it requires understanding the availability calculation flow and formatting potentially complex time window arrays in a readable way. The implementation point is clearly specified."
+      "expansionPrompt": "Break down the task of updating the OptimizationItem interface into specific implementation steps, including interface modification, backward compatibility checks, related type updates, and documentation additions.",
+      "reasoning": "This is a relatively simple type definition update. The main considerations are maintaining backward compatibility and ensuring all related interfaces are updated appropriately."
     },
     {
       "taskId": 6,
-      "taskTitle": "Implement scheduler locked jobs impact logging (FEAT-LOG-004 part 2)",
-      "complexityScore": 5,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler locked jobs impact logging into subtasks covering: 1) Identifying the exact location after applyLockedJobsToWindows completes, 2) Determining how to capture which locked jobs modified which windows, 3) Implementing DEBUG level logging that shows the before/after impact of locked jobs, and 4) Testing with various locked job scenarios.",
-      "reasoning": "This task is more complex than part 1 because it requires tracking how locked jobs modify availability windows, which means understanding the transformation logic and capturing the relationship between specific jobs and their impact."
+      "taskTitle": "Modify Payload Generation to Handle Fixed Jobs as Items",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the task of modifying payload generation for fixed-time jobs into specific implementation steps, including removing redundant constraint generation, implementing the isFixedTime flag, preserving fixedTimeISO field handling, updating comments, maintaining unavailability gap logic, and testing verification.",
+      "reasoning": "This task involves significant changes to how fixed-time jobs are processed in the payload. It requires careful consideration to remove old logic while preserving necessary functionality, with potential for subtle bugs if not implemented correctly."
     },
     {
       "taskId": 7,
-      "taskTitle": "Implement scheduler availability gaps logging (FEAT-LOG-005 part 1)",
-      "complexityScore": 4,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler availability gaps logging into subtasks covering: 1) Identifying the exact location after findAvailabilityGaps completes, 2) Designing a structured format for logging gaps that correlates with technicians and dates, 3) Implementing DEBUG level logging for each identified gap, and 4) Testing with scenarios that produce various gap patterns.",
-      "reasoning": "This task involves adding logging after a specific function with clearly defined data to log. The main complexity is in structuring the logs to make the relationship between gaps, technicians, and dates clear."
+      "taskTitle": "Create Fixed Job Time Lookup in Optimizer",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of creating a fixed job time lookup in the optimizer into specific implementation steps, including dictionary creation logic, time conversion handling, adaptation for isFixedTime flag, documentation updates, and testing verification.",
+      "reasoning": "This task involves working with the Python optimizer code and implementing a new data structure. The complexity comes from handling time conversions correctly and adapting to potential changes in how fixed jobs are identified."
     },
     {
       "taskId": 8,
-      "taskTitle": "Implement scheduler dummy break logging (FEAT-LOG-005 part 2)",
-      "complexityScore": 4,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler dummy break logging into subtasks covering: 1) Identifying where dummy breaks are generated in the code, 2) Determining what context is needed to associate breaks with their source gaps, 3) Implementing DEBUG level logging for each generated dummy break and constraint, and 4) Testing with scenarios that generate various dummy break patterns.",
-      "reasoning": "This task is similar in complexity to the previous one, requiring logging of generated dummy breaks and their constraints. The main challenge is ensuring the logs provide clear traceability between gaps and the resulting dummy breaks."
+      "taskTitle": "Remove Incorrect Break Interval Logic in Optimizer",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the task of removing incorrect break interval logic in the optimizer into specific implementation steps, including code identification, selective removal, preservation of necessary functionality, handling edge cases, documentation updates, and testing verification.",
+      "reasoning": "This task requires careful surgery on existing optimizer code. The complexity comes from needing to remove specific logic while preserving other functionality that may be intertwined, with high risk if done incorrectly."
     },
     {
       "taskId": 9,
-      "taskTitle": "Implement scheduler optimization payload summary logging (FEAT-LOG-005 part 3)",
-      "complexityScore": 5,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the implementation of scheduler optimization payload summary logging into subtasks covering: 1) Identifying the exact point before the payload is sent to the optimizer, 2) Extracting and counting the required summary data (technicians, items, constraints), 3) Creating a concise yet comprehensive summary format, 4) Implementing INFO level logging with the summary data, and 5) Testing with various payload sizes and compositions.",
-      "reasoning": "This task requires creating a meaningful summary of a potentially complex payload object without including excessive detail. The developer needs to balance providing enough information for diagnostics while keeping the logs manageable."
+      "taskTitle": "Implement Correct Fixed-Time Constraint in Optimizer",
+      "complexityScore": 8,
+      "recommendedSubtasks": 7,
+      "expansionPrompt": "Break down the task of implementing correct fixed-time constraints in the optimizer into specific implementation steps, including loop modification, dictionary lookup integration, SetRange constraint application, earliestStartTime handling, logging implementation, edge case handling, and testing verification.",
+      "reasoning": "This is one of the most complex tasks as it involves modifying the core constraint application logic in the optimizer. It requires deep understanding of the OR-Tools constraints and careful implementation to ensure fixed jobs are scheduled correctly."
     },
     {
       "taskId": 10,
-      "taskTitle": "Implement scheduler orchestration target date logging (FEAT-LOG-006 part 1)",
-      "complexityScore": 3,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler orchestration target date logging into subtasks covering: 1) Identifying the exact location in the runFullReplan overflow loop, 2) Determining the appropriate context to include with the target date, 3) Implementing INFO level logging at the beginning of each iteration, and 4) Testing with multi-day planning scenarios.",
-      "reasoning": "This is a relatively simple task that involves adding logging at a specific point in a loop. The main work is identifying the exact location and ensuring the log provides clear indication of the planning sequence."
+      "taskTitle": "Run and Fix Existing Fixed-Time Test",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of running and fixing the existing fixed-time test into specific implementation steps, including test execution, log analysis, constraint verification, error identification, and issue resolution.",
+      "reasoning": "This task involves debugging and fixing issues discovered during testing. The complexity comes from potentially needing to diagnose and fix subtle bugs across multiple components of the system."
     },
     {
       "taskId": 11,
-      "taskTitle": "Implement scheduler optimizer skip logging (FEAT-LOG-006 part 2)",
+      "taskTitle": "Create Integration Test for Current Day Fixed Job",
       "complexityScore": 5,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler optimizer skip logging into subtasks covering: 1) Identifying all code paths where the optimizer call might be skipped, 2) Determining the specific reasons for skipping in each case, 3) Implementing INFO level logging with the specific skip reason, and 4) Testing with scenarios that trigger each skip condition.",
-      "reasoning": "This task requires identifying multiple potential skip conditions throughout the code and adding appropriate logging for each. The developer needs to understand the orchestration flow to identify all possible skip points."
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of creating an integration test for current day fixed jobs into specific implementation steps, including test scenario setup, scheduler execution, fixed job verification, overlap checking, and log verification.",
+      "reasoning": "Creating a new integration test requires understanding the testing framework and setting up a comprehensive test scenario. The complexity is moderate as it builds on existing test patterns."
     },
     {
       "taskId": 12,
-      "taskTitle": "Implement scheduler raw optimizer response logging (FEAT-LOG-006 part 3)",
-      "complexityScore": 3,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler raw optimizer response logging into subtasks covering: 1) Identifying the exact point after receiving the response from callOptimizationService, 2) Determining how to handle potentially large response payloads in logs, 3) Implementing DEBUG level logging of the full OptimizationResponsePayload, and 4) Testing with various response types (success, failure, etc.).",
-      "reasoning": "This is a relatively straightforward task that involves logging a response payload at a specific point. The main consideration is handling potentially large payloads in a way that doesn't overwhelm the logs."
+      "taskTitle": "Create Integration Test for Tight Availability Scenarios",
+      "complexityScore": 6,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the task of creating integration tests for tight availability scenarios into specific implementation steps, including today's test setup, overflow day test setup, availability window configuration, competing job creation, verification logic implementation, and log analysis.",
+      "reasoning": "This task involves creating more complex test scenarios with tight constraints. The complexity comes from setting up precise availability windows and ensuring the tests correctly verify the expected behavior in challenging scenarios."
     },
     {
       "taskId": 13,
-      "taskTitle": "Implement scheduler job state update logging (FEAT-LOG-006 part 4)",
+      "taskTitle": "Create Integration Test for Ineligible Technician Scenario",
       "complexityScore": 5,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler job state update logging into subtasks covering: 1) Identifying where job states are updated after processing optimization results, 2) Determining what job state information is most relevant to log, 3) Implementing DEBUG level logging for each job's state changes, and 4) Testing with scenarios that produce various job state transitions.",
-      "reasoning": "This task requires understanding how job states are updated after optimization and adding logging that captures the key state changes. The developer needs to identify the relevant points in the code and determine what information is most useful to log."
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of creating an integration test for ineligible technician scenarios into specific implementation steps, including test setup, technician ineligibility implementation, scheduler execution, pending_review verification, and log analysis.",
+      "reasoning": "This test requires understanding how technician eligibility works and how to manipulate it. The complexity is moderate as it tests an edge case that requires specific knowledge of the eligibility system."
     },
     {
       "taskId": 14,
-      "taskTitle": "Implement scheduler result processing logging (FEAT-LOG-007)",
-      "complexityScore": 4,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the implementation of scheduler result processing logging into subtasks covering: 1) Identifying the exact beginning of processOptimizationResults, 2) Extracting the required information (status, message, routes, unassigned items), 3) Implementing INFO level logging with clear indication of error conditions, and 4) Testing with various response scenarios including errors.",
-      "reasoning": "This task involves adding logging at a specific point with clearly defined data points. The main complexity is ensuring the logs provide clear indication of the optimization outcome, especially in error cases."
+      "taskTitle": "Create Integration Test for Fixed Job with Other Order Jobs",
+      "complexityScore": 5,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the task of creating an integration test for fixed jobs with other order jobs into specific implementation steps, including order with multiple jobs setup, scheduler execution, bundle verification, fixed job time verification, related job scheduling verification, and log analysis.",
+      "reasoning": "This test focuses on the interaction between bundling and fixed jobs. The complexity is moderate as it requires setting up a specific scenario with multiple jobs in an order and verifying their scheduling behavior."
     },
     {
       "taskId": 15,
-      "taskTitle": "Validate and test all logging enhancements",
-      "complexityScore": 8,
-      "recommendedSubtasks": 6,
-      "expansionPrompt": "Break down the validation and testing of all logging enhancements into subtasks covering: 1) Running integration tests with focus on availability_overflow_skip_day, 2) Creating a comprehensive checklist of all required log points, 3) Verifying appropriate log levels across all implementations, 4) Checking context completeness in all logs, 5) Validating the end-to-end traceability of system behavior through logs, and 6) Documenting any gaps or improvements needed.",
-      "reasoning": "This is a complex task that involves validating all the previous logging implementations across both services. It requires running tests, manually inspecting logs, and verifying that they collectively provide the intended diagnostic value. The comprehensive nature makes this more complex than individual implementation tasks."
+      "taskTitle": "Update Documentation and Code Comments",
+      "complexityScore": 4,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of updating documentation and code comments into specific implementation steps, including PRD updates for each relevant section, code comment updates for each modified file, architecture documentation updates, and final review for consistency.",
+      "reasoning": "This task involves updating documentation across multiple files. While not technically complex, it requires a comprehensive understanding of all the changes made to ensure documentation accurately reflects the new implementation."
     }
   ]
 }

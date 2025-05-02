@@ -33,6 +33,10 @@ export interface OptimizationItem {
   priority: number;
   eligibleTechnicianIds: number[]; // List of tech IDs who can perform this item
   earliestStartTimeISO?: string; // Optional: Earliest time the item can start (ISO 8601)
+  /** Optional: ISO 8601 string for the mandatory start time if this item is fixed. */
+  fixedTimeISO?: string;
+  /** Optional: True if this item represents a fixed-time job. */
+  isFixedTime?: boolean;
 }
 
 /**

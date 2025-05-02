@@ -25,6 +25,9 @@ class OptimizationItem(BaseModel):
     durationSeconds: int    # Service duration in seconds
     priority: int
     eligibleTechnicianIds: List[int] # List of tech IDs who can perform this item
+    earliestStartTimeISO: Optional[str] = None
+    isFixedTime: Optional[bool] = None
+    fixedTimeISO: Optional[str] = None
 
 class OptimizationFixedConstraint(BaseModel):
     itemId: str             # ID of the OptimizationItem this applies to

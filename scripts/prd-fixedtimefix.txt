@@ -1,0 +1,158 @@
+\
+**Implementation Plan: Fixed-Time Job Constraint Refactoring**
+
+**Version:** 1.0
+**Date:** 2024-08-01
+
+**1. Goal**
+
+To correctly enforce fixed-time job constraints (`fixed_schedule_time`) in the scheduling system by ensuring the optimizer plans these jobs at their specific location and time, preventing overlaps with other jobs. This involves modifying both the Scheduler and Optimizer components.
+
+**2. Background**
+
+The previous implementation attempted to use OR-Tools `SetBreakIntervalsOfVehicle` based on `fixedConstraints` passed in the payload. This was incorrect because:
+*   It only blocked the technician's *time*, not enforcing a visit to the *specific job location*.
+*   It failed when the fixed job wasn't part of the set of items being actively routed in a specific optimizer pass (e.g., overflow passes).
+*   This led to overlaps, as seen in the `fixed_time_future_overflow` test case, where other jobs were scheduled during the fixed job's required time slot.
+
+**3. Verified Solution Overview**
+
+The correct approach, validated against OR-Tools documentation and best practices (see `scripts/prd-opimiser.txt`, Context7, Perplexity results):
+
+1.  **Scheduler:** Include the fixed job as a regular schedulable item (`payload.items`) *only* in the planning pass for the specific day the job is scheduled.
+2.  **Optimizer:** Apply an exact time constraint `time_dimension.CumulVar(node_index).SetRange(fixed_time, fixed_time)` directly to the node representing the fixed job item. Remove the faulty `SetBreakIntervalsOfVehicle` logic for fixed jobs.
+
+**4. Implementation Tasks**
+
+**4.1. Scheduler Modifications (`apps/scheduler`)**
+
+*   **Task 1.1: Modify Orchestrator Logic (`src/scheduler/orchestrator.ts`)**
+    *   **Goal:** Ensure fixed jobs are included as items for the correct planning day.
+    *   **Action:**
+        *   Fetch *all* jobs with `status = 'fixed_time'` initially (e.g., `allFixedTimeJobs`).
+        *   Inside `runFullReplan`, before the "Today" planning pass (`planJobsForDate` or similar):
+            *   Filter `allFixedTimeJobs` to get `fixedJobsForToday` (where `fixed_schedule_time` matches today's date).
+            *   Combine `fixedJobsForToday` with the `queuedJobs` (or equivalent list being planned) that are passed to the bundling/eligibility/payload steps. Ensure they are represented as `JobWithRelations` or similar structure.
+        *   Inside the overflow loop (e.g., `planOverflowDay`):
+            *   Filter `allFixedTimeJobs` to get `fixedJobsForTargetOverflowDay` (where `fixed_schedule_time` matches the `targetDate` of the overflow pass).
+            *   Combine `fixedJobsForTargetOverflowDay` with the `remainingJobsToPlan` list *before* passing them to the bundling/eligibility/payload steps for that overflow day.
+        *   **Verification:** Ensure fixed jobs are *not* duplicated if they are also `queued`. Ensure fixed jobs are *not* treated as `lockedJobs` for availability calculation *unless* their status is also `en_route` or `in_progress`.
+*   **Task 1.2: Modify Bundling Logic (`src/scheduler/bundling.ts`)**
+    *   **Goal:** Prevent fixed-time jobs from being bundled.
+    *   **Action:**
+        *   Modify the `bundleJobs` (or equivalent) function.
+        *   Add logic to check if a `Job` has `status === 'fixed_time'`.
+        *   If a job is `fixed_time`, it should *always* be treated as an individual `SchedulableJob` and never grouped into a `JobBundle`, even if other jobs exist for the same order.
+*   **Task 1.3: Modify Payload Generation (`src/scheduler/payload.ts`)**
+    *   **Goal:** Adapt payload creation to handle fixed jobs as items and remove redundant constraint generation.
+    *   **Action:**
+        *   The `prepareOptimizationPayload` function will now receive fixed jobs mixed in with other jobs in its main `items` input list.
+        *   **Remove** any existing logic that iterates over a separate `fixedTimeJobs` input parameter to generate entries in the `payload.fixedConstraints` array.
+        *   **(Optional but Recommended):** Consider adding a flag (e.g., `isFixedTime: boolean`) to the `OptimizationItem` interface (`src/types/optimization.types.ts`) and set it to `true` when converting a fixed job. This makes identification easier in the optimizer.
+        *   **Note:** The `payload.fixedConstraints` array might still be needed later for modeling unavailability gaps (dummy breaks) as per PRD FR-SCHED-007. The logic removed should only be the part related to *actual* fixed jobs.
+
+**4.2. Optimizer Modifications (`apps/optimiser`)**
+
+*   **Task 2.1: Modify Constraint Application (`main.py`)**
+    *   **Goal:** Remove incorrect break logic and apply correct fixed-time constraint to item nodes.
+    *   **Action:**
+        *   Locate the loop `--- Pre-computation: Apply Fixed Constraints as Technician Unavailability ---`.
+        *   **Remove** or comment out the code inside this loop that processes `payload.fixedConstraints` to call `FixedDurationIntervalVar` and `SetBreakIntervalsOfVehicle` for *actual* fixed jobs (based on `constraint.itemId` likely starting with "job_"). *Carefully preserve* this loop structure if it's also intended to handle dummy breaks/unavailability gaps later, perhaps by checking the format or type of the `constraint.itemId`. If its *only* use was for the broken fixed job logic, remove the whole block.
+        *   Locate the loop `--- Applying Item Time Constraints (Fixed & Earliest Start) ---`.
+        *   **Modify this loop:**
+            *   **Before the loop:** Create a lookup dictionary mapping item IDs to their fixed start times: `fixed_job_times = {fc.itemId: iso_to_seconds(fc.fixedTimeISO) - planning_epoch_seconds for fc in payload.fixedConstraints if fc.itemId.startswith('job_')}`. (Assumes `fixedConstraints` still contains the original fixed job info, even if not used for breaks anymore. If the scheduler stops sending this, the optimizer needs the `isFixedTime` flag and `fixedTimeISO` on the `OptimizationItem` itself).
+            *   **Inside the loop (for each `item`):**
+                *   Check if `item.id` is in `fixed_job_times`.
+                *   **If YES (Fixed Job):**
+                    *   Get `fixed_time_rel = fixed_job_times[item.id]`.
+                    *   Apply the exact time constraint: `time_dimension.CumulVar(solver_index).SetRange(fixed_time_rel, fixed_time_rel)`.
+                    *   Log the application of this fixed constraint.
+                    *   *Skip* applying any `earliestStartTimeISO` constraint (`SetMin`) for this fixed item.
+                *   **If NO (Not a Fixed Job):**
+                    *   Apply the existing logic for `earliestStartTimeISO` if present (`time_dimension.CumulVar(solver_index).SetMin(earliest_start_rel)`).
+
+**4.3. Testing**
+
+*   **Task 3.1: Re-run Existing Test (`fixed_time_future_overflow`)**
+    *   **Goal:** Verify the primary bug is fixed.
+    *   **Action:** Execute the `fixed_time_future_overflow` integration test (`tests/integration/scheduler/fixed_time_future_overflow.test.ts`).
+    *   **Verification:**
+        *   Check scheduler logs: Ensure Job 1 is included in the `items` sent to the optimizer for the May 5th pass.
+        *   Check optimizer logs: Ensure the `SetRange(t, t)` constraint is applied to Job 1's node, and the previous `SetBreakIntervalsOfVehicle` call for Job 1 is gone. Confirm no `TypeError` or `NameError`.
+        *   Check final DB state/scheduler summary logs: Confirm Job 1 is scheduled 10:00-12:00 and no other jobs overlap this window for Technician 1.
+*   **Task 3.2: Add New Integration Tests**
+    *   **Goal:** Ensure robustness across different scenarios.
+    *   **Action:** Create new test scenarios and corresponding integration tests (`tests/integration/scheduler/`) covering:
+        *   A simple fixed job scheduled for the *current* day.
+        *   A fixed job today where availability is tight around the fixed time.
+        *   A fixed job in an overflow day where availability is tight.
+        *   A fixed job where the assigned technician becomes ineligible *before* the optimizer run (e.g., required equipment removed). Verify it's marked `pending_review`.
+        *   (Optional) A fixed job belonging to an order with other non-fixed jobs. Verify bundling exclusion and correct scheduling.
+
+**4.4. Documentation**
+
+*   **Task 4.1: Update PRD (`scripts/prd-opimiser.txt`)**
+    *   **Goal:** Reflect the implemented solution accurately.
+    *   **Action:** Modify relevant sections (esp. FR-SCHED-007, FR-SCHED-009, FR-SCHED-011) to describe the new mechanism: fixed jobs included as items, `SetRange` applied by optimizer, removal of `SetBreakIntervalsOfVehicle` for fixed jobs.
+*   **Task 4.2: Update Code Comments & Architecture Docs**
+    *   **Goal:** Ensure documentation matches the code.
+    *   **Action:** Add/update comments in `orchestrator.ts`, `payload.ts`, and `main.py` explaining the fixed-time handling. Update any relevant diagrams or descriptions in `docs/architecture/` or `docs/reference/`.
+
+**5. Definition of Done**
+
+*   All code changes in Scheduler and Optimizer are implemented.
+*   The `fixed_time_future_overflow` test passes consistently.
+*   New integration tests covering different fixed-time scenarios are created and pass.
+*   Documentation (PRD, code comments, architecture docs) is updated to reflect the changes.
+*   Code is reviewed and merged. 
+
+**Appendix: Validation Data**
+
+This section provides supporting information validating the chosen solution.
+
+**A.1 Context7 (OR-Tools Documentation Snippets)**
+
+Examples from OR-Tools documentation show that time window constraints (which can be used for exact times by setting start=end) are applied directly to the node's cumulative time variable using `SetRange`:
+
+*Source: vrp_time_windows.ipynb*
+```python
+# Add time window constraints for each location except depot.
+for location_idx, time_window in enumerate(data["time_windows"]):
+    if location_idx == data["depot"]:
+        continue
+    index = manager.NodeToIndex(location_idx)
+    # Apply the constraint to the location's cumulative time variable
+    # For an exact time t, this becomes SetRange(t, t)
+    time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
+```
+
+*Source: cvrptw_plot.ipynb*
+```python
+# Add a dimension for time and a limit on the total time_horizon
+routing.AddDimension(
+    tot_time_fn_index,  # total time function callback
+    customers.time_horizon,
+    customers.time_horizon,
+    True,
+    'Time')
+
+time_dimension = routing.GetDimensionOrDie('Time')
+# Apply time window constraints to customer nodes
+for cust in customers.customers:
+    if cust.tw_open is not None:
+        # For an exact time t, this becomes SetRange(t, t)
+        time_dimension.CumulVar(manager.NodeToIndex(cust.index)).SetRange(
+            cust.tw_open.seconds, cust.tw_close.seconds)
+```
+
+These examples confirm that constraining the node's `CumulVar` is the standard method.
+
+**A.2 Perplexity Confirmation**
+
+A query to Perplexity confirmed the following best practices for modeling fixed-time appointments in OR-Tools VRP:
+
+*   **Standard Method:** The standard and recommended way is to **include the fixed job as a node** in the routing problem for the day it occurs.
+*   **Constraint Application:** Constraints should be applied **directly to the time dimension variable** associated with that specific node using `time_dimension.CumulVar(node_index).SetRange(fixed_start_time, fixed_start_time)`.
+*   **Break Intervals (`SetBreakIntervalsOfVehicle`):** This method is explicitly **not suitable** for fixed appointments at specific locations. It is intended for general technician unavailability (e.g., lunch breaks) and does not enforce a visit to the required location.
+
+This external validation supports the decision to refactor the implementation to include fixed jobs as items and use the `SetRange` constraint directly on their nodes. 

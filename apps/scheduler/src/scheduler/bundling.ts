@@ -5,25 +5,44 @@ import { logger } from '../utils/logger'; // Import logger
  * Groups 'queued' jobs by order_id to create bundles and identify single jobs.
  * Calculates total duration and highest priority for bundles.
  *
- * @param {Job[]} queuedJobs - An array of jobs with status 'queued'.
+ * @param {Job[]} jobsToProcess - An array of jobs with status 'queued'.
  * @returns {SchedulableItem[]} An array containing JobBundle objects and SchedulableJob objects.
  */
-export function bundleQueuedJobs(queuedJobs: Job[]): SchedulableItem[] {
-  // console.log(`Processing ${queuedJobs.length} queued jobs for bundling...`);
-  logger.info(`Processing ${queuedJobs.length} queued jobs for bundling...`);
+export function bundleQueuedJobs(jobsToProcess: Job[]): SchedulableItem[] {
+  logger.info(`Processing ${jobsToProcess.length} jobs for bundling...`);
   const jobsByOrderId = new Map<number, Job[]>();
+  const schedulableItems: SchedulableItem[] = [];
+  const nonFixedTimeJobs: Job[] = [];
 
-  // Group jobs by order_id
-  for (const job of queuedJobs) {
+  // --- Start: Separate Fixed-Time Jobs --- 
+  for (const job of jobsToProcess) {
+    if (job.status === 'fixed_time') {
+        // Fixed-time jobs are always treated as individual items
+        const schedulableJob: SchedulableJob = {
+            ...job,
+            eligibleTechnicians: [], // To be filled later
+            originalItem: job, // Reference original
+        };
+        schedulableItems.push(schedulableJob);
+        logger.debug(`Identified fixed-time Job ID ${job.id} (Order ID ${job.order_id}). Treating as individual item.`);
+    } else {
+        // Collect non-fixed-time jobs for potential bundling
+        nonFixedTimeJobs.push(job);
+    }
+  }
+  logger.info(`Separated ${schedulableItems.length} fixed-time jobs. Processing ${nonFixedTimeJobs.length} remaining jobs for bundling.`);
+  // --- End: Separate Fixed-Time Jobs --- 
+
+  // --- Start: Group and Bundle NON-Fixed-Time Jobs --- 
+  // Group remaining non-fixed-time jobs by order_id
+  for (const job of nonFixedTimeJobs) {
     if (!jobsByOrderId.has(job.order_id)) {
       jobsByOrderId.set(job.order_id, []);
     }
     jobsByOrderId.get(job.order_id)?.push(job);
   }
 
-  const schedulableItems: SchedulableItem[] = [];
-
-  // Process each group
+  // Process each group of non-fixed-time jobs
   for (const [orderId, jobs] of jobsByOrderId.entries()) {
     if (jobs.length > 1) {
       // Create a bundle
@@ -56,12 +75,12 @@ export function bundleQueuedJobs(queuedJobs: Job[]): SchedulableItem[] {
       };
       schedulableItems.push(schedulableJob);
        //  console.log(`Identified single Job ID ${singleJob.id} (Order ID ${orderId}). Priority: ${singleJob.priority}, Duration: ${singleJob.job_duration} mins.`);
-       logger.debug(`Identified single Job ID ${singleJob.id} (Order ID ${orderId}). Priority: ${singleJob.priority}, Duration: ${singleJob.job_duration} mins.`);
+       logger.debug(`Identified single non-fixed Job ID ${singleJob.id} (Order ID ${orderId}). Priority: ${singleJob.priority}, Duration: ${singleJob.job_duration} mins.`);
     }
   }
+  // --- End: Group and Bundle NON-Fixed-Time Jobs --- 
 
-  // console.log(`Created ${schedulableItems.length} schedulable items (bundles or single jobs).`);
-  logger.info(`Created ${schedulableItems.length} schedulable items (bundles or single jobs).`);
+  logger.info(`Created ${schedulableItems.length} total schedulable items (fixed jobs, bundles, or single non-fixed jobs).`);
   return schedulableItems;
 }
 
