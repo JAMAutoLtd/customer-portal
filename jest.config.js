@@ -40,5 +40,5 @@ module.exports = {
   // coverageProvider: "v8",
 
   // Increase timeout for integration tests which might take longer
-  testTimeout: 60000, // 60 seconds
+  testTimeout: 20000, // 20 seconds
 }; 

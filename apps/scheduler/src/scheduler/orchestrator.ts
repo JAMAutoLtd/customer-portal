@@ -4,9 +4,13 @@ import { getRelevantJobs, getJobsByStatus } from '../supabase/jobs';
 import { 
     Job, JobStatus, Technician, JobBundle, SchedulableItem, 
     TechnicianAvailability, Address, SchedulableJob, VanEquipment,
-    FailureReason, isPersistentFailure, SchedulingAttempt, JobSchedulingState 
+    FailureReason, isPersistentFailure, SchedulingAttempt, JobSchedulingState
 } from '../types/database.types';
-import { calculateTechnicianAvailability, calculateAvailabilityForDay, formatDateToString, calculateWindowsForTechnician } from './availability';
+import { 
+    calculateTechnicianAvailability, calculateAvailabilityForDay, 
+    formatDateToString, calculateWindowsForTechnician, applyLockedJobsToWindows,
+    TimeWindow, DailyAvailabilityWindows
+} from './availability';
 import { bundleQueuedJobs, mapItemsToJobIds } from './bundling';
 import { determineTechnicianEligibility, EligibilityResult, IneligibleItem } from './eligibility';
 import { prepareOptimizationPayload } from './payload';
@@ -190,6 +194,50 @@ async function logSchedulingSummary(
 }
 // --- End: Modify logSchedulingSummary signature and logic ---
 
+// --- Start: Helper function for updating job states on skipped days ---
+/**
+ * Updates the internal state of pending/transient jobs when a planning day is skipped 
+ * due to lack of overall technician availability.
+ * Adds a SchedulingAttempt with the specified failure reason for the skipped date.
+ *
+ * @param jobStates Map tracking the scheduling state of each job.
+ * @param skippedDateStr The date (YYYY-MM-DD) that was skipped.
+ * @param failureReason The reason the day was skipped (e.g., NO_TECHNICIAN_AVAILABILITY).
+ * @param passIdentifier String identifying which pass was skipped (e.g., "Pass 1 (Today)").
+ */
+function updateJobStatesForSkippedDay(
+    jobStates: Map<number, JobSchedulingState>,
+    skippedDateStr: string, // YYYY-MM-DD
+    failureReason: FailureReason,
+    passIdentifier: string // e.g., "Pass 1 (Today)" or "Overflow Pass X"
+): void {
+    logger.info(`Updating job states due to skipped planning day: ${skippedDateStr} (${passIdentifier})`);
+    const jobIdsToUpdate = Array.from(jobStates.keys());
+    let updatedCount = 0;
+    jobIdsToUpdate.forEach(jobId => {
+        const state = jobStates.get(jobId);
+        if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
+            const attempt = createAttempt(skippedDateStr, false, failureReason);
+            state.attempts.push(attempt);
+            state.lastStatus = 'failed_transient'; 
+            jobStates.set(jobId, state);
+            logger.debug(`Updating job state (${failureReason} - ${passIdentifier} Skip)`, {
+                jobId: jobId,
+                newStatus: state.lastStatus,
+                failureReason: failureReason,
+                planningDay: skippedDateStr,
+                passIdentifier: passIdentifier
+            });
+            updatedCount++;
+        } else if (!state) {
+            logger.error(`Could not find state for job ID ${jobId} during ${failureReason} update for ${skippedDateStr}.`);
+        }
+        // If state.lastStatus is already 'scheduled' or 'failed_persistent', do nothing.
+    });
+    logger.info(`Finished updating states for ${updatedCount} pending/transient jobs for skipped day ${skippedDateStr}.`);
+}
+// --- End: Helper function ---
+
 /**
  * Orchestrates the full job replanning process for a given day and subsequent overflow days.
  * Fetches necessary data, calculates availability, bundles jobs, determines eligibility,
@@ -210,6 +258,9 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
   const eligibleItemMapForPass = new Map<string, SchedulableItem>();
   let allFetchedJobsMap = new Map<number, Job>();
   let collectedDirectionLinks: string[] = [];
+  // --- Start Refactoring: Initialize finalUpdates early ---
+  const finalUpdates: JobUpdateOperation[] = [];
+  // --- End Refactoring ---
 
   try {
     // Log entry into the try block
@@ -281,7 +332,62 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
     logger.info(`Initial state (after GPS check): ${initialPendingCount} jobs to plan, ${lockedJobsToday.length} locked.`);
 
     // ========================================\n    // == Pass 1: Plan for Today             ==\n    // ========================================
-    if (Array.from(jobStates.values()).filter(s => s.lastStatus === 'pending').length > 0) {
+    // --- Start: Availability Pre-Check for Today (FR-ORCH-SKIP-001) ---
+    // Before committing to planning for today, check if *any* technician has *any*
+    // availability window after considering their default hours, exceptions, AND
+    // any jobs already locked for today (e.g., en_route, in_progress, fixed_time).
+    logger.info('Step 1.0: Performing availability pre-check for today...');
+    let isAnyTechAvailableToday = false;
+    const todayDate = new Date();
+    const todayDateStr = formatDateToString(todayDate);
+
+    for (const tech of allTechnicians) {
+        // Calculate base windows for today (just for this one day is efficient enough here)
+        const baseWindowsMap: DailyAvailabilityWindows = calculateWindowsForTechnician(tech, todayDate, todayDate);
+        
+        // Apply locked jobs for today
+        const lockedJobsForTechToday = lockedJobsToday.filter(j => j.assigned_technician === tech.id);
+        const finalWindowsMapToday: DailyAvailabilityWindows = applyLockedJobsToWindows(
+            baseWindowsMap,         // Pass the full map
+            lockedJobsForTechToday,
+            tech.id,                // Pass tech ID
+            todayDate               // Pass the target date
+        );
+
+        // Get the windows specifically for today from the result map
+        const finalWindowsArrayToday: TimeWindow[] = finalWindowsMapToday.get(todayDateStr) || [];
+
+        // Check the length of the array for today
+        if (finalWindowsArrayToday.length > 0) {
+            isAnyTechAvailableToday = true;
+            logger.debug(`Technician ${tech.id} has calculated availability today.`);
+            break; // Found an available tech
+        }
+    }
+
+    if (isAnyTechAvailableToday) {
+        logger.info('Availability pre-check passed: At least one technician is available today.');
+    } else {
+        logger.warn('Availability pre-check failed: No technicians have calculated availability windows for today after considering locked jobs.');
+    }
+    // --- End: Availability Pre-Check for Today ---
+
+    // --- Start Refactoring: Check overall availability before planning pass ---
+    // let isAnyTechAvailableToday = false; // Removed - calculated above
+    // for (const tech of allTechnicians) { // Removed - calculated above
+    //     const techWindows = calculateWindowsForTechnician(tech, new Date(), new Date()); // Removed - calculated above
+    //     if (techWindows.has(formatDateToString(new Date()))) { // Removed - calculated above
+    //         isAnyTechAvailableToday = true; // Removed - calculated above
+    //         break; // Removed - calculated above
+    //     }
+    // }
+    // --- End Refactoring ---
+
+    // --- Start Refactoring: Conditionally execute Pass 1 ---
+    // Only proceed with Pass 1 if:
+    // 1. There are jobs currently in a state that needs planning (pending or failed_transient).
+    // 2. The availability pre-check above confirmed at least one technician is available today.
+    if (Array.from(jobStates.values()).filter(s => s.lastStatus === 'pending' || s.lastStatus === 'failed_transient').length > 0 && isAnyTechAvailableToday) { // Modified condition
         logger.info('\n--- Pass 1: Planning for Today ---');
         eligibleItemMapForPass.clear(); // Ensure map is clear for this pass
         const currentPlanningDate = new Date();
@@ -305,37 +411,70 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         const { eligibleItems: eligibleItemsTodayRaw, ineligibleItems: ineligibleItemsToday }: EligibilityResult = 
             await determineTechnicianEligibility(bundledItemsToday, allTechnicians);
         
+        // --- Start Refactoring: Handle Ineligible Fixed Jobs (Today) ---
         ineligibleItemsToday.forEach(ineligible => {
-            // --- Start: Fix Linter Error - Handle SchedulableItem union type ---
-            const itemIdString = 'jobs' in ineligible.item 
-                ? `bundle_${ineligible.item.order_id}` 
+            const itemIdString = 'jobs' in ineligible.item
+                ? `bundle_${ineligible.item.order_id}`
                 : `job_${ineligible.item.id}`;
             const itemJobIds = mapItemsToJobIds([itemIdString], new Map([[itemIdString, ineligible.item]]));
-            // --- End: Fix Linter Error ---
+
             itemJobIds.forEach(jobId => {
-                const state = jobStates.get(jobId);
-                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
-                    const attempt = createAttempt(planningDateStr, false, ineligible.reason);
-                    state.attempts.push(attempt);
-                    if (isPersistentFailure(ineligible.reason)) {
-                        state.lastStatus = 'failed_persistent';
-                        logger.debug(`   -> Job ${jobId} marked failed_persistent due to ${ineligible.reason}`);
-                    } else {
-                        state.lastStatus = 'failed_transient'; 
+                const originalJob = allFetchedJobsMap.get(jobId); // Get original job details
+
+                // Check if it's a fixed job that failed eligibility persistently
+                if (originalJob && originalJob.status === 'fixed_time' && isPersistentFailure(ineligible.reason)) {
+                     logger.warn(`Fixed job ${jobId} failed persistent eligibility check (${ineligible.reason}). Marking for pending_review.`);
+                     // Directly mark for final DB update to pending_review
+                     finalUpdates.push({
+                         jobId: jobId,
+                         data: {
+                             status: PENDING_REVIEW_STATUS,
+                             assigned_technician: null,
+                             estimated_sched: null,
+                         }
+                     });
+                     // Remove from jobStates if it somehow got added (defensive)
+                     jobStates.delete(jobId);
+                } else {
+                    // Original logic for non-fixed jobs or transient failures
+                    const state = jobStates.get(jobId);
+                    if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
+                        const attempt = createAttempt(planningDateStr, false, ineligible.reason);
+                        state.attempts.push(attempt);
+                        if (isPersistentFailure(ineligible.reason)) {
+                            state.lastStatus = 'failed_persistent';
+                            logger.debug(`   -> Job ${jobId} marked failed_persistent due to ${ineligible.reason}`);
+                        } else {
+                            state.lastStatus = 'failed_transient';
+                        }
+                        jobStates.set(jobId, state);
                     }
-                    jobStates.set(jobId, state);
+                    // If state doesn't exist or is already 'scheduled'/'failed_persistent', do nothing here
+                    // (Fixed jobs failing eligibility are handled above)
                 }
             });
         });
+        // --- End Refactoring ---
         
-        eligibleItemsTodayRaw.forEach(item => {
+        // Filter eligibleItemsTodayRaw based on whether their constituent jobs were marked 'failed_persistent' directly above
+        const eligibleItemsToday = eligibleItemsTodayRaw.filter(item => {
+            const itemIdString = 'jobs' in item ? `bundle_${item.order_id}` : `job_${item.id}`;
+            const itemJobIds = mapItemsToJobIds([itemIdString], new Map([[itemIdString, item]]));
+            // Keep the item only if ALL its constituent jobs were NOT directly marked for pending_review in finalUpdates
+            return Array.from(itemJobIds).every(jobId => 
+                !finalUpdates.some(upd => upd.jobId === jobId && upd.data.status === PENDING_REVIEW_STATUS)
+            );
+        });
+        
+        // Update eligibleItemMapForPass with the *filtered* list
+        eligibleItemsToday.forEach(item => {
             if ('jobs' in item) {
                 eligibleItemMapForPass.set(`bundle_${item.order_id}`, item);
             } else {
                 eligibleItemMapForPass.set(`job_${item.id}`, item);
             }
         });
-        const eligibleItemCountPass1 = eligibleItemsTodayRaw.length;
+        const eligibleItemCountPass1 = eligibleItemsToday.length;
         logger.info(`   -> Found ${eligibleItemCountPass1} eligible item(s) for Pass 1.`);
 
         if (eligibleItemCountPass1 > 0) {
@@ -343,7 +482,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             const targetDateToday = new Date(); 
             const optimizationPayloadToday = await prepareOptimizationPayload(
                 allTechnicians, 
-                eligibleItemsTodayRaw,
+                eligibleItemsToday,
                 lockedJobsToday, 
                 targetDateToday 
             );
@@ -482,14 +621,21 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                 logger.info('No items could be prepared for optimization payload for today (all filtered?).');
             }
         } else {
-            // <<< Add Logging for Optimizer Skip >>>
-            logger.info("Optimizer call skipped for today: No eligible items.", {
-                reason: "no_eligible_items",
-                targetDate: planningDateStr,
-                passNumber: 1
-            });
-            // <<< End Logging >>>
-            logger.info('No initial jobs to plan for today.');
+            // --- Start: Handle skipped Pass 1 due to NO availability or NO jobs (FR-ORCH-SKIP-002, FR-ORCH-SKIP-003) ---
+            if (!isAnyTechAvailableToday) {
+                logger.warn("Skipping Pass 1 (Today): No technicians have availability windows for today.");
+                // Use helper to update job states
+                updateJobStatesForSkippedDay(
+                    jobStates,
+                    todayDateStr, // Use the date string calculated earlier
+                    FailureReason.NO_TECHNICIAN_AVAILABILITY,
+                    "Pass 1 (Today)"
+                );
+            } else {
+                // This case means no jobs were pending/transient initially, but techs WERE available
+                logger.info('Pass 1 skipped: No initial jobs were pending or transiently failed.');
+            }
+            // --- End: Handle skipped Pass 1 ---
         }
     } else {
         logger.info('No initial jobs to plan for today.');
@@ -524,44 +670,90 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             break;
         }
 
-        // <<< Calculate availability for this specific date >>>
-        let isAnyTechAvailable = false;
+        // <<< Calculate availability for this specific date (FR-ORCH-SKIP-004) >>>
+        // Before committing to planning for this specific overflow day, check if *any*
+        // technician has *any* availability based on their default hours and exceptions.
+        // Locked jobs are not considered here as they are only relevant for the current day (Pass 1).
+        logger.info(`Step ${loopCount}.1.1: Performing availability pre-check for ${planningDateStr}...`);
+        let isAnyTechAvailableThisDate = false;
         for (const tech of techsForLoop) {
-            const techWindows = calculateWindowsForTechnician(tech, currentPlanningDate, currentPlanningDate);
-            if (techWindows.has(planningDateStr) && (techWindows.get(planningDateStr)?.length ?? 0) > 0) {
-                isAnyTechAvailable = true;
-                break; // Found at least one available tech, no need to check further
+            // Use the function to get windows for this specific day
+            const baseWindowsMap: DailyAvailabilityWindows = calculateWindowsForTechnician(tech, currentPlanningDate, currentPlanningDate);
+            
+            // Apply locked jobs relevant for this future date (e.g., fixed jobs)
+            // Note: PRD didn't strictly require this for overflow, but it's safer.
+            const lockedJobsForTechThisDay = allFixedTimeJobsFromDB.filter(j => 
+                j.assigned_technician === tech.id && 
+                j.fixed_schedule_time && 
+                isDateOnDay(j.fixed_schedule_time, currentPlanningDate)
+            );
+
+            const finalWindowsMapThisDay: DailyAvailabilityWindows = applyLockedJobsToWindows(
+                baseWindowsMap,             // Pass the full map
+                lockedJobsForTechThisDay,   // Pass only relevant fixed jobs for this day
+                tech.id,                    // Pass tech ID
+                currentPlanningDate         // Pass the target date
+            );
+
+            // Get the windows specifically for this date from the result map
+            const finalWindowsArrayThisDay: TimeWindow[] = finalWindowsMapThisDay.get(planningDateStr) || [];
+
+            // Check the length of the array for this date
+            if (finalWindowsArrayThisDay.length > 0) {
+                isAnyTechAvailableThisDate = true;
+                logger.debug(`Technician ${tech.id} has calculated availability for ${planningDateStr}.`);
+                break; // Found one, no need to check others for this specific check
             }
         }
 
+        if (isAnyTechAvailableThisDate) {
+            logger.info(`Availability pre-check passed for ${planningDateStr}.`);
+        } else {
+            logger.warn(`Availability pre-check failed for ${planningDateStr}: No technicians found with availability.`);
+        }
+        // <<< End availability check >>>
+        
         // <<< Add check to skip if no techs have availability >>>
-        if (!isAnyTechAvailable) {
-            logger.info(`Optimizer call skipped for overflow pass ${loopCount}: No technicians have availability windows for ${planningDateStr}.`, {
+        // If the pre-check found no available technicians for this specific overflow date,
+        // skip the rest of the processing for this day and update job states accordingly.
+        if (!isAnyTechAvailableThisDate) { // Use the flag calculated above
+            logger.info(`Skipping overflow pass ${loopCount} for ${planningDateStr}: No technicians have availability windows.`, {
                 reason: "no_available_technicians_for_date",
                 targetDate: planningDateStr,
                 passNumber: loopCount
             });
-            // Update job states to transient failure for this day if they weren't already persistent
-            const jobIdsToUpdate = Array.from(jobStates.keys()); // Get all job IDs being tracked
-            jobIdsToUpdate.forEach(jobId => {
-                const state = jobStates.get(jobId);
-                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
-                    const attempt = createAttempt(planningDateStr, false, FailureReason.NO_TECHNICIAN_AVAILABILITY);
-                    state.attempts.push(attempt);
-                    state.lastStatus = 'failed_transient'; 
-                    jobStates.set(jobId, state);
-                    
-                    logger.debug(`Updating job state (No Tech Availability)`, {
-                        jobId: jobId,
-                        newStatus: state.lastStatus,
-                        failureReason: FailureReason.NO_TECHNICIAN_AVAILABILITY,
-                        planningDay: planningDateStr,
-                        passNumber: loopCount
-                    });
-                } else if (!state) {
-                    logger.error(`Could not find state for job ID ${jobId} during no-tech-availability update.`);
-                }
-            });
+            // --- Start: Update Job States for Skipped Overflow Pass (FR-ORCH-SKIP-006) ---
+            // Use helper to update job states
+            updateJobStatesForSkippedDay(
+                jobStates,
+                planningDateStr,
+                FailureReason.NO_TECHNICIAN_AVAILABILITY,
+                `Overflow Pass ${loopCount}`
+            );
+            // const jobIdsToUpdate = Array.from(jobStates.keys()); // Get all job IDs being tracked // Removed
+            // jobIdsToUpdate.forEach(jobId => { // Removed
+            //     const state = jobStates.get(jobId); // Removed
+            //     if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) { // Removed
+            //         // Add a failure attempt for this specific skipped date
+            //         const attempt = createAttempt(planningDateStr, false, FailureReason.NO_TECHNICIAN_AVAILABILITY); // Removed
+            //         state.attempts.push(attempt); // Removed
+            //         state.lastStatus = 'failed_transient'; // Ensure it remains transient // Removed
+            //         jobStates.set(jobId, state); // Removed
+            //         
+            //         logger.debug(`Updating job state (No Tech Availability - Overflow Skip)`, { // Removed
+            //             jobId: jobId, // Removed
+            //             newStatus: state.lastStatus, // Removed
+            //             failureReason: FailureReason.NO_TECHNICIAN_AVAILABILITY, // Removed
+            //             planningDay: planningDateStr, // Removed
+            //             passNumber: loopCount // Removed
+            //         }); // Removed
+            //     } else if (!state) { // Removed
+            //         // This case should ideally not happen if jobStates map is consistent
+            //         logger.error(`Could not find state for job ID ${jobId} during no-tech-availability update for ${planningDateStr}.`); // Removed
+            //     } // Removed
+            //     // If state.lastStatus is already 'scheduled' or 'failed_persistent', do nothing.
+            // }); // Removed
+            // --- End: Update Job States --- 
             continue; // Skip to the next day
         }
         // <<< End check >>>
@@ -637,46 +829,80 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         const { eligibleItems: eligibleItemsLoopRaw, ineligibleItems: ineligibleItemsLoop }: EligibilityResult = 
             await determineTechnicianEligibility(bundledItemsLoop, availableTechsThisDay);
 
+        // --- Start Refactoring: Handle Ineligible Fixed Jobs (Overflow) ---
         ineligibleItemsLoop.forEach(ineligible => {
-            // --- Start: Fix Linter Error - Handle SchedulableItem union type ---
-            const itemIdString = 'jobs' in ineligible.item 
-                ? `bundle_${ineligible.item.order_id}` 
+            const itemIdString = 'jobs' in ineligible.item
+                ? `bundle_${ineligible.item.order_id}`
                 : `job_${ineligible.item.id}`;
             const itemJobIds = mapItemsToJobIds([itemIdString], new Map([[itemIdString, ineligible.item]]));
-            // --- End: Fix Linter Error ---
+
             itemJobIds.forEach(jobId => {
-                const state = jobStates.get(jobId);
-                if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
-                    const attempt = createAttempt(planningDateStr, false, ineligible.reason);
-                    state.attempts.push(attempt);
-                    if (isPersistentFailure(ineligible.reason)) {
-                        state.lastStatus = 'failed_persistent';
-                        logger.debug(`   -> Job ${jobId} marked failed_persistent due to ${ineligible.reason} in overflow pass.`);
-                    } else {
-                        state.lastStatus = 'failed_transient';
+                const originalJob = allFetchedJobsMap.get(jobId); // Get original job details
+
+                // Check if it's a fixed job that failed eligibility persistently
+                if (originalJob && originalJob.status === 'fixed_time' && isPersistentFailure(ineligible.reason)) {
+                     logger.warn(`Fixed job ${jobId} failed persistent eligibility check (${ineligible.reason}) in overflow pass ${loopCount}. Marking for pending_review.`);
+                     // Directly mark for final DB update to pending_review
+                     // Check if already added to avoid duplicates (optional but good practice)
+                     if (!finalUpdates.some(update => update.jobId === jobId)) {
+                         finalUpdates.push({
+                             jobId: jobId,
+                             data: {
+                                 status: PENDING_REVIEW_STATUS,
+                                 assigned_technician: null,
+                                 estimated_sched: null,
+                             }
+                         });
+                     }
+                     // Remove from jobStates if it somehow got added (defensive)
+                     jobStates.delete(jobId);
+                } else {
+                    // Original logic for non-fixed jobs or transient failures
+                    const state = jobStates.get(jobId);
+                    if (state && (state.lastStatus === 'pending' || state.lastStatus === 'failed_transient')) {
+                        const attempt = createAttempt(planningDateStr, false, ineligible.reason);
+                        state.attempts.push(attempt);
+                        if (isPersistentFailure(ineligible.reason)) {
+                            state.lastStatus = 'failed_persistent';
+                            logger.debug(`   -> Job ${jobId} marked failed_persistent due to ${ineligible.reason} in overflow pass.`);
+                        } else {
+                            state.lastStatus = 'failed_transient';
+                        }
+                        logger.debug("Updating job state (Ineligible - Overflow)", {
+                            jobId: jobId,
+                            newStatus: state.lastStatus,
+                            failureReason: ineligible.reason,
+                            planningDay: planningDateStr,
+                            passNumber: loopCount
+                        });
+                        jobStates.set(jobId, state);
                     }
-                    // <<< Add Logging for Job State Update >>>
-                    logger.debug("Updating job state (Ineligible)", {
-                        jobId: jobId,
-                        newStatus: state.lastStatus,
-                        failureReason: ineligible.reason,
-                        planningDay: planningDateStr,
-                        passNumber: loopCount
-                    });
-                    // <<< End Logging >>>
-                    jobStates.set(jobId, state);
+                     // If state doesn't exist or is already 'scheduled'/'failed_persistent', do nothing here
+                     // (Fixed jobs failing eligibility are handled above)
                 }
             });
         });
+        // --- End Refactoring ---
 
-        eligibleItemsLoopRaw.forEach(item => {
-             if ('jobs' in item) {
+        // Filter eligibleItemsLoopRaw based on whether their constituent jobs were marked 'failed_persistent' directly above
+        const eligibleItemsLoop = eligibleItemsLoopRaw.filter(item => {
+            const itemIdString = 'jobs' in item ? `bundle_${item.order_id}` : `job_${item.id}`;
+            const itemJobIds = mapItemsToJobIds([itemIdString], new Map([[itemIdString, item]]));
+            // Keep the item only if ALL its constituent jobs were NOT directly marked for pending_review in finalUpdates
+            return Array.from(itemJobIds).every(jobId => 
+                !finalUpdates.some(upd => upd.jobId === jobId && upd.data.status === PENDING_REVIEW_STATUS)
+            );
+        });
+        
+        // Update eligibleItemMapForPass with the *filtered* list
+        eligibleItemsLoop.forEach(item => {
+            if ('jobs' in item) {
                 eligibleItemMapForPass.set(`bundle_${item.order_id}`, item);
             } else {
                 eligibleItemMapForPass.set(`job_${item.id}`, item);
             }
         });
-        const eligibleItemCountLoop = eligibleItemsLoopRaw.length;
+        const eligibleItemCountLoop = eligibleItemsLoop.length;
         logger.info(`   -> Found ${eligibleItemCountLoop} eligible item(s) for Overflow Pass ${loopCount}.`);
         
         if (eligibleItemCountLoop === 0) {
@@ -694,7 +920,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         logger.info(`Step ${loopCount}.5: Preparing optimization payload for ${planningDateStr}...`);
         const optimizationPayloadLoop = await prepareOptimizationPayload(
             availableTechsThisDay, 
-            eligibleItemsLoopRaw,
+            eligibleItemsLoop,
             [], 
             currentPlanningDate
         );
@@ -837,12 +1063,13 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         logger.debug(`  Job ${jobId}: Tech = ${assignment.technicianId}, Time = ${assignment.estimatedSchedISO}`);
     });
     
-    const finalUpdates: JobUpdateOperation[] = [];
-    const processedJobIds = new Set<number>(); // Track IDs processed to avoid duplicates
+    // --- Start Refactoring: Consolidate final updates using a Map ---
+    // Use a Map to ensure only the latest intended update per job is kept
+    const finalUpdateMap = new Map<number, JobUpdateOperation['data']>();
 
-    // Process jobs based on their final internal state
+    // 1. Process jobs based on their final internal state tracked in jobStates
     jobStates.forEach((state, jobId) => {
-        processedJobIds.add(jobId);
+        // processedJobIds.add(jobId); // No longer need processedJobIds set with Map approach
         const originalJob = allFetchedJobsMap.get(jobId);
 
         if (state.lastStatus === 'scheduled') {
@@ -852,65 +1079,69 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                     ? 'fixed_time' // Keep original fixed_time status
                     : FINAL_SUCCESS_STATUS; // Otherwise use standard success status (e.g., 'queued')
                 
-                finalUpdates.push({
-                    jobId: jobId,
-                    data: {
-                        status: finalDbStatus,
-                        assigned_technician: assignment.technicianId,
-                        estimated_sched: assignment.estimatedSchedISO, 
-                    }
+                finalUpdateMap.set(jobId, {
+                    status: finalDbStatus,
+                    assigned_technician: assignment.technicianId,
+                    estimated_sched: assignment.estimatedSchedISO,
                 });
             } else {
                 logger.error(`CRITICAL: Job ${jobId} has final internal status 'scheduled' but no assignment or original data found! Setting to pending_review.`);
-                finalUpdates.push({ jobId: jobId, data: { status: PENDING_REVIEW_STATUS, assigned_technician: null, estimated_sched: null } });
+                finalUpdateMap.set(jobId, { status: PENDING_REVIEW_STATUS, assigned_technician: null, estimated_sched: null });
             }
         } else if (state.lastStatus === 'failed_persistent' || state.lastStatus === 'failed_transient' || state.lastStatus === 'pending') {
-            // Jobs that ended up unschedulable or were never eligible/processed
-            finalUpdates.push({
-                jobId: jobId,
-                data: {
-                    status: PENDING_REVIEW_STATUS,
-                    assigned_technician: null,
-                    estimated_sched: null,
-                }
+            // Jobs that ended up unschedulable or were never eligible/processed via jobStates
+            finalUpdateMap.set(jobId, {
+                status: PENDING_REVIEW_STATUS,
+                assigned_technician: null,
+                estimated_sched: null,
             });
-        } 
+        }
         // No 'else' needed: jobs still locked (en_route, in_progress) aren't in jobStates map
     });
 
-    // Process any fixed_time jobs that might not have been in the initial jobStates map
-    // but were confirmed via finalAssignments
+    // 2. Incorporate direct updates for ineligible fixed jobs (and others added directly)
+    // This will overwrite any entry from jobStates if a fixed job was marked both ways,
+    // ensuring the pending_review status takes precedence if it failed eligibility.
+    finalUpdates.forEach(update => {
+        finalUpdateMap.set(update.jobId, update.data);
+    });
+
+
+    // 3. Process any remaining fixed_time jobs confirmed via finalAssignments but not in jobStates
     allFixedTimeJobsFromDB.forEach(fixedJob => {
-        if (!processedJobIds.has(fixedJob.id)) {
-            // Check if it got a final assignment (meaning its planning day succeeded)
+        // Only process if not already handled via jobStates or direct finalUpdates
+        if (!finalUpdateMap.has(fixedJob.id)) {
             const assignment = finalAssignments.get(fixedJob.id);
             if (assignment && fixedJob.assigned_technician) {
-                logger.info(`Applying confirmed schedule for fixed job ${fixedJob.id} (not in initial state map).`);
-                 finalUpdates.push({
-                    jobId: fixedJob.id,
-                    data: {
-                        status: 'fixed_time', // Keep fixed status
-                        assigned_technician: fixedJob.assigned_technician, // Keep original assignment
-                        estimated_sched: assignment.estimatedSchedISO, // Update with the confirmed fixed time
-                    }
+                logger.info(`Applying confirmed schedule for fixed job ${fixedJob.id} (not in initial state map or failed eligibility).`);
+                 finalUpdateMap.set(fixedJob.id, {
+                    status: 'fixed_time', // Keep fixed status
+                    assigned_technician: fixedJob.assigned_technician, // Keep original assignment
+                    estimated_sched: assignment.estimatedSchedISO, // Update with the confirmed fixed time
                 });
             } else {
                  // This fixed job's planning day might have failed, or it was invalid
                  // It shouldn't be updated to pending_review unless it was ALREADY pending_review
                  // If it started as fixed_time and its day failed, leave it as fixed_time with null sched?
-                 logger.warn(`Fixed job ${fixedJob.id} (not in initial state map) did not receive a final assignment confirmation. No DB update.`);
+                 logger.warn(`Fixed job ${fixedJob.id} (not in initial state map/failed eligibility) did not receive a final assignment confirmation. No DB update.`);
             }
         }
     });
 
-    if (finalUpdates.length > 0) {
-        const scheduledCount = finalUpdates.filter(u => u.data.status === FINAL_SUCCESS_STATUS || u.data.status === 'fixed_time').length;
-        const pendingCount = finalUpdates.filter(u => u.data.status === PENDING_REVIEW_STATUS).length;
+    // 4. Convert Map back to array for the update function
+    const finalUpdatesArray: JobUpdateOperation[] = Array.from(finalUpdateMap.entries()).map(([jobId, data]) => ({ jobId, data }));
+
+
+    if (finalUpdatesArray.length > 0) {
+        const scheduledCount = finalUpdatesArray.filter(u => u.data.status === FINAL_SUCCESS_STATUS || u.data.status === 'fixed_time').length;
+        const pendingCount = finalUpdatesArray.filter(u => u.data.status === PENDING_REVIEW_STATUS).length;
         logger.info(`Applying final updates: ${scheduledCount} jobs to scheduled states ('${FINAL_SUCCESS_STATUS}'/'fixed_time'), ${pendingCount} jobs to '${PENDING_REVIEW_STATUS}'.`);
-        await updateJobs(dbClient, finalUpdates);
+        // Ensure updateJobs function is compatible with the JobUpdateOperation array structure
+        await updateJobs(dbClient, finalUpdatesArray); // Use the final combined array
     } else {
         logger.info('No final database updates required (no jobs processed or state changed).');
     }
+    // --- End Refactoring ---
 
     // Call summary logger and capture the links
     collectedDirectionLinks = await logSchedulingSummary(allTechnicians, finalAssignments, jobStates, getEquipmentForVans, allFetchedJobsMap);
@@ -932,23 +1163,6 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
   }
 }
 
-/* Example run block remains the same */
-/*
-import { runFullReplan } from './scheduler/orchestrator';
-import { supabase } from './supabase/client';
 
-async function main() {
-  if (!supabase) {
-      console.error("Supabase client is not initialized. Cannot run replan.");
-      process.exit(1);
-  }
-  try {
-    await runFullReplan(supabase);
-    console.log("Main execution finished.");
-  } catch (error) {
-    console.error('Main execution failed.');
-    process.exit(1);
-  }
-}
-// main();
-*/ 
+
+

@@ -613,7 +613,8 @@ async def optimize_schedule(payload: OptimizationRequestPayload) -> Optimization
         search_parameters.local_search_metaheuristic = (
             routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
         )
-        search_parameters.time_limit.FromSeconds(5)
+        search_parameters.time_limit.FromMilliseconds(20) # Set limit to 100 milliseconds (0.1 seconds)
+        search_parameters.log_search = True # <<< Enable Solver Search Logging >>>
 
         print("Starting OR-Tools solver...")
         assignment = routing.SolveWithParameters(search_parameters)

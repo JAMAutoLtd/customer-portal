@@ -16,7 +16,7 @@ import {
     TravelTimeMatrix,
     OptimizationRequestPayload
 } from '../types/optimization.types';
-import { getTravelTime, getBulkTravelTimes, TravelTimePair, BulkTravelTimeResultMap } from '../google/maps';
+import { getTravelTime, getBulkTravelTimes } from '../google/maps';
 import { LatLngLiteral } from '@googlemaps/google-maps-services-js';
 import { WORK_END_HOUR_UTC, WORK_END_MINUTE_UTC, calculateWindowsForTechnician, applyLockedJobsToWindows, TimeWindow, DailyAvailabilityWindows, formatDateToString, parseTimeStringToUTCDate } from './availability'; // Import constants AND NEW TYPES/FUNCS & HELPERS
 import { startOfDay } from 'date-fns'; // Import date-fns helper
@@ -215,48 +215,12 @@ export async function prepareOptimizationPayload(
     logger.debug(`Collected ${travelPairs.length} unique origin-destination pairs.`);
     // --- End: Collect Origin-Destination Pairs ---
 
-    // --- Start: Placeholder for bulk fetch and matrix population ---
-    // TODO: Implement bulk fetching and caching in maps.ts (Task 5.2, 5.3)
-    // const travelTimeResults = await getBulkTravelTimes(travelPairs, isForToday);
-    // console.warn('TODO: Implement bulk travel time fetching. Using individual calls for now...');
-    
     // --- Start: Call Bulk Travel Time Function --- 
-    logger.info(`Requesting bulk travel times for ${travelPairs.length} pairs (isForToday: ${isForToday}, departureTime: ${futureDepartureTime?.toISOString() || 'N/A'})...`);
-    // Pass futureDepartureTime if calculated, otherwise rely on isForToday for real-time vs standard
-    const travelTimeResults: BulkTravelTimeResultMap = await getBulkTravelTimes(travelPairs, isForToday, futureDepartureTime);
-    logger.info(`Received ${travelTimeResults.size} results from bulk travel time fetch.`);
+    logger.info(`Requesting bulk travel times for ${finalLocations.length} locations (isForToday: ${isForToday}, departureTime: ${futureDepartureTime?.toISOString() || 'N/A'})...`);
+    // Call with locations, get matrix directly
+    const travelTimeMatrix: TravelTimeMatrix = await getBulkTravelTimes(finalLocations, isForToday, futureDepartureTime);
+    logger.info(`Received travel time matrix.`);
     // --- End: Call Bulk Travel Time Function ---
-
-    const travelTimeMatrix: TravelTimeMatrix = {};
-    for (let i = 0; i < finalLocations.length; i++) {
-        travelTimeMatrix[i] = {};
-        for (let j = 0; j < finalLocations.length; j++) {
-            if (i === j) {
-                travelTimeMatrix[i][j] = 0; 
-                continue;
-            }
-            const originLoc = finalLocations[i];
-            const destLoc = finalLocations[j];
-            
-            // --- TEMPORARY: Still using individual getTravelTime until bulk is ready --- 
-            // const duration = await getTravelTime(originLoc.coords, destLoc.coords, isForToday);
-            // --- END TEMPORARY ---
-
-            // --- Start: Use Bulk Results Map --- 
-            // Use the standard key format (without :realtime suffix) for lookup
-            const key = `${originLoc.coords.lat},${originLoc.coords.lng}:${destLoc.coords.lat},${destLoc.coords.lng}`;
-            const duration = travelTimeResults.get(key);
-            // --- End: Use Bulk Results Map --- 
-
-            if (duration === null || duration === undefined) { // Check for undefined when using map
-                logger.error(`Failed to get travel time from ${originLoc.id} (${originLoc.index}) to ${destLoc.id} (${destLoc.index}). Using high penalty.`);
-                travelTimeMatrix[i][j] = 999999; 
-            } else {
-                travelTimeMatrix[i][j] = duration;
-            }
-        }
-    }
-    // --- End: Placeholder for bulk fetch and matrix population ---
 
     // 3. Format Technicians (use final coordinates for startLocationIndex)
     const tempBreakItems: OptimizationItem[] = [];
@@ -505,53 +469,3 @@ export async function prepareOptimizationPayload(
 
     return payload;
 }
-
-// Example Usage (complex, requires previous steps)
-/*
-import { getActiveTechnicians } from '../supabase/technicians';
-import { getRelevantJobs } from '../supabase/jobs';
-import { bundleQueuedJobs } from './bundling';
-import { determineTechnicianEligibility } from './eligibility';
-import { calculateTechnicianAvailability } from './availability';
-
-async function runPayloadExample() {
-    try {
-        console.log('--- Running Payload Preparation Example ---');
-        const technicians = await getActiveTechnicians();
-        const allJobs = await getRelevantJobs();
-        const lockedJobs = allJobs.filter(j => ['en_route', 'in_progress', 'fixed_time'].includes(j.status));
-        const queuedJobs = allJobs.filter(j => j.status === 'queued');
-        const fixedTimeJobs = allJobs.filter(j => j.status === 'fixed_time' && j.fixed_schedule_time);
-
-        if(technicians.length === 0 || queuedJobs.length === 0) {
-            console.log('Need technicians and queued jobs to run example.');
-            return;
-        }
-
-        calculateTechnicianAvailability(technicians, lockedJobs);
-        const bundledItems = bundleQueuedJobs(queuedJobs);
-        const eligibleItems = await determineTechnicianEligibility(bundledItems, technicians);
-
-        const payload = await prepareOptimizationPayload(technicians, eligibleItems, fixedTimeJobs);
-
-        console.log('\n--- Payload Prepared (Summary) ---');
-        // console.log(`Locations: ${payload.locations.length}`);
-        // console.log(`Technicians: ${payload.technicians.length}`);
-        // console.log(`Items: ${payload.items.length}`);
-        // console.log(`Fixed Constraints: ${payload.fixedConstraints.length}`);
-        // console.log(`Travel Matrix Size: ${Object.keys(payload.travelTimeMatrix).length}`);
-        logger.info(`Locations: ${payload.locations.length}`);
-        logger.info(`Technicians: ${payload.technicians.length}`);
-        logger.info(`Items: ${payload.items.length}`);
-        logger.info(`Fixed Constraints: ${payload.fixedConstraints.length}`);
-        logger.info(`Travel Matrix Size: ${Object.keys(payload.travelTimeMatrix).length}`);
-        // console.log(JSON.stringify(payload, null, 2)); // Full payload
-
-    } catch (error) {
-        // console.error('Payload preparation example failed:', error);
-        logger.error('Payload preparation example failed:', error);
-    }
-}
-
-// runPayloadExample();
-*/ 

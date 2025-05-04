@@ -1,5 +1,6 @@
 import { Client, LatLngLiteral, TravelMode, DistanceMatrixRequest, DistanceMatrixResponseData } from '@googlemaps/google-maps-services-js';
 import { logger } from '../utils/logger'; // Import logger
+import { OptimizationLocation, TravelTimeMatrix } from '../types/optimization.types'; // Added imports
 
 // Basic in-memory cache for travel times
 // Key format: "originLat,originLng:destLat,destLng" - for standard requests
@@ -17,19 +18,6 @@ if (!apiKey) {
 }
 
 const mapsClient = new Client({});
-
-// --- Start: Add Types for Bulk Operation ---
-
-/** Represents a single origin-destination pair for bulk fetching. */
-export interface TravelTimePair {
-  origin: LatLngLiteral;
-  destination: LatLngLiteral;
-}
-
-/** Represents the result map from the bulk operation. Key: "originLat,originLng:destLat,destLng", Value: duration seconds or null */
-export type BulkTravelTimeResultMap = Map<string, number | null>;
-
-// --- End: Add Types for Bulk Operation ---
 
 /**
  * Generates a cache key from origin and destination coordinates, including request type suffix.
@@ -154,200 +142,174 @@ export async function getTravelTime(
   }
 }
 
-// --- Start: Update Bulk Travel Time Function with Caching ---
+// --- Start: Refactored Bulk Travel Time Function ---
 
-// Google Maps API Limits (example, check current documentation)
+// Google Maps API Limits
 const MAX_ORIGINS_PER_REQUEST = 25;
 const MAX_DESTINATIONS_PER_REQUEST = 25;
-const MAX_ELEMENTS_PER_REQUEST = 100; // Origins * Destinations
+const HIGH_PENALTY_SECONDS = 999999;
 
 /**
- * Fetches travel times for multiple origin-destination pairs using batched Google Maps API requests.
- * Handles basic batching based on origin count and checks cache first.
+ * Fetches travel times for multiple locations and returns a complete TravelTimeMatrix.
+ * Handles batching API requests and uses an internal cache.
  *
- * @param {TravelTimePair[]} pairs - Array of origin-destination pairs.
+ * @param {OptimizationLocation[]} locations - Array of locations with coordinates and unique IDs.
  * @param {boolean} [useRealTime=false] - Whether to request real-time traffic data.
- * @param {Date} [departureTime] - Optional specific departure time for predictive traffic. Overrides useRealTime if provided.
- * @returns {Promise<BulkTravelTimeResultMap>} A map where keys are "originLat,originLng:destLat,destLng" and values are duration in seconds or null.
+ * @param {Date} [departureTime] - Optional specific departure time for predictive traffic.
+ * @returns {Promise<TravelTimeMatrix>} A matrix where matrix[i][j] is the travel time in seconds from locations[i] to locations[j].
  */
 export async function getBulkTravelTimes(
-  pairs: TravelTimePair[],
+  locations: OptimizationLocation[],
   useRealTime: boolean = false,
   departureTime?: Date
-): Promise<BulkTravelTimeResultMap> {
-  // console.log(`Starting bulk travel time fetch for ${pairs.length} pairs. Real-time: ${useRealTime}, Predictive: ${!!departureTime}`);
-  logger.info(`Starting bulk travel time fetch for ${pairs.length} pairs. Real-time: ${useRealTime}, Predictive: ${!!departureTime}`);
-  const results: BulkTravelTimeResultMap = new Map();
-  const pairsToFetch: TravelTimePair[] = [];
-  // const isPredictiveOrRealtime = useRealTime || !!departureTime; // No longer needed for TTL calc here
-  // const cacheTTL = isPredictiveOrRealtime ? REALTIME_CACHE_TTL : REALTIME_CACHE_TTL; // simplified further
+): Promise<TravelTimeMatrix> {
+  logger.info(`Starting bulk travel time fetch for ${locations.length} locations. Real-time: ${useRealTime}, Predictive: ${!!departureTime}`);
+  const matrix: TravelTimeMatrix = {};
+  const locationCoords = locations.map(loc => loc.coords); // Extract coords
+  const n = locations.length;
 
-  // --- Start: Check Cache Before Fetching --- 
-  // console.log('Checking cache for existing travel times...');
-  logger.debug('Checking cache for existing travel times...');
+  // Initialize matrix structure
+  for (let i = 0; i < n; i++) {
+    matrix[i] = {};
+    matrix[i][i] = 0; // Distance to self is 0
+  }
+
+  const pairsToFetch: { originIndex: number; destIndex: number }[] = [];
   let cacheHits = 0;
-  pairs.forEach(pair => {
-    // Determine cache key based on request type
-    const cacheKey = getCacheKey(pair.origin, pair.destination, useRealTime, departureTime);
-    // Determine TTL based on key suffix
-    const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
 
-    if (travelTimeCache.has(cacheKey)) {
+  // Check Cache
+  logger.debug('Checking cache for existing travel times...');
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i === j) continue;
+      const origin = locationCoords[i];
+      const destination = locationCoords[j];
+      const cacheKey = getCacheKey(origin, destination, useRealTime, departureTime);
+      const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
+
+      if (travelTimeCache.has(cacheKey)) {
         const cachedTime = travelTimeCache.get(cacheKey);
         const cacheTimestamp = cacheTimeStamps.get(cacheKey) || 0;
         if (Date.now() - cacheTimestamp <= cacheTTL) {
-            results.set(cacheKey.replace(/:realtime$/, ''), cachedTime as number); // Store result with standard key format
-            cacheHits++;
+          matrix[i][j] = cachedTime as number;
+          cacheHits++;
         } else {
-            // Expired, needs fetching
-            travelTimeCache.delete(cacheKey);
-            cacheTimeStamps.delete(cacheKey);
-            pairsToFetch.push(pair);
+          // Expired, needs fetching
+          travelTimeCache.delete(cacheKey);
+          cacheTimeStamps.delete(cacheKey);
+          pairsToFetch.push({ originIndex: i, destIndex: j });
         }
-    } else {
+      } else {
         // Not in cache, needs fetching
-        pairsToFetch.push(pair);
+        pairsToFetch.push({ originIndex: i, destIndex: j });
+      }
     }
-  });
-  // console.log(`Cache check complete. Hits: ${cacheHits}, Pairs to fetch: ${pairsToFetch.length}`);
+  }
   logger.debug(`Cache check complete. Hits: ${cacheHits}, Pairs to fetch: ${pairsToFetch.length}`);
-  // --- End: Check Cache Before Fetching --- 
 
   if (pairsToFetch.length === 0) {
-    // console.log('No pairs need fetching from API.');
     logger.info('No pairs need fetching from API.');
-    return results; 
+    // Ensure all non-diagonal entries are filled (might be unnecessary if loops covered all)
+    for (let i = 0; i < n; i++) {
+       for (let j = 0; j < n; j++) {
+          if (i !== j && matrix[i][j] === undefined) { 
+              logger.warn(`Matrix entry [${i}][${j}] was undefined after cache check despite no API fetch needed. Assigning penalty.`);
+              matrix[i][j] = HIGH_PENALTY_SECONDS;
+          }
+       }
+    }
+    return matrix;
   }
 
-  // --- Start: Batching Logic (No Change Needed) --- 
-  const uniqueOriginsMap = new Map<string, { coords: LatLngLiteral, destinations: LatLngLiteral[] }>();
+  // Group pairs by origin for efficient batching
+  const requestsByOrigin = new Map<number, number[]>(); // Map<originIndex, destIndex[]>
   pairsToFetch.forEach(pair => {
-    const originKey = `${pair.origin.lat},${pair.origin.lng}`;
-    if (!uniqueOriginsMap.has(originKey)) {
-        uniqueOriginsMap.set(originKey, { coords: pair.origin, destinations: [] });
+    if (!requestsByOrigin.has(pair.originIndex)) {
+      requestsByOrigin.set(pair.originIndex, []);
     }
-    uniqueOriginsMap.get(originKey)?.destinations.push(pair.destination);
+    requestsByOrigin.get(pair.originIndex)?.push(pair.destIndex);
   });
 
-  const originBatches: LatLngLiteral[][] = [];
-  let currentBatch: LatLngLiteral[] = [];
-  uniqueOriginsMap.forEach((originData) => {
-    if (currentBatch.length >= MAX_ORIGINS_PER_REQUEST) {
-        originBatches.push(currentBatch);
-        currentBatch = [];
-    }
-    currentBatch.push(originData.coords);
-  });
-  if (currentBatch.length > 0) {
-    originBatches.push(currentBatch);
-  }
-  // --- End: Batching Logic --- 
+  // Process API requests batching by origin and destination
+  logger.debug(`Processing API fetches for ${requestsByOrigin.size} unique origins.`);
+  for (const [originIndex, destinationIndices] of requestsByOrigin.entries()) {
+    const originCoord = locationCoords[originIndex];
+    
+    // Batch destinations for this single origin
+    for (let i = 0; i < destinationIndices.length; i += MAX_DESTINATIONS_PER_REQUEST) {
+      const destIndexSubBatch = destinationIndices.slice(i, i + MAX_DESTINATIONS_PER_REQUEST);
+      const destinationCoordsSubBatch = destIndexSubBatch.map(idx => locationCoords[idx]);
 
-  // console.log(`Created ${originBatches.length} origin batches for API requests.`);
-  logger.debug(`Created ${originBatches.length} origin batches for API requests.`);
+      logger.debug(`API Sub-batch: Origin ${originIndex}, Destinations ${destIndexSubBatch.join(',')}`);
 
-  // Process each batch of origins
-  for (const originBatch of originBatches) {
-    const destinationsForBatchSet = new Set<string>();
-    const allDestinationsForBatchCoords: LatLngLiteral[] = [];
-    originBatch.forEach(originCoord => {
-        const originKey = `${originCoord.lat},${originCoord.lng}`;
-        uniqueOriginsMap.get(originKey)?.destinations.forEach(destCoord => {
-            const destKey = `${destCoord.lat},${destCoord.lng}`;
-            if (!destinationsForBatchSet.has(destKey)) {
-                destinationsForBatchSet.add(destKey);
-                allDestinationsForBatchCoords.push(destCoord);
+      try {
+        const apiParams: DistanceMatrixRequest['params'] = {
+          origins: [originCoord],
+          destinations: destinationCoordsSubBatch,
+          mode: TravelMode.driving,
+          key: apiKey!,
+        };
+        if (departureTime) {
+          apiParams.departure_time = departureTime;
+        } else if (useRealTime) {
+          apiParams.departure_time = new Date();
+        }
+
+        const response = await mapsClient.distancematrix({ params: apiParams, timeout: 10000 });
+        const data = response.data as DistanceMatrixResponseData;
+
+        if (data.status === 'OK' && data.rows.length > 0) {
+          const row = data.rows[0];
+          row.elements.forEach((element, k) => {
+            const destIndex = destIndexSubBatch[k]; // Get original destination index
+            const cacheKey = getCacheKey(originCoord, locationCoords[destIndex], useRealTime, departureTime);
+
+            if (element.status === 'OK') {
+              const durationSeconds = (departureTime || useRealTime) && element.duration_in_traffic
+                ? element.duration_in_traffic.value
+                : element.duration.value;
+              matrix[originIndex][destIndex] = durationSeconds;
+              travelTimeCache.set(cacheKey, durationSeconds);
+              cacheTimeStamps.set(cacheKey, Date.now());
+            } else {
+              logger.warn(`Element status error for Origin ${originIndex} -> Dest ${destIndex}: ${element.status}. Assigning penalty.`);
+              matrix[originIndex][destIndex] = HIGH_PENALTY_SECONDS;
+              // Do not cache errors
             }
+          });
+        } else {
+          logger.error(`Distance Matrix API error for Origin ${originIndex}. Status: ${data.status}. Assigning penalty to sub-batch destinations: ${destIndexSubBatch.join(',')}`);
+          destIndexSubBatch.forEach(destIndex => {
+             if (matrix[originIndex][destIndex] === undefined) { // Avoid overwriting penalties from previous errors
+                matrix[originIndex][destIndex] = HIGH_PENALTY_SECONDS;
+             }
+          });
+        }
+      } catch (error: any) {
+        logger.error(`Error calling Google Maps API for Origin ${originIndex}. Destinations: ${destIndexSubBatch.join(',')}:`, error.response?.data || error.message || error);
+        destIndexSubBatch.forEach(destIndex => {
+           if (matrix[originIndex][destIndex] === undefined) {
+              matrix[originIndex][destIndex] = HIGH_PENALTY_SECONDS;
+           }
         });
-    });
+      }
+    } // End loop over destination sub-batches
+  } // End loop over origins
 
-    if (allDestinationsForBatchCoords.length === 0) continue;
+  // Final check for any undefined entries (shouldn't happen ideally)
+  for (let i = 0; i < n; i++) {
+     for (let j = 0; j < n; j++) {
+         if (i !== j && matrix[i][j] === undefined) { 
+             logger.error(`Matrix entry [${i}][${j}] was unexpectedly undefined after API fetches. Assigning penalty.`);
+             matrix[i][j] = HIGH_PENALTY_SECONDS;
+         }
+     }
+  }
 
-    // --- Start: Implement Destination Sub-Batching --- 
-    // Instead of one call per origin batch, call for each origin with its destinations batched
-    for (const singleOrigin of originBatch) {
-        const originKey = `${singleOrigin.lat},${singleOrigin.lng}`;
-        const destinationsForThisOrigin = uniqueOriginsMap.get(originKey)?.destinations || [];
-        if (destinationsForThisOrigin.length === 0) continue;
-
-        // Batch destinations for this single origin
-        for (let i = 0; i < destinationsForThisOrigin.length; i += MAX_DESTINATIONS_PER_REQUEST) {
-            const destinationSubBatch = destinationsForThisOrigin.slice(i, i + MAX_DESTINATIONS_PER_REQUEST);
-            
-            logger.debug(`Processing sub-batch: 1 origin, ${destinationSubBatch.length} destinations.`);
-
-            try {
-              const apiParams: DistanceMatrixRequest['params'] = {
-                origins: [singleOrigin], // Single origin
-                destinations: destinationSubBatch, // Sub-batch of destinations
-                mode: TravelMode.driving,
-                key: apiKey!,
-              };
-              if (departureTime) {
-                apiParams.departure_time = departureTime;
-              } else if (useRealTime) {
-                apiParams.departure_time = new Date();
-              }
-
-              const response = await mapsClient.distancematrix({ params: apiParams, timeout: 10000 });
-              const data = response.data as DistanceMatrixResponseData;
-
-              if (data.status === 'OK') {
-                // Result has one row corresponding to the single origin
-                if (data.rows.length > 0) {
-                    const row = data.rows[0];
-                    row.elements.forEach((element, j) => {
-                        const destination = destinationSubBatch[j];
-                        const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${destination.lat},${destination.lng}`;
-                        const cacheKey = getCacheKey(singleOrigin, destination, useRealTime, departureTime);
-
-                        if (element.status === 'OK') {
-                          const durationSeconds = (departureTime || useRealTime) && element.duration_in_traffic
-                            ? element.duration_in_traffic.value
-                            : element.duration.value;
-                          results.set(resultKeyStandard, durationSeconds);
-                          travelTimeCache.set(cacheKey, durationSeconds);
-                          cacheTimeStamps.set(cacheKey, Date.now());
-                        } else {
-                          logger.warn(`Element status error for ${resultKeyStandard}: ${element.status}`);
-                          results.set(resultKeyStandard, null);
-                        }
-                    });
-                } else {
-                     logger.error(`Distance Matrix API error: No rows returned for single origin request.`);
-                     // Mark all destinations for this sub-batch as null
-                     destinationSubBatch.forEach(dest => { 
-                        const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${dest.lat},${dest.lng}`;
-                        // Generate the specific key used for caching this result
-                        const cacheKey = getCacheKey(singleOrigin, dest, useRealTime, departureTime);
-                        if (!results.has(resultKeyStandard)) results.set(resultKeyStandard, null);
-                     });
-                }
-              } else {
-                logger.error(`Distance Matrix API error for sub-batch. Origin: ${originKey}, Status: ${data.status}, Error: ${data.error_message || 'N/A'}`);
-                destinationSubBatch.forEach(dest => { 
-                    const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${dest.lat},${dest.lng}`;
-                    // No cache entry to make on error
-                    if (!results.has(resultKeyStandard)) results.set(resultKeyStandard, null);
-                 });
-              }
-            } catch (error: any) {
-              logger.error(`Error calling Google Maps API for sub-batch. Origin: ${originKey}:`, error.response?.data || error.message || error);
-              destinationSubBatch.forEach(dest => { 
-                  const resultKeyStandard = `${singleOrigin.lat},${singleOrigin.lng}:${dest.lat},${dest.lng}`;
-                  // No cache entry to make on error
-                  if (!results.has(resultKeyStandard)) results.set(resultKeyStandard, null);
-              });
-            }
-        } // End loop over destination sub-batches
-    } // End loop over single origins within originBatch
-    // --- End: Implement Destination Sub-Batching --- 
-  } // End loop over origin batches
-
-  logger.info(`Bulk travel time fetch complete. Final results map size: ${results.size}`);
-  return results;
+  logger.info(`Bulk travel time fetch complete. Matrix size: ${n}x${n}`);
+  return matrix;
 }
-// --- End: Update Bulk Travel Time Function with Caching ---
+// --- End: Refactored Bulk Travel Time Function ---
 
 // Example usage
 /*
