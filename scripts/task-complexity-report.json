@@ -1,131 +1,131 @@
 {
   "meta": {
-    "generatedAt": "2025-05-02T16:24:26.278Z",
+    "generatedAt": "2025-05-06T16:17:28.040Z",
     "tasksAnalyzed": 15,
     "thresholdScore": 5,
-    "projectName": "Your Project Name",
+    "projectName": "Task Master",
     "usedResearch": false
   },
   "complexityAnalysis": [
     {
       "taskId": 1,
-      "taskTitle": "Modify Scheduler Orchestrator to Fetch All Fixed-Time Jobs",
-      "complexityScore": 4,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of modifying the scheduler orchestrator to fetch all fixed-time jobs into specific implementation steps, including database query creation, integration with existing code flow, error handling, and testing verification.",
-      "reasoning": "This task involves adding a new database query and storing the results, which is straightforward but requires careful integration with existing code. The complexity is moderate as it requires understanding the current orchestrator flow but doesn't involve complex algorithms."
+      "taskTitle": "Create Dummy Break Location in Scheduler",
+      "complexityScore": 3,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of creating a dummy break location in the scheduler into subtasks, including defining constants, implementing the creation function, and integrating it into the payload generation logic.",
+      "reasoning": "This task is relatively straightforward, involving the creation of a simple function and constant. The implementation details are well-defined with code examples. The complexity comes from ensuring proper integration with the existing payload structure."
     },
     {
       "taskId": 2,
-      "taskTitle": "Update Today's Planning Pass to Include Fixed Jobs",
-      "complexityScore": 5,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of updating today's planning pass to include fixed-time jobs into specific implementation steps, including filtering logic, data structure integration, format conversion, logging implementation, and testing verification.",
-      "reasoning": "This task builds on Task 1 and requires filtering data, combining job lists, and ensuring correct data formats. It has moderate complexity due to the need to understand and modify the existing planning flow while maintaining data integrity."
+      "taskTitle": "Modify Travel Time Matrix for Dummy Break Location",
+      "complexityScore": 4,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of modifying the travel time matrix for dummy break locations into subtasks, including implementing the adjustment function, integrating it with the existing travel time calculation, and handling edge cases.",
+      "reasoning": "This task requires understanding the existing travel time matrix structure and carefully modifying it. While the implementation is provided, there's complexity in ensuring the matrix is properly adjusted without side effects, especially with edge cases like empty matrices."
     },
     {
       "taskId": 3,
-      "taskTitle": "Update Overflow Planning to Include Fixed Jobs",
-      "complexityScore": 5,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of updating overflow planning to include fixed-time jobs into specific implementation steps, including date-based filtering logic, job list integration, duplicate prevention, logging implementation, and testing verification.",
-      "reasoning": "Similar to Task 2 but for overflow planning, this task requires understanding a different part of the planning flow. The added complexity comes from ensuring fixed jobs aren't duplicated if they appear in multiple job lists."
+      "taskTitle": "Enhance Availability Gap Identification",
+      "complexityScore": 6,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of enhancing availability gap identification into subtasks, including implementing the core gap finding algorithm, handling edge cases at shift boundaries, sorting and processing time windows, and integrating with the existing availability system.",
+      "reasoning": "This task involves complex time-based calculations and logic to identify gaps between availability windows. The algorithm needs to handle various edge cases (start of day, end of day, overlapping windows) and requires careful date manipulation. The integration with existing systems adds complexity."
     },
     {
       "taskId": 4,
-      "taskTitle": "Modify Bundling Logic to Exclude Fixed-Time Jobs",
-      "complexityScore": 6,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of modifying bundling logic to exclude fixed-time jobs into specific implementation steps, including job status checking, bundle formation logic changes, edge case handling, documentation updates, and testing verification.",
-      "reasoning": "This task involves modifying the bundling algorithm, which is more complex than simple data fetching. It requires careful consideration of how jobs are grouped and ensuring fixed-time jobs remain individual, with potential edge cases to handle."
+      "taskTitle": "Create Dummy Break Items for Availability Gaps",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of creating dummy break items into subtasks, including implementing the item generation function, integrating with the availability gap system, ensuring proper ID generation, and adding the items to the optimization payload.",
+      "reasoning": "This task builds on previous tasks and requires creating structured objects with specific properties. It involves integrating with the availability gap system and ensuring the generated items have the correct format and properties for the optimizer to process."
     },
     {
       "taskId": 5,
-      "taskTitle": "Update OptimizationItem Interface for Fixed-Time Flag",
-      "complexityScore": 3,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of updating the OptimizationItem interface into specific implementation steps, including interface modification, backward compatibility checks, related type updates, and documentation additions.",
-      "reasoning": "This is a relatively simple type definition update. The main considerations are maintaining backward compatibility and ensuring all related interfaces are updated appropriately."
+      "taskTitle": "Generate Fixed Constraints for Dummy Break Items",
+      "complexityScore": 5,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of generating fixed constraints for dummy break items into subtasks, including implementing the constraint generation function, extracting technician IDs from break item IDs, and adding the constraints to the optimization payload.",
+      "reasoning": "This task requires creating constraint objects that correctly reference the break items. The complexity comes from parsing break item IDs to extract technician information and ensuring the constraints have the correct format and properties for the optimizer."
     },
     {
       "taskId": 6,
-      "taskTitle": "Modify Payload Generation to Handle Fixed Jobs as Items",
-      "complexityScore": 7,
-      "recommendedSubtasks": 6,
-      "expansionPrompt": "Break down the task of modifying payload generation for fixed-time jobs into specific implementation steps, including removing redundant constraint generation, implementing the isFixedTime flag, preserving fixedTimeISO field handling, updating comments, maintaining unavailability gap logic, and testing verification.",
-      "reasoning": "This task involves significant changes to how fixed-time jobs are processed in the payload. It requires careful consideration to remove old logic while preserving necessary functionality, with potential for subtle bugs if not implemented correctly."
+      "taskTitle": "Modify Optimizer to Identify Dummy Break Items",
+      "complexityScore": 5,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of modifying the optimizer to identify dummy break items into subtasks, including implementing the identification function, updating the item processing logic, and creating appropriate data structures to track dummy break items.",
+      "reasoning": "This task involves modifying the Python optimizer code to recognize and handle dummy break items differently. It requires understanding the existing optimizer flow and adding new logic without disrupting the current functionality."
     },
     {
       "taskId": 7,
-      "taskTitle": "Create Fixed Job Time Lookup in Optimizer",
-      "complexityScore": 6,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of creating a fixed job time lookup in the optimizer into specific implementation steps, including dictionary creation logic, time conversion handling, adaptation for isFixedTime flag, documentation updates, and testing verification.",
-      "reasoning": "This task involves working with the Python optimizer code and implementing a new data structure. The complexity comes from handling time conversions correctly and adapting to potential changes in how fixed jobs are identified."
+      "taskTitle": "Apply Fixed Time Constraints to Dummy Break Items in Optimizer",
+      "complexityScore": 7,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of applying fixed time constraints to dummy break items in the optimizer into subtasks, including implementing the constraint application function, calculating relative time values, integrating with the OR-Tools time dimension, and adding appropriate logging.",
+      "reasoning": "This task involves complex integration with the OR-Tools constraint solver. It requires understanding how to set time constraints in the routing model, converting between ISO timestamps and relative seconds, and ensuring the constraints are correctly applied to the right solver indices."
     },
     {
       "taskId": 8,
-      "taskTitle": "Remove Incorrect Break Interval Logic in Optimizer",
+      "taskTitle": "Enforce Mandatory Performance of Dummy Break Items",
       "complexityScore": 7,
-      "recommendedSubtasks": 6,
-      "expansionPrompt": "Break down the task of removing incorrect break interval logic in the optimizer into specific implementation steps, including code identification, selective removal, preservation of necessary functionality, handling edge cases, documentation updates, and testing verification.",
-      "reasoning": "This task requires careful surgery on existing optimizer code. The complexity comes from needing to remove specific logic while preserving other functionality that may be intertwined, with high risk if done incorrectly."
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of enforcing mandatory performance of dummy break items into subtasks, including implementing the function to make breaks mandatory, creating technician-to-vehicle mappings, setting up disjunctions with zero penalties, and restricting vehicle assignments.",
+      "reasoning": "This task involves advanced OR-Tools concepts like disjunctions and vehicle restrictions. It requires understanding how to make nodes mandatory in the routing model and how to restrict which vehicles (technicians) can visit specific nodes. The integration with the existing constraint system adds complexity."
     },
     {
       "taskId": 9,
-      "taskTitle": "Implement Correct Fixed-Time Constraint in Optimizer",
-      "complexityScore": 8,
-      "recommendedSubtasks": 7,
-      "expansionPrompt": "Break down the task of implementing correct fixed-time constraints in the optimizer into specific implementation steps, including loop modification, dictionary lookup integration, SetRange constraint application, earliestStartTime handling, logging implementation, edge case handling, and testing verification.",
-      "reasoning": "This is one of the most complex tasks as it involves modifying the core constraint application logic in the optimizer. It requires deep understanding of the OR-Tools constraints and careful implementation to ensure fixed jobs are scheduled correctly."
+      "taskTitle": "Enforce Technician Eligibility for Dummy Break Items",
+      "complexityScore": 6,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of enforcing technician eligibility for dummy break items into subtasks, including implementing the eligibility enforcement function, setting up cost evaluators for different vehicles, and integrating with the existing routing model.",
+      "reasoning": "This task may overlap with Task 8 but provides an alternative approach using cost evaluators. It requires understanding how to set arc costs in the routing model to effectively prevent certain technicians from being assigned to specific break items."
     },
     {
       "taskId": 10,
-      "taskTitle": "Run and Fix Existing Fixed-Time Test",
-      "complexityScore": 6,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of running and fixing the existing fixed-time test into specific implementation steps, including test execution, log analysis, constraint verification, error identification, and issue resolution.",
-      "reasoning": "This task involves debugging and fixing issues discovered during testing. The complexity comes from potentially needing to diagnose and fix subtle bugs across multiple components of the system."
+      "taskTitle": "Filter Dummy Break Items from Optimizer Results",
+      "complexityScore": 4,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of filtering dummy break items from optimizer results into subtasks, including implementing the route building function, adding logic to identify and exclude dummy break items, and ensuring the route sequence remains correct after filtering.",
+      "reasoning": "This task involves post-processing the optimizer solution to exclude dummy break items from the final routes. While conceptually straightforward, care must be taken to preserve the correct sequence of stops and ensure all relevant information is maintained."
     },
     {
       "taskId": 11,
-      "taskTitle": "Create Integration Test for Current Day Fixed Job",
+      "taskTitle": "Update Integration Test for Locked Job Impact",
       "complexityScore": 5,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of creating an integration test for current day fixed jobs into specific implementation steps, including test scenario setup, scheduler execution, fixed job verification, overlap checking, and log verification.",
-      "reasoning": "Creating a new integration test requires understanding the testing framework and setting up a comprehensive test scenario. The complexity is moderate as it builds on existing test patterns."
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of updating integration tests for locked job impact into subtasks, including reviewing existing tests, implementing new test cases for different scenarios, creating test data with locked jobs, and verifying correct scheduling behavior.",
+      "reasoning": "This task requires understanding the existing test structure and adding new test cases to verify the implementation. It involves creating complex test scenarios with locked jobs and validating that the optimizer correctly handles these constraints."
     },
     {
       "taskId": 12,
-      "taskTitle": "Create Integration Test for Tight Availability Scenarios",
-      "complexityScore": 6,
-      "recommendedSubtasks": 6,
-      "expansionPrompt": "Break down the task of creating integration tests for tight availability scenarios into specific implementation steps, including today's test setup, overflow day test setup, availability window configuration, competing job creation, verification logic implementation, and log analysis.",
-      "reasoning": "This task involves creating more complex test scenarios with tight constraints. The complexity comes from setting up precise availability windows and ensuring the tests correctly verify the expected behavior in challenging scenarios."
+      "taskTitle": "Create Integration Tests for DB Exception Handling",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of creating integration tests for DB exception handling into subtasks, including setting up the test file structure, implementing test cases for different exception scenarios, creating test data with availability exceptions, and verifying correct scheduling behavior.",
+      "reasoning": "This task involves creating new integration tests from scratch to verify the handling of database exceptions. It requires designing test scenarios that cover various unavailability patterns and validating that the optimizer respects these constraints."
     },
     {
       "taskId": 13,
-      "taskTitle": "Create Integration Test for Ineligible Technician Scenario",
-      "complexityScore": 5,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of creating an integration test for ineligible technician scenarios into specific implementation steps, including test setup, technician ineligibility implementation, scheduler execution, pending_review verification, and log analysis.",
-      "reasoning": "This test requires understanding how technician eligibility works and how to manipulate it. The complexity is moderate as it tests an edge case that requires specific knowledge of the eligibility system."
+      "taskTitle": "Create Edge Case Tests for Break Handling",
+      "complexityScore": 6,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the task of creating edge case tests for break handling into subtasks, including identifying critical edge cases, implementing test cases for shift boundary breaks, handling scenarios with no schedulable jobs, and testing multiple technicians with different break patterns.",
+      "reasoning": "This task focuses on testing edge cases that might cause issues in the implementation. It requires identifying potential problem scenarios and creating tests to verify the system handles them correctly. The complexity comes from designing comprehensive test cases that cover all edge conditions."
     },
     {
       "taskId": 14,
-      "taskTitle": "Create Integration Test for Fixed Job with Other Order Jobs",
-      "complexityScore": 5,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the task of creating an integration test for fixed jobs with other order jobs into specific implementation steps, including order with multiple jobs setup, scheduler execution, bundle verification, fixed job time verification, related job scheduling verification, and log analysis.",
-      "reasoning": "This test focuses on the interaction between bundling and fixed jobs. The complexity is moderate as it requires setting up a specific scenario with multiple jobs in an order and verifying their scheduling behavior."
+      "taskTitle": "Verify Travel Time Integrity with Dummy Breaks",
+      "complexityScore": 6,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the task of verifying travel time integrity with dummy breaks into subtasks, including implementing the travel time comparison test, creating helper functions to extract travel times from routes, and testing with various job and break configurations.",
+      "reasoning": "This task involves creating tests to verify that the dummy break implementation doesn't affect travel times between regular jobs. It requires understanding how travel times are represented in the result structure and implementing helper functions to extract and compare these times."
     },
     {
       "taskId": 15,
-      "taskTitle": "Update Documentation and Code Comments",
+      "taskTitle": "Documentation and Code Comments",
       "complexityScore": 4,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of updating documentation and code comments into specific implementation steps, including PRD updates for each relevant section, code comment updates for each modified file, architecture documentation updates, and final review for consistency.",
-      "reasoning": "This task involves updating documentation across multiple files. While not technically complex, it requires a comprehensive understanding of all the changes made to ensure documentation accurately reflects the new implementation."
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Break down the documentation task into subtasks, including adding comprehensive code comments to new functions, creating or updating README documentation for the unavailability handling system, and documenting the optimizer changes.",
+      "reasoning": "This task involves documenting the entire implementation across multiple components. While not technically complex, it requires a comprehensive understanding of all the implemented features and the ability to explain them clearly for future developers."
     }
   ]
 }

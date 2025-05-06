@@ -1,0 +1,11 @@
+# Task ID: 3
+# Title: Implement availability pre-check logic for Pass 1 (Today)
+# Status: done
+# Dependencies: 1, 2
+# Priority: high
+# Description: Add logic to check if any technicians have availability windows for today before proceeding with Pass 1 planning.
+# Details:
+Before the main `if` block for Pass 1, implement a loop through `allTechnicians`. For each technician, call `calculateWindowsForTechnician` and then `applyLockedJobsToWindows` (using `lockedJobsToday`) to get the final windows for today. Check if `windows.length > 0` and set a boolean flag `isAnyTechAvailableToday`. Break the loop if any technician has availability. Modify the main `if` condition to include `&& isAnyTechAvailableToday` to ensure planning only proceeds if at least one technician is available.
+
+# Test Strategy:
+Test with mock data where no technicians have availability for today to verify the flag is set correctly. Also test with data where at least one technician has availability to ensure the flag allows planning to proceed.

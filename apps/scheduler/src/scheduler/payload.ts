@@ -214,7 +214,7 @@ export async function prepareOptimizationPayload(
     }
     logger.debug(`Collected ${travelPairs.length} unique origin-destination pairs.`);
     // --- End: Collect Origin-Destination Pairs ---
-
+    
     // --- Start: Call Bulk Travel Time Function --- 
     logger.info(`Requesting bulk travel times for ${finalLocations.length} locations (isForToday: ${isForToday}, departureTime: ${futureDepartureTime?.toISOString() || 'N/A'})...`);
     // Call with locations, get matrix directly

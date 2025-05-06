@@ -139,8 +139,6 @@ A comprehensive test suite is required:
 
 7. References
 -------------
-    - Internal JIRA/Issue Tracker: [Link to relevant ticket(s) if any]
-    - Previous Gemini AI Discussion Logs/Snippets (relevant excerpts can be appended or linked)
     - Relevant file paths:
         - `apps/scheduler/src/scheduler/payload.ts`
         - `apps/scheduler/src/scheduler/availability.ts`
@@ -148,6 +146,86 @@ A comprehensive test suite is required:
         - `apps/scheduler/src/types/optimization.types.ts`
         - `apps/optimiser/main.py`
         - `apps/optimiser/models.py`
-    - OR-Tools documentation regarding Time Windows, Disjunctions, and `CumulVar.SetRange`.
+    - OR-Tools documentation regarding Time Windows, Disjunctions, and `CumulVar.SetRange`. Use context7 tool to learn about this.
 
-This PRD outlines a path to a more reliable scheduling system by ensuring all fixed unavailability is correctly modeled and strictly enforced by the optimizer. 
+This PRD outlines a path to a more reliable scheduling system by ensuring all fixed unavailability is correctly modeled and strictly enforced by the optimizer.
+
+8. Appendix: Technical Reference & Definitions
+--------------------------------------------
+
+This appendix expands on the technical components, data structures, and logic changes outlined in the PRD to ensure a common understanding for implementation.
+
+8.1. Key Data Structures & Modifications:
+
+    8.1.1. `OptimizationLocation` (Type: `apps/scheduler/src/types/optimization.types.ts` & `apps/optimiser/models.py`):
+        - **Addition:** One new global `OptimizationLocation` instance will be programmatically added by the scheduler.
+            - `id`: `'dummy_break_loc'` (or a configured constant).
+            - `index`: A unique numerical index assigned by the scheduler, distinct from all real job or depot locations.
+            - `coords`: Arbitrary geographical coordinates (e.g., `{ lat: -999, lng: -999 }`). These coordinates are placeholders and will not be used for travel calculations due to modifications in the `travelTimeMatrix`.
+        - **Impact:** This location serves as the designated node in the VRP for all dummy break items.
+
+    8.1.2. `TravelTimeMatrix` (Type: `apps/scheduler/src/types/optimization.types.ts`, Data: Generated in `payload.ts`):
+        - **Modification Logic (in `payload.ts`):** After the matrix is populated with actual travel times (e.g., from Google Maps API via `getBulkTravelTimes`), it will be modified:
+            - For the row corresponding to the `dummy_break_loc` index, all travel times *from* this dummy location *to* all other locations (including itself) will be set to 0.
+            - For the column corresponding to the `dummy_break_loc` index, all travel times *to* this dummy location *from* all other locations (including itself) will be set to 0.
+        - **Impact:** Ensures that routing a technician to or from a dummy break item incurs no travel time cost or duration in the optimizer's calculations.
+
+    8.1.3. `OptimizationItem` (Type: `apps/scheduler/src/types/optimization.types.ts` & `apps/optimiser/models.py`):
+        - **New Instances ("Dummy Break Items"):** For each identified availability gap for a technician, a new `OptimizationItem` instance will be created by the scheduler.
+            - `id`: String. Formatted as `break_{technicianId}_{targetDateString}_{gapIndex}` (e.g., `break_123_2024-07-30_0`). This ensures uniqueness.
+            - `locationIndex`: Number. Set to the index of the global `'dummy_break_loc'`.
+            - `durationSeconds`: Number. The duration of the availability gap in seconds. This represents the time the technician is unavailable.
+            - `serviceTimeSeconds` (If field exists and is used by optimizer for node duration): Should be set equal to `durationSeconds`. If the optimizer derives node duration primarily from `fixedConstraint.durationSeconds` when a constraint is present, this field might be less critical for breaks, but setting it provides clarity.
+            - `priority`: Number. Can be set to a high logical priority (e.g., 0 or 1) to signify its importance, though its mandatory nature will primarily be enforced by `AddDisjunction` with zero penalty.
+            - `eligibleTechnicianIds`: Array of numbers. Must contain *only* the ID of the technician to whom this unavailability period applies.
+            - `earliestStartTimeISO`: String (Optional). Not strictly required as the `OptimizationFixedConstraint` will dictate the exact timing.
+            - `isFixedTime`: Boolean (Optional). Could be set to `true` for consistency if the optimizer uses this flag to identify items needing a fixed constraint lookup, though the `item.id.startswith('break_')` check is more specific for breaks.
+            - `fixedTimeISO`: String (Optional). Not strictly required on the item itself if the `OptimizationFixedConstraint` is the source of truth for timing.
+        - **Addition to Payload:** These dummy break items will be added to the `payload.items` list alongside regular job items.
+
+    8.1.4. `OptimizationFixedConstraint` (Type: `apps/scheduler/src/types/optimization.types.ts` & `apps/optimiser/models.py`):
+        - **New Instances (for Dummy Breaks):** For each dummy break item, a corresponding `OptimizationFixedConstraint` will be created by the scheduler.
+            - `itemId`: String. Must match the `id` of the associated dummy break `OptimizationItem`.
+            - `fixedTimeISO`: String. The absolute UTC start timestamp of the availability gap.
+            - `durationSeconds`: Number. The duration of the availability gap in seconds.
+            - `assignedTechnicianId`: Number. The ID of the technician to whom this unavailability (and thus this constraint) applies.
+        - **Addition to Payload:** These constraints will be added to the `payload.fixedConstraints` list.
+
+    8.1.5. `OptimizationTechnician` (Type: `apps/scheduler/src/types/optimization.types.ts` & `apps/optimiser/models.py`):
+        - **No direct structural changes to this type itself are required by the PRD.**
+        - **Logic Change (`payload.ts`):** The calculation of `earliestStartTimeISO` and `latestEndTimeISO` for each technician will still represent the overall start of their first actual availability window and the end of their last actual availability window for the day. This provides the optimizer with the outer bounds of the technician's shift.
+
+8.2. Key Logic Changes & Definitions:
+
+    8.2.1. **Availability Gap Identification (`findAvailabilityGaps` in `payload.ts`):**
+        - **Definition:** An "availability gap" is a continuous block of time within a technician's defined workday (between their overall earliest start and latest end) during which they are *not* available due to the subtraction of locked jobs or DB exceptions from their base availability windows.
+        - **Logic:** This function iterates through a technician's sorted `TimeWindow[]` (representing actual availability slots for the day). If a time difference exists between the end of one `TimeWindow` and the start of the next, that difference is a gap. A gap can also exist after the last `TimeWindow` if it ends before the technician's `workDayEnd`.
+
+    8.2.2. **Optimizer: Constraint Application for Dummy Break Items (`main.py`):
+        - **Identification:** Optimizer will identify dummy break items by checking `if item.id.startswith('break_')`.
+        - **Timing Constraint:** For each identified dummy break item, the optimizer will:
+            1. Look up its corresponding `OptimizationFixedConstraint` using the `item.id` in the `fixed_constraints_map`.
+            2. Calculate `break_start_seconds_rel` (relative to `planning_epoch_seconds`) from `constraint.fixedTimeISO`.
+            3. Calculate `break_end_seconds_rel` (`break_start_seconds_rel + constraint.durationSeconds`).
+            4. Apply `time_dimension.CumulVar(solver_index_for_break_item).SetRange(break_start_seconds_rel, break_end_seconds_rel)`.
+               - This forces the "visit" to the dummy break node to occur exactly within this time window. Since the node's service time is set to the gap duration (via `item.durationSeconds` or `constraint.durationSeconds`), the node effectively consumes the entire time slot.
+        - **Mandatory Performance Constraint:**
+            - `routing.AddDisjunction([solver_index_for_break_item], 0)` will be applied.
+            - This ensures that if the technician's route is used at all, this break item *must* be part of their route (penalty of 0 for dropping it). This makes the unavailability period non-negotiable.
+        - **Technician Eligibility:** The constraint must only apply to the designated technician. This is ensured by:
+            1. Scheduler: Setting `OptimizationItem.eligibleTechnicianIds = [tech.id]` for the break item.
+            2. Optimizer: The optimizer's general eligibility enforcement mechanism (e.g., using `VehicleVar().SetValues()` or arc costs) will restrict this break item to the specified technician's vehicle index. If this mechanism is not generic, specific logic will be needed to ensure that only the `constraint.assignedTechnicianId`'s vehicle can be routed through this break node.
+
+    8.2.3. **Optimizer: Handling Regular Fixed Jobs (Non-Breaks) (`main.py`):
+        - **Identification:** These are items found in `fixed_constraints_map` that do *not* start with `'break_'` OR items that have an `isFixedTime == true` flag (if this convention is also used).
+        - **Timing Constraint:** `time_dimension.CumulVar(solver_index_for_job).SetRange(fixed_job_start_rel, fixed_job_start_rel)` (fixes start time; duration is handled by the job's service time at its real location).
+        - **Mandatory Performance Constraint:** `routing.AddDisjunction([solver_index_for_job], 0)` must also be applied to these items to ensure they are not dropped.
+
+    8.2.4. **Optimizer: Result Filtering (`main.py` or `results.ts`):
+        - **Logic:** When processing the optimizer's solution to build the sequence of `RouteStop`s for each technician, any item whose `id` starts with `'break_'` will be ignored and not included in the final route plan presented to users or downstream systems.
+
+8.3. Removed/Superseded Logic:
+    - Any previous, potentially incomplete or incorrect, mechanisms in the optimizer for handling breaks or technician unavailability that did not rely on the explicit fixed constraint approach described above will be removed or disabled.
+    - The scheduler will no longer attempt to influence optimizer behavior regarding gaps by only adjusting the technician's overall `earliestStartTimeISO` / `latestEndTimeISO` if that adjustment was meant to implicitly communicate internal gaps (this was insufficient).
+
+This technical appendix should clarify the precise nature of the changes and ensure all team members are aligned on the data structures and logic involved in implementing the robust handling of fixed technician unavailability. 

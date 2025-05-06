@@ -1,0 +1,11 @@
+# Task ID: 6
+# Title: Implement availability pre-check logic for overflow passes
+# Status: done
+# Dependencies: 1, 2
+# Priority: high
+# Description: Add logic to check if any technicians have availability windows for each overflow day before proceeding with that day's planning.
+# Details:
+Inside the `while` loop for overflow passes, after calculating `currentPlanningDate` and fetching `techsForLoop`, implement a loop through `techsForLoop`. For each technician, call `calculateWindowsForTechnician` (no locked jobs needed for overflow days) to get the windows for the current planning date. Check if `windows.length > 0` and set a boolean flag `isAnyTechAvailable`. Break the loop if any technician has availability. Add or modify an `if (!isAnyTechAvailable)` condition to skip the remaining steps in the current loop iteration if no technicians are available.
+
+# Test Strategy:
+Test with mock data where no technicians have availability for a specific overflow day to verify the check works correctly. Also test with data where at least one technician has availability to ensure planning proceeds for that day.
