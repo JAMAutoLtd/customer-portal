@@ -1,40 +1,21 @@
 {
-  "scenarioName": "fixed_time_future_overflow",
+  "scenarioName": "locked_job_impact",
   "insertedIds": {
     "orders": [
-      34,
-      35,
-      36,
-      37,
-      38,
-      39,
-      40,
-      41,
-      42,
-      43,
-      44
+      1,
+      2,
+      3
     ],
     "jobs": [
-      34,
-      35,
-      36,
-      37,
-      38,
-      39,
-      40,
-      41,
-      42,
-      43,
-      44
-    ],
-    "fixedJobId": [
-      34
+      1,
+      2,
+      3
     ],
     "technicianAuthIds": [
       "00000000-0000-0000-0000-000000000001"
     ],
     "technicianDbIds": [
-      4
+      1
     ],
     "assignedVanIds": [
       1

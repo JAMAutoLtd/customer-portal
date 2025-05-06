@@ -584,17 +584,25 @@ export const adasRequirementsData: AdasRequirementInsert[] = [
 
 // Define default equipment assignments for baseline vans
 export const vanEquipmentData: { van_id: number; equipment_id: number }[] = [
-  // Van 1: Diag, Prog
-  { van_id: 1, equipment_id: 6 }, // Diag
+  // Van 1: Prog, Diag, Immo, Airbag
   { van_id: 1, equipment_id: 8 }, // Prog
-  // Van 2: Immo, Airbag
+  { van_id: 1, equipment_id: 6 }, // Diag
+  { van_id: 1, equipment_id: 7 }, // Immo
+  { van_id: 1, equipment_id: 5 }, // Airbag
+  // Van 2: Prog, Diag, Immo, Airbag
+  { van_id: 2, equipment_id: 8 }, // Prog
+  { van_id: 2, equipment_id: 6 }, // Diag
   { van_id: 2, equipment_id: 7 }, // Immo
   { van_id: 2, equipment_id: 5 }, // Airbag
-  // Van 3: Diag, Immo
+  // Van 3: Prog, Diag, Immo, Airbag
+  { van_id: 3, equipment_id: 8 }, // Prog
   { van_id: 3, equipment_id: 6 }, // Diag
   { van_id: 3, equipment_id: 7 }, // Immo
-  // Van 4: Prog, Airbag
+  { van_id: 3, equipment_id: 5 }, // Airbag
+  // Van 4: Prog, Diag, Immo, Airbag
   { van_id: 4, equipment_id: 8 }, // Prog
+  { van_id: 4, equipment_id: 6 }, // Diag
+  { van_id: 4, equipment_id: 7 }, // Immo
   { van_id: 4, equipment_id: 5 }, // Airbag
   // Note: No ADAS equipment assigned by default
 ];

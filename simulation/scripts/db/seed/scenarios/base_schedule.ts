@@ -60,7 +60,7 @@ export async function seedScenario_base_schedule(
   // --- Seed Orders and Jobs (using baseline customers/addresses/vehicles) --- 
   const ordersToCreate: OrderInsert[] = [];
   const jobTemplates: Omit<JobInsert, 'order_id'>[] = [];
-  const numberOfOrders = 20; // Or make dynamic based on techCount (now technicianDbIds.length)?
+  const numberOfOrders = 10; // Or make dynamic based on techCount (now technicianDbIds.length)?
 
   for (let i = 0; i < numberOfOrders; i++) {
     const customerId = getRandomElement(baselineRefs.customerIds);

@@ -64,14 +64,13 @@ export const seedScenario_locked_job_impact = async (
         // Queued jobs don't need specific times, just need to exist for today
 
         // 3. Create the Order and the Locked Job
-        const customerId1 = baselineRefs.customerIds[0];
-        const addressId1 = baselineRefs.addressIds[0];
+        const customerId1 = getRandomElement(baselineRefs.customerIds); // Use random customer
+        const addressId1 = getRandomElement(baselineRefs.addressIds); // <<< Use random address
         const serviceId1 = getRandomElement(BASIC_SERVICE_IDS);
-        // Get a vehicle ID from baseline refs
         if (!baselineRefs.customerVehicleIds || baselineRefs.customerVehicleIds.length === 0) {
             throw new Error('BaselineRefs is missing customerVehicleIds.');
         }
-        const vehicleId1 = baselineRefs.customerVehicleIds[0];
+        const vehicleId1 = getRandomElement(baselineRefs.customerVehicleIds); // Use random vehicle
 
         const order1Data: OrderInsert = {
             user_id: customerId1,
@@ -103,11 +102,10 @@ export const seedScenario_locked_job_impact = async (
         logInfo(`Inserted locked job ID: ${lockedJobId} assigned to Tech ${assignedTechId} starting at ${startTimeLockedJob}`);
 
         // 4. Create additional Orders and Queued Jobs for the same technician
-        const customerId2 = baselineRefs.customerIds[1] ?? customerId1; // Use a different customer if available
-        const addressId2 = baselineRefs.addressIds[1] ?? addressId1; // Different address
+        const customerId2 = getRandomElement(baselineRefs.customerIds); // Use random customer
+        const addressId2 = getRandomElement(baselineRefs.addressIds); // <<< Use random address
         const serviceId2 = getRandomElement(BASIC_SERVICE_IDS.filter(id => id !== serviceId1));
-        // Use another vehicle ID
-        const vehicleId2 = baselineRefs.customerVehicleIds[1] ?? vehicleId1;
+        const vehicleId2 = getRandomElement(baselineRefs.customerVehicleIds); // Use random vehicle
 
         const order2Data: OrderInsert = {
             user_id: customerId2,
@@ -132,11 +130,10 @@ export const seedScenario_locked_job_impact = async (
             fixed_assignment: false, // Let scheduler decide exact time
         };
 
-        const customerId3 = baselineRefs.customerIds[2] ?? customerId1;
-        const addressId3 = baselineRefs.addressIds[2] ?? addressId2;
+        const customerId3 = getRandomElement(baselineRefs.customerIds); // Use random customer
+        const addressId3 = getRandomElement(baselineRefs.addressIds); // <<< Use random address
         const serviceId3 = getRandomElement(BASIC_SERVICE_IDS.filter(id => id !== serviceId1 && id !== serviceId2));
-        // Use another vehicle ID
-        const vehicleId3 = baselineRefs.customerVehicleIds[2] ?? vehicleId1;
+        const vehicleId3 = getRandomElement(baselineRefs.customerVehicleIds); // Use random vehicle
 
         const order3Data: OrderInsert = {
             user_id: customerId3,

@@ -4,7 +4,7 @@ import { getRelevantJobs, getJobsByStatus } from '../supabase/jobs';
 import { 
     Job, JobStatus, Technician, JobBundle, SchedulableItem, 
     TechnicianAvailability, Address, SchedulableJob, VanEquipment,
-    FailureReason, isPersistentFailure, SchedulingAttempt, JobSchedulingState
+    FailureReason, isPersistentFailure, SchedulingAttempt, JobSchedulingState 
 } from '../types/database.types';
 import { 
     calculateTechnicianAvailability, calculateAvailabilityForDay, 
@@ -712,7 +712,7 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             logger.warn(`Availability pre-check failed for ${planningDateStr}: No technicians found with availability.`);
         }
         // <<< End availability check >>>
-        
+
         // <<< Add check to skip if no techs have availability >>>
         // If the pre-check found no available technicians for this specific overflow date,
         // skip the rest of the processing for this day and update job states accordingly.
