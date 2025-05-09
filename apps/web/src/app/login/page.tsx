@@ -12,6 +12,7 @@ function LoginContent() {
   const router = useRouter()
   const { useSearchParams } = require('next/navigation')
   const searchParams = useSearchParams()
+  const redirectPath = searchParams.get('redirect') || '/orders'
   const justRegistered = searchParams.get('registered') === 'true'
   const { login } = useAuth()
 
@@ -34,7 +35,20 @@ function LoginContent() {
         throw new Error(result.error || 'Login failed')
       }
 
-      router.push('/orders')
+      // Get session and user profile data
+      const response = await fetch('/api/auth/session')
+      const data = await response.json()
+
+      if (data.session?.user && data.userProfile) {
+        // Redirect based on admin status
+        if (data.userProfile.is_admin) {
+          router.push('/jobs')
+        } else {
+          router.push(redirectPath)
+        }
+      } else {
+        throw new Error('Failed to get user profile')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

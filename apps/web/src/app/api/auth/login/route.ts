@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (!email || !password) {
       return NextResponse.json(
         { detail: 'Email and password are required' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
             }
           },
         },
-      }
+      },
     )
 
     // Authenticate user with Supabase Auth
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     if (!data.user) {
       return NextResponse.json(
         { detail: 'Authentication failed' },
-        { status: 401 }
+        { status: 401 },
       )
     }
 
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     const { data: userData, error: userError } = await supabaseServer
       .from('users')
       .select('*')
-      .eq('authid', data.user.id)
+      .eq('id', data.user.id)
       .single()
 
     if (userError) {
@@ -72,14 +72,8 @@ export async function POST(request: Request) {
       // Still return success since auth was successful
     }
 
-    console.log('🟢 [login] User data:', {
-      message: 'Login successful',
-      user: {
-        id: data.user.id,
-        email: data.user.email,
-        ...userData,
-      },
-    })
+    // Determine redirect URL based on admin status
+    const redirectUrl = userData?.is_admin ? '/jobs' : '/orders'
 
     const response = NextResponse.json(
       {
@@ -89,9 +83,9 @@ export async function POST(request: Request) {
           email: data.user.email,
           ...userData,
         },
-        redirectUrl: '/orders',
+        redirectUrl,
       },
-      { status: 200 }
+      { status: 200 },
     )
 
     // The session cookies are already set by the supabaseServer client

@@ -4,7 +4,6 @@ import { createClient } from '@/utils/supabase/server'
 export default async function Home() {
   const supabase = await createClient()
 
-  // Get the current session
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -23,7 +22,7 @@ export default async function Home() {
 
   // Redirect based on admin status
   if (userData?.is_admin) {
-    redirect('/availability')
+    redirect('/jobs')
   } else {
     redirect('/orders')
   }

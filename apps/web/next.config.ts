@@ -8,12 +8,16 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  async redirects() {
+  async headers() {
     return [
       {
         source: '/',
-        destination: '/orders',
-        permanent: true, // ✅ Use `true` if this redirect is permanent
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, must-revalidate',
+          },
+        ],
       },
     ]
   },
