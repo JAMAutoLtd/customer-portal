@@ -14,7 +14,7 @@ const BaselineRefsSchema = z.object({
     serviceIds: z.array(z.number().int()).optional(),
     equipmentIds: z.array(z.number().int()).optional(),
     vanIds: z.array(z.number().int()).optional(),
-    ymmRefIds: z.array(z.number().int()).optional(),
+    ymmIds: z.array(z.number().int()).optional(),
     technicianDefaultHoursIds: z.array(z.number().int()).optional(),
     technicianAvailabilityExceptionIds: z.array(z.number().int()).optional(),
 });

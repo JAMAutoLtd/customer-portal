@@ -35,6 +35,7 @@ const NUM_QUEUED_JOBS_TO_ADD = 3; // <<< Re-add constant for queued jobs
  * @param baselineRefs References to the baseline seeded data.
  * @param technicianDbIds - The DB IDs of technicians created for this scenario run.
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests scheduling a job with a fixed start time for 'today'. Seeds one fixed-time job assigned to a specific tech for today (or tomorrow AM if too late) and three additional dynamic 'queued' jobs. Verifies the fixed job is scheduled precisely and other jobs are planned around it.
  */
 export const seedScenario_fixed_time_today = async (
     supabase: SupabaseClient<Database>,

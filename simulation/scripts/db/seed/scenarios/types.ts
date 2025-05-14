@@ -11,9 +11,9 @@ export interface BaselineRefs {
   serviceIds?: number[];
   equipmentIds?: number[];
   vanIds?: number[];
-  ymmRefIds?: number[];
   technicianDefaultHoursIds?: number[];
   technicianAvailabilityExceptionIds?: number[];
+  ymmIds?: number[];
   // Add other relevant baseline IDs as needed
 }
 
@@ -33,6 +33,7 @@ export interface ScenarioSeedResult {
     // Add other table names (as keys) and ID arrays (as values)
     // relevant to the specific scenario being seeded.
     [tableName: string]: (number[] | string[]) | undefined;
+    ymmIds?: number[];
   };
   // Optional: Add any other relevant scenario-specific metadata if needed
 }

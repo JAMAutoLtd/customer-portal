@@ -1,131 +1,131 @@
 {
   "meta": {
-    "generatedAt": "2025-05-06T16:17:28.040Z",
+    "generatedAt": "2025-05-09T15:53:20.672Z",
     "tasksAnalyzed": 15,
     "thresholdScore": 5,
-    "projectName": "Task Master",
-    "usedResearch": false
+    "projectName": "Taskmaster",
+    "usedResearch": true
   },
   "complexityAnalysis": [
     {
       "taskId": 1,
-      "taskTitle": "Create Dummy Break Location in Scheduler",
-      "complexityScore": 3,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of creating a dummy break location in the scheduler into subtasks, including defining constants, implementing the creation function, and integrating it into the payload generation logic.",
-      "reasoning": "This task is relatively straightforward, involving the creation of a simple function and constant. The implementation details are well-defined with code examples. The complexity comes from ensuring proper integration with the existing payload structure."
+      "taskTitle": "Create Unified Equipment Requirements Table Schema",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the process of creating the unified equipment_requirements table schema into subtasks such as: (1) Drafting the schema SQL, (2) Reviewing and validating constraints and indexes, (3) Applying the schema to development and test environments, (4) Verifying table creation and permissions.",
+      "reasoning": "This task involves standard database schema design and implementation, including constraints and indexes. While not trivial, it is a common operation for experienced developers and DBAs, and can be decomposed into a few clear steps."
     },
     {
       "taskId": 2,
-      "taskTitle": "Modify Travel Time Matrix for Dummy Break Location",
-      "complexityScore": 4,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of modifying the travel time matrix for dummy break locations into subtasks, including implementing the adjustment function, integrating it with the existing travel time calculation, and handling edge cases.",
-      "reasoning": "This task requires understanding the existing travel time matrix structure and carefully modifying it. While the implementation is provided, there's complexity in ensuring the matrix is properly adjusted without side effects, especially with edge cases like empty matrices."
+      "taskTitle": "Update Database Schema Files",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Expand this task into subtasks for each schema file to be updated, including: (1) Updating root schema.sql, (2) Updating web app schema, (3) Updating simulation scripts, (4) Removing old table definitions, (5) Validating changes with a dry run.",
+      "reasoning": "Updating multiple schema files and ensuring consistency across environments adds moderate complexity, especially with the need to remove legacy definitions and validate changes."
     },
     {
       "taskId": 3,
-      "taskTitle": "Enhance Availability Gap Identification",
-      "complexityScore": 6,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of enhancing availability gap identification into subtasks, including implementing the core gap finding algorithm, handling edge cases at shift boundaries, sorting and processing time windows, and integrating with the existing availability system.",
-      "reasoning": "This task involves complex time-based calculations and logic to identify gaps between availability windows. The algorithm needs to handle various edge cases (start of day, end of day, overlapping windows) and requires careful date manipulation. The integration with existing systems adds complexity."
+      "taskTitle": "Create Data Migration Script",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Decompose into subtasks: (1) Analyze source and target schemas, (2) Write migration SQL for each legacy table, (3) Implement conflict handling, (4) Write cleanup script, (5) Test migration on staging data, (6) Validate data integrity post-migration.",
+      "reasoning": "Data migration requires careful mapping, conflict handling, and validation to avoid data loss or corruption, making it more complex than schema changes alone."
     },
     {
       "taskId": 4,
-      "taskTitle": "Create Dummy Break Items for Availability Gaps",
-      "complexityScore": 5,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of creating dummy break items into subtasks, including implementing the item generation function, integrating with the availability gap system, ensuring proper ID generation, and adding the items to the optimization payload.",
-      "reasoning": "This task builds on previous tasks and requires creating structured objects with specific properties. It involves integrating with the availability gap system and ensuring the generated items have the correct format and properties for the optimizer to process."
+      "taskTitle": "Update Scheduler Equipment Logic",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down into: (1) Refactor getRequiredEquipmentForJob to use unified table, (2) Remove legacy logic, (3) Implement fallback logic, (4) Add/adjust logging, (5) Write/adjust unit tests for new logic.",
+      "reasoning": "Refactoring core scheduling logic and ensuring correct fallback behavior impacts critical application flows and requires careful testing."
     },
     {
       "taskId": 5,
-      "taskTitle": "Generate Fixed Constraints for Dummy Break Items",
-      "complexityScore": 5,
+      "taskTitle": "Review Technician Eligibility Logic",
+      "complexityScore": 4,
       "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of generating fixed constraints for dummy break items into subtasks, including implementing the constraint generation function, extracting technician IDs from break item IDs, and adding the constraints to the optimization payload.",
-      "reasoning": "This task requires creating constraint objects that correctly reference the break items. The complexity comes from parsing break item IDs to extract technician information and ensuring the constraints have the correct format and properties for the optimizer."
+      "expansionPrompt": "Expand into: (1) Review eligibility logic for compatibility, (2) Add/adjust logging for equipment checks, (3) Write/expand test cases for eligibility scenarios.",
+      "reasoning": "Primarily a review and test task with minimal code changes, but thorough testing is needed to ensure correctness."
     },
     {
       "taskId": 6,
-      "taskTitle": "Modify Optimizer to Identify Dummy Break Items",
+      "taskTitle": "Update Test Data Seeding SQL Script",
       "complexityScore": 5,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of modifying the optimizer to identify dummy break items into subtasks, including implementing the identification function, updating the item processing logic, and creating appropriate data structures to track dummy break items.",
-      "reasoning": "This task involves modifying the Python optimizer code to recognize and handle dummy break items differently. It requires understanding the existing optimizer flow and adding new logic without disrupting the current functionality."
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Decompose into: (1) Remove old table inserts, (2) Consolidate data into unified table inserts, (3) Validate data coverage, (4) Test seeding in a clean environment.",
+      "reasoning": "Updating and validating test data scripts is straightforward but requires attention to detail to ensure all scenarios are covered."
     },
     {
       "taskId": 7,
-      "taskTitle": "Apply Fixed Time Constraints to Dummy Break Items in Optimizer",
-      "complexityScore": 7,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of applying fixed time constraints to dummy break items in the optimizer into subtasks, including implementing the constraint application function, calculating relative time values, integrating with the OR-Tools time dimension, and adding appropriate logging.",
-      "reasoning": "This task involves complex integration with the OR-Tools constraint solver. It requires understanding how to set time constraints in the routing model, converting between ISO timestamps and relative seconds, and ensuring the constraints are correctly applied to the right solver indices."
+      "taskTitle": "Update TypeScript Seeding Scripts",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Expand into: (1) Remove legacy data arrays and inserts, (2) Update scenario scripts to use unified table, (3) Refactor queries for new schema, (4) Test each script, (5) Validate seeded data in database.",
+      "reasoning": "Multiple scripts and scenarios must be updated and validated, increasing the coordination and testing effort."
     },
     {
       "taskId": 8,
-      "taskTitle": "Enforce Mandatory Performance of Dummy Break Items",
-      "complexityScore": 7,
+      "taskTitle": "Update Integration Tests for Scheduler",
+      "complexityScore": 6,
       "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of enforcing mandatory performance of dummy break items into subtasks, including implementing the function to make breaks mandatory, creating technician-to-vehicle mappings, setting up disjunctions with zero penalties, and restricting vehicle assignments.",
-      "reasoning": "This task involves advanced OR-Tools concepts like disjunctions and vehicle restrictions. It requires understanding how to make nodes mandatory in the routing model and how to restrict which vehicles (technicians) can visit specific nodes. The integration with the existing constraint system adds complexity."
+      "expansionPrompt": "Break down into: (1) Review and update each integration test file, (2) Adjust test setup for unified table, (3) Run and debug tests, (4) Document any required assertion changes.",
+      "reasoning": "Integration tests must be carefully updated to reflect schema changes, and failures may require debugging across multiple layers."
     },
     {
       "taskId": 9,
-      "taskTitle": "Enforce Technician Eligibility for Dummy Break Items",
-      "complexityScore": 6,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of enforcing technician eligibility for dummy break items into subtasks, including implementing the eligibility enforcement function, setting up cost evaluators for different vehicles, and integrating with the existing routing model.",
-      "reasoning": "This task may overlap with Task 8 but provides an alternative approach using cost evaluators. It requires understanding how to set arc costs in the routing model to effectively prevent certain technicians from being assigned to specific break items."
+      "taskTitle": "Create Unit Tests for Updated Equipment Logic",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Expand into: (1) Set up test file and mocks, (2) Write tests for specific requirements, (3) Write tests for fallback logic, (4) Ensure coverage for edge cases.",
+      "reasoning": "Unit testing is a standard practice, but comprehensive coverage and mocking database responses adds moderate complexity."
     },
     {
       "taskId": 10,
-      "taskTitle": "Filter Dummy Break Items from Optimizer Results",
-      "complexityScore": 4,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of filtering dummy break items from optimizer results into subtasks, including implementing the route building function, adding logic to identify and exclude dummy break items, and ensuring the route sequence remains correct after filtering.",
-      "reasoning": "This task involves post-processing the optimizer solution to exclude dummy break items from the final routes. While conceptually straightforward, care must be taken to preserve the correct sequence of stops and ensure all relevant information is maintained."
+      "taskTitle": "Perform Global Search for Legacy Table References",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Decompose into: (1) Search codebase for legacy table references, (2) Update code references, (3) Update comments and documentation, (4) Validate with a final search and code linting.",
+      "reasoning": "Systematic search and update is straightforward but must be thorough to avoid missed references."
     },
     {
       "taskId": 11,
-      "taskTitle": "Update Integration Test for Locked Job Impact",
-      "complexityScore": 5,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of updating integration tests for locked job impact into subtasks, including reviewing existing tests, implementing new test cases for different scenarios, creating test data with locked jobs, and verifying correct scheduling behavior.",
-      "reasoning": "This task requires understanding the existing test structure and adding new test cases to verify the implementation. It involves creating complex test scenarios with locked jobs and validating that the optimizer correctly handles these constraints."
+      "taskTitle": "Update Database Documentation",
+      "complexityScore": 4,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Expand into: (1) Update main schema documentation, (2) Update any additional schema docs, (3) Review and validate documentation changes.",
+      "reasoning": "Documentation updates are low complexity but require attention to accuracy and completeness."
     },
     {
       "taskId": 12,
-      "taskTitle": "Create Integration Tests for DB Exception Handling",
-      "complexityScore": 5,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of creating integration tests for DB exception handling into subtasks, including setting up the test file structure, implementing test cases for different exception scenarios, creating test data with availability exceptions, and verifying correct scheduling behavior.",
-      "reasoning": "This task involves creating new integration tests from scratch to verify the handling of database exceptions. It requires designing test scenarios that cover various unavailability patterns and validating that the optimizer respects these constraints."
+      "taskTitle": "Update Test Documentation",
+      "complexityScore": 3,
+      "recommendedSubtasks": 2,
+      "expansionPrompt": "Break down into: (1) Update test scenario documentation for unified table, (2) Review for outdated references and validate updates.",
+      "reasoning": "This is a simple documentation update with minimal risk or complexity."
     },
     {
       "taskId": 13,
-      "taskTitle": "Create Edge Case Tests for Break Handling",
+      "taskTitle": "Develop Staging Environment Deployment Plan",
       "complexityScore": 6,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the task of creating edge case tests for break handling into subtasks, including identifying critical edge cases, implementing test cases for shift boundary breaks, handling scenarios with no schedulable jobs, and testing multiple technicians with different break patterns.",
-      "reasoning": "This task focuses on testing edge cases that might cause issues in the implementation. It requires identifying potential problem scenarios and creating tests to verify the system handles them correctly. The complexity comes from designing comprehensive test cases that cover all edge conditions."
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Expand into: (1) Draft pre-deployment checklist, (2) Document deployment steps, (3) Define rollback plan, (4) Specify post-deployment verification, (5) Review plan with team.",
+      "reasoning": "Deployment planning involves coordination, risk mitigation, and clear documentation, requiring careful thought but not deep technical complexity."
     },
     {
       "taskId": 14,
-      "taskTitle": "Verify Travel Time Integrity with Dummy Breaks",
-      "complexityScore": 6,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the task of verifying travel time integrity with dummy breaks into subtasks, including implementing the travel time comparison test, creating helper functions to extract travel times from routes, and testing with various job and break configurations.",
-      "reasoning": "This task involves creating tests to verify that the dummy break implementation doesn't affect travel times between regular jobs. It requires understanding how travel times are represented in the result structure and implementing helper functions to extract and compare these times."
+      "taskTitle": "Develop Production Deployment Plan",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Decompose into: (1) Schedule maintenance window, (2) Draft pre-deployment checklist, (3) Document deployment steps, (4) Define rollback plan, (5) Specify post-deployment and monitoring tasks, (6) Review plan with stakeholders.",
+      "reasoning": "Production deployment is high-stakes, requiring detailed planning, coordination, and contingency measures, increasing its complexity."
     },
     {
       "taskId": 15,
-      "taskTitle": "Documentation and Code Comments",
+      "taskTitle": "Conduct Post-Implementation Review",
       "complexityScore": 4,
       "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the documentation task into subtasks, including adding comprehensive code comments to new functions, creating or updating README documentation for the unavailability handling system, and documenting the optimizer changes.",
-      "reasoning": "This task involves documenting the entire implementation across multiple components. While not technically complex, it requires a comprehensive understanding of all the implemented features and the ability to explain them clearly for future developers."
+      "expansionPrompt": "Expand into: (1) Draft review document, (2) Schedule and conduct review meeting, (3) Document lessons learned and future enhancements.",
+      "reasoning": "Post-implementation review is a standard process-focused task, requiring thoroughness but not technical depth."
     }
   ]
 }

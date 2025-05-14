@@ -27,6 +27,7 @@ function getRandomElement<T>(arr: T[]): T {
  * @param baselineRefs - References to the baseline data.
  * @param technicianDbIds - The DB IDs of technicians active in this scenario.
  * @returns Metadata object conforming to ScenarioSeedResult.
+ * @description Tests the scheduler's handling of a job that cannot be scheduled due to lack of required equipment. It identifies a specific equipment model needed for a service/vehicle combination that no active technician possesses, then seeds a job with this requirement. Verifies the job is marked 'pending_review'.
  */
 export async function seedScenario_equipment_conflict(
   supabaseAdmin: SupabaseClient<Database>,
@@ -44,7 +45,7 @@ export async function seedScenario_equipment_conflict(
     !baselineRefs.serviceIds?.length ||
     !baselineRefs.equipmentIds?.length ||
     !baselineRefs.vanIds?.length ||
-    !baselineRefs.ymmRefIds?.length // Need YMM refs
+    !baselineRefs.ymmIds?.length // Changed from ymmRefIds
   ) {
     throw new Error(
       `BaselineRefs is missing required data for ${scenarioName} scenario.`

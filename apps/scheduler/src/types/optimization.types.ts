@@ -60,6 +60,15 @@ export type TravelTimeMatrix = {
 };
 
 /**
+ * Represents a period of unavailability for a technician.
+ */
+export interface TechnicianUnavailability {
+  technicianId: number;
+  startTimeISO: string;       // ISO 8601 string for unavailability start
+  durationSeconds: number;    // Duration of unavailability in seconds
+}
+
+/**
  * The complete request payload sent to the Python optimization microservice.
  */
 export interface OptimizationRequestPayload {
@@ -68,6 +77,7 @@ export interface OptimizationRequestPayload {
   items: OptimizationItem[];
   fixedConstraints: OptimizationFixedConstraint[];
   travelTimeMatrix: TravelTimeMatrix;
+  technicianUnavailabilities?: TechnicianUnavailability[]; // NEW FIELD - Optional
 }
 
 // ----- Types defining the response FROM the Python optimization microservice -----

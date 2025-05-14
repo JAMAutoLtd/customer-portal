@@ -34,6 +34,7 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  * @param baselineRefs - References to the baseline data.
  * @param technicianDbIds - The DB IDs of technicians active in this scenario (ideally just one).
  * @returns Metadata object conforming to ScenarioSeedResult.
+ * @description Tests job scheduling based on priority when capacity is limited. Seeds two jobs (P1 and P5) of long duration for the same service and location, assignable to a single technician. Verifies that the P1 job is scheduled and the P5 job is not (marked pending_review or remains queued without assignment).
  */
 export async function seedScenario_priority_conflict(
   supabaseAdmin: SupabaseClient<Database>,

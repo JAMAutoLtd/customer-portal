@@ -38,12 +38,18 @@ class OptimizationFixedConstraint(BaseModel):
 # Type alias for the nested dictionary structure
 TravelTimeMatrix = Dict[int, Dict[int, int]]
 
+class TechnicianUnavailabilityModel(BaseModel):
+    technicianId: int
+    startTimeISO: str       # ISO 8601 string for unavailability start
+    durationSeconds: int    # Duration of unavailability in seconds
+
 class OptimizationRequestPayload(BaseModel):
     locations: List[OptimizationLocation]
     technicians: List[OptimizationTechnician]
     items: List[OptimizationItem]
     fixedConstraints: List[OptimizationFixedConstraint]
     travelTimeMatrix: TravelTimeMatrix
+    technicianUnavailabilities: Optional[List[TechnicianUnavailabilityModel]] = None
 
 # --- Response Payload Models ---
 

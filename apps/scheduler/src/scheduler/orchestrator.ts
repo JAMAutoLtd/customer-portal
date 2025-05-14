@@ -803,10 +803,9 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         );
 
         // Combine the remaining queued/failed jobs with the fixed jobs for this day
-        // Ensure deduplication: Use a Map to prioritize fixed job data if ID exists in both lists
         const combinedJobsMap = new Map<number, Job>();
         jobsForThisPassFiltered.forEach(job => combinedJobsMap.set(job.id, job));
-        fixedJobsForTargetOverflowDay.forEach(job => combinedJobsMap.set(job.id, job)); // Fixed job data overwrites if duplicate ID
+        fixedJobsForTargetOverflowDay.forEach(job => combinedJobsMap.set(job.id, job)); 
         
         const combinedJobsForOverflowPass = Array.from(combinedJobsMap.values());
 
@@ -822,7 +821,6 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         // <<< End logging >>>
 
         logger.info(`Step ${loopCount}.3: Bundling remaining jobs for ${planningDateStr}...`);
-        // Use the combined list for bundling
         const bundledItemsLoop: SchedulableItem[] = bundleQueuedJobs(combinedJobsForOverflowPass);
 
         logger.info(`Step ${loopCount}.4: Determining eligibility for ${planningDateStr}...`);
@@ -918,10 +916,16 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         }
 
         logger.info(`Step ${loopCount}.5: Preparing optimization payload for ${planningDateStr}...`);
+        
+        // Define lockedJobsForThisOverflowPass to include fixed jobs for the current overflow day
+        const lockedJobsForThisOverflowPass = fixedJobsForTargetOverflowDay;
+        // If other job statuses (like in_progress predicted to run into this day) should also be considered "locked",
+        // they would need to be filtered from a more comprehensive list and added here.
+
         const optimizationPayloadLoop = await prepareOptimizationPayload(
             availableTechsThisDay, 
             eligibleItemsLoop,
-            [], 
+            lockedJobsForThisOverflowPass, // Pass the relevant locked jobs for this specific overflow day
             currentPlanningDate
         );
 

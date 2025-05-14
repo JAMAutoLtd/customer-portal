@@ -4,14 +4,23 @@ import chalk from 'chalk'; // For colored output
 import { spawn } from 'child_process'; // Import spawn
 import fs from 'fs/promises'; // Import fs promises
 import path from 'path'; // Import path for resolving
+import { logger } from '../../apps/scheduler/src/utils/logger'; // Corrected path to actual logger
 
 // Define constants for metadata paths, resolving them to absolute paths
 const BASELINE_METADATA_PATH = path.resolve(__dirname, '../../tests/integration/.baseline-metadata.json');
 const CURRENT_SCENARIO_METADATA_PATH = path.resolve(__dirname, '../../tests/integration/.current-scenario-metadata.json');
 const SCENARIOS_DIR = path.resolve(__dirname, './db/seed/scenarios');
-const INTEGRATION_TESTS_DIR = path.resolve(__dirname, '../../tests/integration/scheduler');
+const PROJECT_ROOT = path.resolve(__dirname, '../../'); // Assuming e2e-runner.ts is in simulation/scripts/
+const INTEGRATION_TESTS_DIR = path.join(PROJECT_ROOT, 'tests', 'integration', 'scheduler');
 
 // --- Utility Functions --- //
+
+interface ScenarioChoice {
+    name: string; // Filename without .ts, used as a key/value
+    value: string; // Same as name, for inquirer value
+    displayName: string; // Formatted name for display in list
+    description: string;
+}
 
 /**
  * Checks if a file exists.
@@ -59,15 +68,48 @@ function executeCommand(command: string, args: string[]): Promise<boolean> {
 }
 
 /**
- * Gets a list of available scenario names from the scenarios directory.
- * @returns Promise resolving to an array of scenario names.
+ * Gets a list of available scenario names and their descriptions from the scenarios directory.
+ * @returns Promise resolving to an array of ScenarioChoice objects.
  */
-async function listScenarioFiles(): Promise<string[]> {
+async function listScenarioFiles(): Promise<ScenarioChoice[]> {
     try {
         const files = await fs.readdir(SCENARIOS_DIR);
-        return files
-            .filter(file => file.endsWith('.ts') && !file.startsWith('_') && file !== 'index.ts' && file !== 'types.ts')
-            .map(file => file.replace('.ts', ''));
+        const scenarioChoices: ScenarioChoice[] = [];
+
+        for (const file of files) {
+            if (file.endsWith('.ts') && !file.startsWith('_') && file !== 'index.ts' && file !== 'types.ts') {
+                const scenarioName = file.replace('.ts', '');
+                let description = 'No description available.';
+                try {
+                    const filePath = path.join(SCENARIOS_DIR, file);
+                    const fileContent = await fs.readFile(filePath, 'utf-8');
+                    // Updated Regex to capture content after @description stopping at the next tag or end of comment
+                    const match = fileContent.match(/@description\s*([\s\S]*?)(?=\n\s*\*?\s*@|\*\/)/);
+                    if (match && match[1]) {
+                        description = match[1]
+                            .replace(/\r\n?|\n/g, ' ')
+                            .replace(/^\s*\*\s?/gm, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                    } else {
+                        // Fallback for simpler // SCENARIO_DESCRIPTION: format if JSDoc not found
+                        const singleLineMatch = fileContent.match(/\/\/\s*SCENARIO_DESCRIPTION:(.*)/);
+                        if (singleLineMatch && singleLineMatch[1]) {
+                            description = singleLineMatch[1].trim();
+                        }
+                    }
+                } catch (readError: any) {
+                    logger.warn(`Could not read file ${file} to extract description: ${readError.message}`);
+                }
+                scenarioChoices.push({
+                    name: scenarioName,
+                    value: scenarioName,
+                    displayName: `${scenarioName} - ${description}`,
+                    description: description
+                });
+            }
+        }
+        return scenarioChoices;
     } catch (error) {
         console.error(chalk.red('Error reading scenarios directory:'), error);
         return [];
@@ -111,10 +153,10 @@ async function promptForTechnicianCount(): Promise<number> {
 
 /**
  * Prompts the user to select a scenario.
- * @param scenarioChoices An array of scenario names.
- * @returns Promise resolving to the selected scenario name or null if no scenarios are found.
+ * @param scenarioChoices An array of ScenarioChoice objects.
+ * @returns Promise resolving to the selected scenario name (file name without .ts) or null.
  */
-async function promptForScenario(scenarioChoices: string[]): Promise<string | null> {
+async function promptForScenario(scenarioChoices: ScenarioChoice[]): Promise<string | null> {
     if (scenarioChoices.length === 0) {
         console.log(chalk.red('No scenario files found.'));
         return null;
@@ -124,7 +166,7 @@ async function promptForScenario(scenarioChoices: string[]): Promise<string | nu
             type: 'list',
             name: 'scenarioName',
             message: 'Select a scenario:',
-            choices: scenarioChoices,
+            choices: scenarioChoices.map(choice => ({ name: choice.displayName, value: choice.value })),
         },
     ]);
     return scenarioName;
@@ -172,8 +214,9 @@ enum MainMenuChoice {
     CLEAN_DB = 'Clean Staging Database',
     SEED_BASELINE = 'Seed Baseline Data',
     SEED_SCENARIO = 'Seed Specific Scenario',
-    RUN_SPECIFIC_BACKEND_TEST = 'Run Specific Backend Test (Jest)',
-    RUN_UI_TESTS = 'Run UI E2E Tests (Playwright)',
+    RUN_COMPREHENSIVE_TEST = 'Run Comprehensive Scheduler Integration Test',
+    RUN_BACKEND_TEST = 'Run Specific Backend Test (Jest)',
+    RUN_UI_E2E_TESTS = 'Run UI E2E Tests (Playwright)',
     RUN_SCENARIO_TEST = 'Run Specific Scenario Test (Seed -> Jest)',
     RUN_ALL_SCENARIO_TESTS = 'Run ALL Scenario Tests (Seed -> Jest)',
     MIGRATE_PROD = 'Migrate Production Data to Staging (WARNING: Use with extreme caution!)',
@@ -269,7 +312,7 @@ async function mainMenu() {
                     ]);
                     break;
 
-                case MainMenuChoice.RUN_SPECIFIC_BACKEND_TEST:
+                case MainMenuChoice.RUN_BACKEND_TEST:
                     const testFiles = await listTestFiles();
                     if (testFiles.length === 0) {
                         console.log(chalk.red('No integration test files found.'));
@@ -291,7 +334,7 @@ async function mainMenu() {
                     success = await executeCommand('jest', [testFilePathRelativeRun]);
                     break;
 
-                case MainMenuChoice.RUN_UI_TESTS:
+                case MainMenuChoice.RUN_UI_E2E_TESTS:
                     success = await executeCommand('pnpm', ['test:e2e:run']);
                     break;
 
@@ -404,7 +447,7 @@ async function mainMenu() {
                     console.log(chalk.yellow(`Found ${allScenarios.length} scenarios. Using default technician count: ${defaultTechCount}`));
 
                     for (const scenario of allScenarios) {
-                        console.log(chalk.cyan(`\n--- Processing Scenario: ${scenario} ---`));
+                        console.log(chalk.cyan(`\n--- Processing Scenario: ${scenario.name} ---`));
                         let seededOk = false;
                         let testedOk: boolean | null = null;
 
@@ -414,7 +457,7 @@ async function mainMenu() {
                             'db:seed:staging',
                             '--',
                             '--action', 'scenario',
-                            '--name', scenario,
+                            '--name', scenario.name,
                             '--techs', defaultTechCount.toString(),
                             '--baseline-metadata', BASELINE_METADATA_PATH,
                             '--output-metadata', CURRENT_SCENARIO_METADATA_PATH,
@@ -422,16 +465,16 @@ async function mainMenu() {
                         seededOk = seedSuccess;
 
                         if (!seedSuccess) {
-                            console.log(chalk.red(`  Seeding failed for ${scenario}. Skipping test.`));
+                            console.log(chalk.red(`  Seeding failed for ${scenario.name}. Skipping test.`));
                             testedOk = null; // Mark test as skipped
                             overallSuccess = false;
                         } else {
                             // --- Step 2: Test --- 
-                            const testFilePathAbsolute = path.join(INTEGRATION_TESTS_DIR, `${scenario}.test.ts`);
+                            const testFilePathAbsolute = path.join(INTEGRATION_TESTS_DIR, `${scenario.name}.test.ts`);
                             const testFileExists = await fileExists(testFilePathAbsolute);
                             
                             if (!testFileExists) {
-                                console.log(chalk.yellow(`  Test file not found for ${scenario} at ${testFilePathAbsolute}. Skipping test.`));
+                                console.log(chalk.yellow(`  Test file not found for ${scenario.name} at ${testFilePathAbsolute}. Skipping test.`));
                                 testedOk = null; // Mark test as skipped
                             } else {
                                 console.log(chalk.blue(`  Running test...`));
@@ -443,8 +486,8 @@ async function mainMenu() {
                                 }
                             }
                         }
-                        resultsSummary.push({ scenario, seeded: seededOk, tested: testedOk });
-                        console.log(chalk.cyan(`--- Finished Scenario: ${scenario} ---`));
+                        resultsSummary.push({ scenario: scenario.name, seeded: seededOk, tested: testedOk });
+                        console.log(chalk.cyan(`--- Finished Scenario: ${scenario.name} ---`));
                     }
 
                     // --- Summary --- 
@@ -485,6 +528,115 @@ async function mainMenu() {
                         '--compiler-options', '{"module":"CommonJS"}',
                         'simulation/scripts/db/migrate-prod-to-staging.ts'
                     ]);
+                    break;
+
+                case MainMenuChoice.RUN_COMPREHENSIVE_TEST:
+                    console.log(chalk.blue('Starting Comprehensive Scheduler Integration Test...'));
+                    const testRunStartTime = new Date(); // Capture start time for log window
+
+                    console.log(chalk.blue('Step 1: Seeding data for comprehensive_scheduler_test scenario...'));
+                    const seedArgs = [
+                        'db:seed:staging', // Your pnpm script that calls simulation/scripts/db/seed/index.ts
+                        '--',
+                        '--action', 'scenario',
+                        '--name', 'comprehensive_scheduler_test',
+                        '--techs', '4', // As defined in PRD, fixed at 4 for this test
+                        '--baseline-metadata', BASELINE_METADATA_PATH, // Ensure BASELINE_METADATA_PATH is defined
+                        '--output-metadata', CURRENT_SCENARIO_METADATA_PATH // Ensure CURRENT_SCENARIO_METADATA_PATH is defined
+                    ];
+                    success = await executeCommand('pnpm', seedArgs);
+                    if (!success) {
+                        console.error(chalk.red('Comprehensive test seeding failed. Aborting test run.'));
+                    } else {
+                        console.log(chalk.green('Comprehensive test seeding completed successfully.'));
+                        
+                        // Step 2: Trigger Scheduler Replan
+                        console.log(chalk.blue('Step 2: Triggering scheduler replan...'));
+                        const SCHEDULER_HOST_URL = 'http://localhost:3001'; // Ensure this is correct for your test env
+                        let replanTriggered = false;
+                        try {
+                            const replanResponse = await fetch(`${SCHEDULER_HOST_URL}/run-replan`, { 
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'application/json' },
+                                // body: JSON.stringify({}) // If endpoint expects a body
+                            });
+                            if (!replanResponse.ok) {
+                                const errorBody = await replanResponse.text();
+                                throw new Error(`Scheduler replan trigger failed: ${replanResponse.status} ${replanResponse.statusText}. Body: ${errorBody}`);
+                            }
+                            console.log(chalk.green('Scheduler replan triggered successfully.'));
+                            replanTriggered = true;
+                        } catch (replanError: any) {
+                            console.error(chalk.red('Failed to trigger scheduler replan:'), replanError.message);
+                            success = false; // Mark overall success as false
+                        }
+
+                        if (replanTriggered && success) {
+                            // Step 3: Execute Jest tests
+                            console.log(chalk.blue('Step 3: Executing Jest tests for comprehensive_schedule.test.ts...'));
+                            const jestTestPath = path.relative(PROJECT_ROOT, path.join(INTEGRATION_TESTS_DIR, 'comprehensive_schedule.test.ts')).replace(/\\/g, '/');
+                            
+                            // Add a small delay to allow the replan to fully process before Jest reads the DB.
+                            // This is a pragmatic approach if waitForReplan is too complex here.
+                            console.log(chalk.gray('Waiting a few seconds for replan to settle before running Jest...'));
+                            await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
+
+                            const jestSuccess = await executeCommand('pnpm', ['jest', jestTestPath]);
+                            if (!jestSuccess) {
+                                console.error(chalk.red('Comprehensive Jest tests failed.'));
+                                success = false;
+                            } else {
+                                console.log(chalk.green('Comprehensive Jest tests passed successfully.'));
+                            }
+
+                            // Step 4: Capturing logs (Subtask 15.1, 15.2, 15.3)
+                            console.log(chalk.blue('Step 4: Capturing logs for Comprehensive Scheduler Test...'));
+                            const testRunEndTime = new Date(); // Capture end time for log window
+
+                            const DEBUG_DIR = path.join(PROJECT_ROOT, 'debug');
+                            try {
+                                await fs.mkdir(DEBUG_DIR, { recursive: true });
+                                const timestamp = testRunStartTime.toISOString().replace(/:/g, '-').replace(/\..+/, ''); // Use testRunStartTime for consistent naming
+                                
+                                const schedulerLogFilename = `comprehensive_test_scheduler_${timestamp}.log`;
+                                const optimiserLogFilename = `comprehensive_test_optimiser_${timestamp}.log`;
+                                
+                                const schedulerLogPath = path.join(DEBUG_DIR, schedulerLogFilename);
+                                const optimiserLogPath = path.join(DEBUG_DIR, optimiserLogFilename);
+
+                                console.log(chalk.gray(`  Scheduler log will be saved to: ${schedulerLogPath}`));
+                                console.log(chalk.gray(`  Optimiser log will be saved to: ${optimiserLogPath}`));
+
+                                // Construct and execute Docker log commands (Subtask 15.2)
+                                // Note: Using full command strings directly with executeCommand for redirection.
+                                // Temporarily removing --since and --until for broader log capture debugging
+                                const schedulerLogCmd = `docker logs test_scheduler > "${schedulerLogPath}" 2>&1`;
+                                const optimiserLogCmd = `docker logs test_optimiser > "${optimiserLogPath}" 2>&1`;
+                                
+                                console.log(chalk.gray(`Executing: ${schedulerLogCmd}`));
+                                const schedulerLogsSuccess = await executeCommand(schedulerLogCmd, []);
+                                if (!schedulerLogsSuccess) {
+                                    console.error(chalk.red('Failed to capture scheduler logs.'));
+                                    // success = false; // Optionally mark overall as failed
+                                }
+
+                                console.log(chalk.gray(`Executing: ${optimiserLogCmd}`));
+                                const optimiserLogsSuccess = await executeCommand(optimiserLogCmd, []);
+                                if (!optimiserLogsSuccess) {
+                                    console.error(chalk.red('Failed to capture optimiser logs.'));
+                                    // success = false;
+                                }
+
+                                if (schedulerLogsSuccess && optimiserLogsSuccess) {
+                                    console.log(chalk.green('Successfully captured logs.'));
+                                }
+
+                            } catch (dirError: any) {
+                                console.error(chalk.red('Error during log capture setup:'), dirError.message);
+                                // success = false; 
+                            }
+                        }
+                    }
                     break;
 
                 case MainMenuChoice.EXIT:

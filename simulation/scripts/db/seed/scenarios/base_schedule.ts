@@ -34,6 +34,7 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  * @param baselineRefs - References to the baseline data (excluding technicians).
  * @param technicianDbIds - The DB IDs of technicians to create for this scenario.
  * @returns Metadata object conforming to ScenarioSeedResult.
+ * @description Seeds a foundational set of 20 queued jobs with random basic services, priorities, and durations, assigned to a specified number of technicians with default Mon-Fri 09:00-17:00 UTC availability. Tests that the scheduler assigns all these jobs.
  */
 export async function seedScenario_base_schedule(
   supabaseAdmin: SupabaseClient<Database>,
@@ -60,7 +61,7 @@ export async function seedScenario_base_schedule(
   // --- Seed Orders and Jobs (using baseline customers/addresses/vehicles) --- 
   const ordersToCreate: OrderInsert[] = [];
   const jobTemplates: Omit<JobInsert, 'order_id'>[] = [];
-  const numberOfOrders = 10; // Or make dynamic based on techCount (now technicianDbIds.length)?
+  const numberOfOrders = 20; // Or make dynamic based on techCount (now technicianDbIds.length)?
 
   for (let i = 0; i < numberOfOrders; i++) {
     const customerId = getRandomElement(baselineRefs.customerIds);

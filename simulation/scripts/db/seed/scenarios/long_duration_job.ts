@@ -12,6 +12,7 @@ import { Database, TablesInsert, insertData, logInfo, logError } from '../../../
  * @param baselineRefs References to the baseline seeded data.
  * @param _technicianDbIds - The DB IDs of technicians created for this scenario run (unused in this specific scenario).
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests the scheduler's ability to handle and assign a single job with a very long duration (6-8 hours). Verifies that the job is scheduled and retains its long duration.
  */
 export const seedScenario_long_duration_job = async (
     supabase: SupabaseClient<Database>,

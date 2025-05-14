@@ -110,7 +110,6 @@ export async function seedBaseline(
   }
 
   // 4. Insert Public Data & Capture Actual IDs
-  // REMOVED technicianIds from initial refs
   const refs: Partial<BaselineRefs> = {
     customerIds: customerUserAuthIds,
   };
@@ -128,24 +127,52 @@ export async function seedBaseline(
 
     const ymmResult = await insertData(supabaseAdmin, 'ymm_ref', ymmRefData, 'YMM references');
     if (ymmResult.error) throw ymmResult.error;
-    refs.ymmRefIds = ymmResult.data?.map((r) => r.ymm_id) ?? [];
+    refs.ymmIds = ymmResult.data?.map((r) => r.ymm_id) ?? [];
 
     const servicesResult = await insertData(supabaseAdmin, 'services', servicesData, 'Service definitions');
     if (servicesResult.error) throw servicesResult.error;
     refs.serviceIds = servicesResult.data?.map((r) => r.id) ?? [];
 
-    // Ensure the public user IDs being inserted actually exist in the auth table (Customers only now)
     const validPublicUsersInput = filteredPublicUsersInput.filter(user =>
         customerUserAuthIds.includes(user.id)
     );
     const usersResult = await insertData(supabaseAdmin, 'users', validPublicUsersInput, 'Public user profiles');
     if (usersResult.error) throw usersResult.error;
 
-    const vehiclesResult = await insertData(supabaseAdmin, 'customer_vehicles', customerVehiclesData, 'Customer vehicles');
-    if (vehiclesResult.error) throw vehiclesResult.error;
-    refs.customerVehicleIds = vehiclesResult.data?.map((r) => r.id) ?? [];
+    // Insert ALL customer vehicles (including vans, for FK constraints with `vans` table)
+    const allVehiclesResult = await insertData(supabaseAdmin, 'customer_vehicles', customerVehiclesData, 'All customer vehicles (incl. vans)');
+    if (allVehiclesResult.error) throw allVehiclesResult.error;
+    const allInsertedVehiclesFromDB = allVehiclesResult.data ?? [];
 
-    // Insert ALL vans
+    // Filter for BaselineRefs.customerVehicleIds: only vehicles with a matching YMM entry
+    logInfo('Filtering customer vehicles for BaselineRefs: ensuring matching ymm_ref entry...');
+    const ymmStringSet = new Set(
+      ymmRefData.map(ymm => `${ymm.year}-${String(ymm.make).toUpperCase()}-${String(ymm.model).toUpperCase()}`)
+    );
+    // Log a sample of ymmStringSet for verification
+    const ymmStringSetSample = Array.from(ymmStringSet).slice(0, 5);
+    logInfo(`Sample of ymmStringSet: ${JSON.stringify(ymmStringSetSample)} (Total: ${ymmStringSet.size})`);
+
+    const filteredVehicleIdsForJobs = allInsertedVehiclesFromDB
+      .filter(cv => {
+        if (cv.year && cv.make && cv.model) {
+          const vehicleYmmString = `${cv.year}-${String(cv.make).toUpperCase()}-${String(cv.model).toUpperCase()}`;
+          const hasMatch = ymmStringSet.has(vehicleYmmString);
+          // Log each vehicle being checked
+          logInfo(`Checking vehicle ID ${cv.id} (${cv.year} ${cv.make} ${cv.model}): YMM string '${vehicleYmmString}', Match in ymmStringSet: ${hasMatch}`);
+          return hasMatch;
+        }
+        logInfo(`Skipping vehicle ID ${cv.id} due to missing year, make, or model.`);
+        return false;
+      })
+      .map(cv => cv.id as number); // Ensure the IDs are numbers
+
+    refs.customerVehicleIds = filteredVehicleIdsForJobs;
+    logInfo(`Populated BaselineRefs.customerVehicleIds with ${filteredVehicleIdsForJobs.length} vehicles that have matching ymm_ref entries.`);
+    if (filteredVehicleIdsForJobs.length === 0 && allInsertedVehiclesFromDB.length > 0) {
+        logInfo('Warning: No customer vehicles found with matching YMM entries for job seeding. This might be an issue if scenarios expect to create jobs.');
+    }
+
     const vansResult = await insertData(supabaseAdmin, 'vans', filteredVansInput, 'Van(s)');
     if (vansResult.error) throw vansResult.error;
     refs.vanIds = vansResult.data?.map((r) => r.id) ?? [];
@@ -165,16 +192,32 @@ export async function seedBaseline(
     throw error;
   }
 
+  // 6. Manually update sequences for tables where scenarios might add new items
+  try {
+    logInfo('Updating ID sequences for services and equipment tables...');
+    await supabaseAdmin.rpc('execute_sql', { 
+      sql: `SELECT setval(pg_get_serial_sequence('services', 'id'), COALESCE((SELECT MAX(id) FROM services), 1), true);`
+    });
+    await supabaseAdmin.rpc('execute_sql', { 
+      sql: `SELECT setval(pg_get_serial_sequence('equipment', 'id'), COALESCE((SELECT MAX(id) FROM equipment), 1), true);`
+    });
+    // Add for other tables if scenarios insert into them without explicit IDs and they have baseline data with explicit IDs
+    logInfo('Successfully updated ID sequences.');
+  } catch (sequenceError) {
+    logError('Error updating ID sequences', sequenceError);
+    throw sequenceError; // Critical if sequences are not right
+  }
+
   logInfo('Baseline database seeding completed successfully.');
 
-  // 5. Validate and Return Final Refs (Technician IDs removed)
+  // Validate and Return Final Refs
   const finalRefs: BaselineRefs = {
     addressIds: refs.addressIds ?? [],
     customerIds: refs.customerIds ?? [],
     vanIds: refs.vanIds ?? [],
     equipmentIds: refs.equipmentIds ?? [],
     serviceIds: refs.serviceIds ?? [],
-    ymmRefIds: refs.ymmRefIds ?? [],
+    ymmIds: refs.ymmIds ?? [],
     customerVehicleIds: refs.customerVehicleIds ?? [],
   };
 

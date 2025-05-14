@@ -164,4 +164,35 @@ describe('Scheduler Integration - Locked Job Impact', () => {
 
         console.log('Locked job impact verification successful: Queued jobs scheduled around locked time block.');
     });
+
+    it.skip('should correctly schedule queued jobs when the locked job is at the START of the technician\'s shift', async () => {
+        // TODO: Implement test for locked job at the beginning of the shift
+        // 1. Seed scenario: Tech available 09:00-17:00, Locked job 09:00-10:00 for this tech.
+        //    Queued jobs for the same tech.
+        // 2. Fetch original locked job state.
+        // 3. Trigger replan.
+        // 4. Wait for queued jobs to be processed.
+        // 5. Verify:
+        //    - Locked job is unchanged.
+        //    - Queued jobs are scheduled only from 10:00 onwards.
+        //    - No overlap.
+        console.warn("Test for locked job at START of shift is SKIPPED.");
+        expect(true).toBe(true); // Placeholder
+    });
+
+    it.skip('should correctly schedule queued jobs when the locked job is at the END of the technician\'s shift', async () => {
+        // TODO: Implement test for locked job at the end of the shift
+        // 1. Seed scenario: Tech available 09:00-17:00, Locked job 16:00-17:00 for this tech.
+        //    Queued jobs for the same tech.
+        // 2. Fetch original locked job state.
+        // 3. Trigger replan.
+        // 4. Wait for queued jobs to be processed.
+        // 5. Verify:
+        //    - Locked job is unchanged.
+        //    - Queued jobs are scheduled only up to 16:00.
+        //    - No overlap.
+        console.warn("Test for locked job at END of shift is SKIPPED.");
+        expect(true).toBe(true); // Placeholder
+    });
+
 }); 

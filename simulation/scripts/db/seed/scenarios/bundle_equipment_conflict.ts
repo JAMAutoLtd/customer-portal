@@ -28,6 +28,7 @@ function getRandomElement<T>(arr: T[]): T {
  * @param baselineRefs References to the baseline seeded data.
  * @param technicianDbIds - The DB IDs of technicians created for this scenario run (must be at least 2).
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests bundle breaking due to equipment conflicts. Creates one order with two jobs requiring different, specific ADAS tools. Assigns these tools to two separate technicians, ensuring no single tech can do both jobs. Verifies the bundle is broken and jobs are assigned individually to the correctly equipped technicians.
  */
 export const seedScenario_bundle_equipment_conflict = async (
     supabase: SupabaseClient<Database>,

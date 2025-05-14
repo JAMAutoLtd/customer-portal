@@ -36,6 +36,7 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  * @param baselineRefs - References to the baseline data.
  * @param technicianDbIds - The DB IDs of technicians active in this scenario.
  * @returns Metadata object conforming to ScenarioSeedResult.
+ * @description Tests scheduling around a technician made unavailable for the entire current day. Seeds a 'time_off' (full day) exception for one technician and several queued jobs. Verifies that no jobs assigned to this specific technician are scheduled during an intended mid-day block (e.g., 13:00-15:00 UTC), effectively checking they are not scheduled at all for that day or outside that block if somehow assigned.
  */
 export async function seedScenario_technician_unavailable_today(
   supabaseAdmin: SupabaseClient<Database>,

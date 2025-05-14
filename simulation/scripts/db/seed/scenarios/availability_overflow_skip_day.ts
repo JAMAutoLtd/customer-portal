@@ -25,15 +25,11 @@ function getRandomElement<T>(arr: T[]): T {
 const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
 
 /**
- * Seeds data for the 'availability_overflow_skip_day' scenario.
- *
- * Creates unavailability for all technicians for tomorrow (Day+1) and enough jobs today
- * to force scheduling onto Day+2 or later.
- *
  * @param supabase The Supabase client instance.
  * @param baselineRefs References to the baseline seeded data.
  * @param technicianDbIds - The DB IDs of technicians created for this scenario run.
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests scheduler overflow by making all technicians unavailable for 'tomorrow' (Day+1). Seeds enough jobs for 'today' to force them to be scheduled on 'Day+2' or later, verifying the skip-day logic.
  */
 export const seedScenario_availability_overflow_skip_day = async (
     supabase: SupabaseClient<Database>,

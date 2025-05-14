@@ -59,6 +59,7 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  * @param baselineRefs References to the baseline seeded data.
  * @param technicianDbIds - The DB IDs of technicians created for this scenario run.
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests scheduling a fixed-time job for 'tomorrow' (Day+1) amidst other dynamic jobs. Seeds a fixed job for a specific tech on Day+1 and enough filler jobs to potentially cause overflow. Verifies the fixed job is scheduled at its exact time and other jobs are planned around it.
  */
 export const seedScenario_fixed_time_future_overflow = async (
     supabase: SupabaseClient<Database>,

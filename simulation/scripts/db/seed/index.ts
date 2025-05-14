@@ -144,34 +144,41 @@ async function main() {
 
       // *** Seed Technicians for this Scenario Run ***
       logInfo(`Seeding ${technicianCount} technicians for scenario '${scenarioName}'...`);
-      const { seedScenarioTechnicians } = await import('../../utils'); // Dynamically import to avoid circular dependency issues if any
-      if (!baselineRefs.vanIds || baselineRefs.vanIds.length < technicianCount) {
-        throw new Error(`BaselineRefs missing required vanIds or not enough vans (${baselineRefs.vanIds?.length}) for the requested technician count (${technicianCount}).`);
+      const { seedScenarioTechnicians } = await import('../../utils');
+      if (!baselineRefs!.vanIds || baselineRefs!.vanIds.length < technicianCount) {
+        throw new Error(`BaselineRefs missing required vanIds or not enough vans (${baselineRefs!.vanIds?.length}) for the requested technician count (${technicianCount}).`);
       }
-      const techResult = await seedScenarioTechnicians(supabaseAdmin, technicianCount);
+      const techResult = await seedScenarioTechnicians(supabaseAdmin!, technicianCount);
       logInfo(`Seeded ${techResult.seededTechnicians.length} technicians. DB IDs: ${techResult.seededTechnicians.map(t => t.dbId).join(', ')}`);
       // ********************************************
 
       logInfo(`Applying scenario: ${scenarioName}...`);
-      // Pass only the DB IDs to the scenario seeding function
-      const scenarioResult = await seedScenario(supabaseAdmin, baselineRefs, scenarioName, techResult.seededTechnicians.map(t => t.dbId));
+      // Pass the full techResult.seededTechnicians array to the scenario router
+      const scenarioResult = await seedScenario(
+        supabaseAdmin!,
+        baselineRefs!,
+        scenarioName!,
+        techResult.seededTechnicians // Pass the array of {dbId, authId, assignedVanId}
+      );
       logInfo(`Scenario '${scenarioName}' applied successfully.`);
 
-      // Prepare metadata
       const finalMetadata: ScenarioSeedResult = {
-          scenarioName: scenarioName, // Use the actual scenario name
-          insertedIds: {
-              ...scenarioResult.insertedIds, // Include IDs from the scenario script
-              // Add technician info from the tech seeding result
-              technicianAuthIds: techResult.seededTechnicians.map(t => t.authId),
-              technicianDbIds: techResult.seededTechnicians.map(t => t.dbId),
-              // Create an ordered array of van IDs corresponding to the technicianDbIds order
-              assignedVanIds: techResult.seededTechnicians.map(t => t.assignedVanId)
-          }
+        scenarioName: scenarioName!,
+        insertedIds: {
+          ...scenarioResult.insertedIds,
+          // Only add these if the scenario is NOT the comprehensive one,
+          // as comprehensive_scheduler_test now populates these itself within its insertedIds.
+          ...(scenarioName !== 'comprehensive_scheduler_test' ? {
+            technicianAuthIds: techResult.seededTechnicians.map(t => t.authId),
+            technicianDbIds: techResult.seededTechnicians.map(t => t.dbId),
+            // Keep assignedVanIds here for other scenarios that might rely on it in metadata
+            assignedVanIds: techResult.seededTechnicians.map(t => t.assignedVanId) 
+          } : {})
+        }
       };
 
-      // Write metadata
-      await fs.writeFile(outputMetadataPath, JSON.stringify(finalMetadata, null, 2));
+      await fs.writeFile(outputMetadataPath!, JSON.stringify(finalMetadata, null, 2));
+      logInfo(`Scenario metadata, including technician info, written to ${outputMetadataPath}`);
 
     } else {
       throw new Error(`Unknown action: ${action}. Use 'baseline' or 'scenario'.`);

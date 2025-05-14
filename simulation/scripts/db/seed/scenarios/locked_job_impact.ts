@@ -32,6 +32,7 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  * @param baselineRefs References to the baseline seeded data.
  * @param technicianDbIds - The DB IDs of technicians created for this scenario run.
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests the scheduler's handling of pre-existing locked jobs. Seeds one 'en_route' job for a technician at a specific time today, and two other 'queued' jobs for the same technician. Verifies the locked job remains untouched and the queued jobs are scheduled around its time block without overlap.
  */
 export const seedScenario_locked_job_impact = async (
     supabase: SupabaseClient<Database>,

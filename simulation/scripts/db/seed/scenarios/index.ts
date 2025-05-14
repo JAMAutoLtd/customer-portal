@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../utils';
 import type { BaselineRefs, ScenarioSeedResult } from './types';
-import { logError } from '../../../utils';
+import { logError, logInfo } from '../../../utils';
 
 // Import all scenario seeding functions
 import { seedScenario_base_schedule } from './base_schedule';
@@ -16,6 +16,14 @@ import { seedScenario_same_location_jobs } from './same_location_jobs';
 import { seedScenario_long_duration_job } from './long_duration_job';
 import { seedScenario_unschedulable_fixed_time } from './unschedulable_fixed_time';
 import { seedScenario_locked_job_impact } from './locked_job_impact';
+import { seedComprehensiveSchedulerTest } from './comprehensive_scheduler_test';
+
+// Define the technician detail structure expected from the main seeder
+interface ScenarioTechnicianInfo {
+  dbId: number;
+  authId: string;
+  assignedVanId: number;
+}
 
 /**
  * Router function to call the correct scenario seeding script based on name.
@@ -23,15 +31,19 @@ import { seedScenario_locked_job_impact } from './locked_job_impact';
  * @param supabase The Supabase client instance.
  * @param baselineRefs References to the baseline seeded data.
  * @param scenarioName The name of the scenario to seed.
- * @param technicianDbIds The DB IDs of technicians created for this scenario run.
+ * @param seededTechniciansForScenario Array of pre-seeded technician details from the main seeder.
  * @returns A Promise resolving to the ScenarioSeedResult from the executed scenario.
  */
 export async function seedScenario(
     supabase: SupabaseClient<Database>,
     baselineRefs: BaselineRefs,
     scenarioName: string,
-    technicianDbIds: number[]
+    // Now expects the richer technician info array
+    seededTechniciansForScenario: ScenarioTechnicianInfo[] 
 ): Promise<ScenarioSeedResult> {
+
+    // For most scenarios, they only expect dbIds
+    const technicianDbIds = seededTechniciansForScenario.map(t => t.dbId);
 
     switch (scenarioName) {
         case 'base_schedule':
@@ -58,6 +70,10 @@ export async function seedScenario(
             return await seedScenario_unschedulable_fixed_time(supabase, baselineRefs, technicianDbIds);
         case 'locked_job_impact':
             return await seedScenario_locked_job_impact(supabase, baselineRefs, technicianDbIds);
+        case 'comprehensive_scheduler_test':
+            logInfo('Calling comprehensive_scheduler_test scenario seeder with full technician details...');
+            // Pass the full array of technician details
+            return seedComprehensiveSchedulerTest(supabase, baselineRefs, seededTechniciansForScenario);
 
         default:
             logError(`Unknown scenario name provided: ${scenarioName}`);

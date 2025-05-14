@@ -68,6 +68,111 @@ export function formatDateToString(date: Date): string {
     return `${year}-${month}-${day}`;
 }
 
+// --- New Gap Identification Logic (Task 3) ---
+/**
+ * Represents a period of unavailability for a technician.
+ */
+export interface AvailabilityGap {
+  technicianId: number;
+  start: string; // ISO 8601 string for the start of the gap
+  end: string;   // ISO 8601 string for the end of the gap
+  durationSeconds: number; // Duration of the gap in seconds
+}
+
+/**
+ * Refines availability gap identification logic to accurately detect all types of technician unavailability.
+ * Sorts windows and checks for gaps between windows, at the start of the shift, and at the end of the shift.
+ *
+ * @param technician The OptimizationTechnician object, containing overall shift boundaries.
+ * @param availabilityWindows An array of TimeWindow objects representing periods of availability.
+ * @returns An array of AvailabilityGap objects.
+ */
+export function findAvailabilityGaps(
+    technician: { id: number; earliestStartTimeISO: string; latestEndTimeISO: string }, // Using a subset of OptimizationTechnician for clarity
+    availabilityWindows: TimeWindow[]
+  ): AvailabilityGap[] {
+  const gaps: AvailabilityGap[] = [];
+  logger.debug(`[findAvailabilityGaps] TechID: ${technician.id}, Input Shift: ${technician.earliestStartTimeISO} - ${technician.latestEndTimeISO}, Input Windows: ${JSON.stringify(availabilityWindows.map(w=>({s:w.start.toISOString(), e:w.end.toISOString()})))}`);
+
+  if (!availabilityWindows || availabilityWindows.length === 0) {
+    // If no availability windows, the entire shift is a gap
+    const shiftStart = new Date(technician.earliestStartTimeISO).getTime();
+    const shiftEnd = new Date(technician.latestEndTimeISO).getTime();
+    if (shiftEnd > shiftStart) {
+      gaps.push({
+        technicianId: technician.id,
+        start: technician.earliestStartTimeISO,
+        end: technician.latestEndTimeISO,
+        durationSeconds: Math.floor((shiftEnd - shiftStart) / 1000)
+      });
+    }
+    return gaps;
+  }
+
+  // Sort windows by start time to ensure correct gap calculation
+  const sortedWindows = [...availabilityWindows].sort((a, b) => 
+    a.start.getTime() - b.start.getTime());
+
+  const shiftStartMs = new Date(technician.earliestStartTimeISO).getTime();
+  const shiftEndMs = new Date(technician.latestEndTimeISO).getTime();
+
+  logger.debug(`[findAvailabilityGaps] TechID: ${technician.id}, ShiftMS: ${shiftStartMs} - ${shiftEndMs}, SortedWindowsCount: ${sortedWindows.length}`);
+
+  // Check for a gap at the beginning of the shift
+  const firstWindowStartMs = sortedWindows[0].start.getTime();
+  if (firstWindowStartMs > shiftStartMs) {
+    const duration = Math.floor((firstWindowStartMs - shiftStartMs) / 1000);
+    if (duration > 0) {
+        gaps.push({
+            technicianId: technician.id,
+            start: technician.earliestStartTimeISO,
+            end: sortedWindows[0].start.toISOString(),
+            durationSeconds: duration
+        });
+        logger.debug(`[findAvailabilityGaps] TechID: ${technician.id}, Pushed BEGIN gap: ${technician.earliestStartTimeISO} - ${sortedWindows[0].start.toISOString()}`);
+    }
+  }
+
+  // Find gaps between consecutive windows
+  for (let i = 0; i < sortedWindows.length - 1; i++) {
+    const currentWindowEndMs = sortedWindows[i].end.getTime();
+    const nextWindowStartMs = sortedWindows[i + 1].start.getTime();
+    
+    if (nextWindowStartMs > currentWindowEndMs) {
+      const duration = Math.floor((nextWindowStartMs - currentWindowEndMs) / 1000);
+      if (duration > 0) {
+        gaps.push({
+          technicianId: technician.id,
+          start: sortedWindows[i].end.toISOString(),
+          end: sortedWindows[i + 1].start.toISOString(),
+          durationSeconds: duration
+        });
+        logger.debug(`[findAvailabilityGaps] TechID: ${technician.id}, Pushed BETWEEN gap: ${sortedWindows[i].end.toISOString()} - ${sortedWindows[i+1].start.toISOString()}`);
+      }
+    }
+  }
+  
+  // Check for a gap at the end of the shift
+  const lastWindowEndMs = sortedWindows[sortedWindows.length - 1].end.getTime();
+  if (lastWindowEndMs < shiftEndMs) {
+    const duration = Math.floor((shiftEndMs - lastWindowEndMs) / 1000);
+    if (duration > 0) {
+        gaps.push({
+          technicianId: technician.id,
+          start: sortedWindows[sortedWindows.length - 1].end.toISOString(),
+          end: technician.latestEndTimeISO,
+          durationSeconds: duration
+        });
+        logger.debug(`[findAvailabilityGaps] TechID: ${technician.id}, Pushed END gap: ${sortedWindows[sortedWindows.length - 1].end.toISOString()} - ${technician.latestEndTimeISO}`);
+    }
+  }
+  
+  const finalGaps = gaps.filter(gap => gap.durationSeconds > 0);
+  logger.debug(`[findAvailabilityGaps] TechID: ${technician.id}, Final gaps after filter: ${JSON.stringify(finalGaps)}`);
+  return finalGaps;
+}
+// --- End New Gap Identification Logic ---
+
 // --- Core Availability Calculation (New Logic) ---
 
 /**

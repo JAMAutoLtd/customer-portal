@@ -10,6 +10,7 @@ import { Database, TablesInsert, insertData, logInfo, logError } from '../../../
  * This tests the scheduler's ability to handle and potentially optimize
  * routes involving multiple stops at a single location.
  *
+ * @description Seeds 3-4 jobs for a single order, all at the exact same newly created address. Tests the scheduler's ability to handle multiple jobs at one location. Verifies all jobs are scheduled to valid technicians and retain the same address.
  * @param supabase The Supabase client instance.
  * @param baselineRefs References to the baseline seeded data (customers, services, etc.).
  * @param _technicianDbIds - The DB IDs of technicians created for this scenario run (unused in this specific scenario).
