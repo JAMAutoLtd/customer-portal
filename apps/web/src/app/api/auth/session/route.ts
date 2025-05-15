@@ -4,14 +4,17 @@ import { createClient } from '@/utils/supabase/server'
 export async function GET() {
   try {
     const supabase = await createClient()
-    const { data, error } = await supabase.auth.getSession()
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
 
     if (error) {
       console.error('Session error:', error)
       return NextResponse.json({ session: null }, { status: 401 })
     }
 
-    if (!data.session) {
+    if (!user) {
       return NextResponse.json({ session: null }, { status: 200 })
     }
 
@@ -19,15 +22,15 @@ export async function GET() {
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
-      .eq('id', data.session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (userError) {
       console.error('Error fetching user profile:', userError)
-      // Still return session data even if profile fetch fails
+      // Still return user data even if profile fetch fails
       return NextResponse.json(
         {
-          session: data.session,
+          user,
           userProfile: null,
         },
         { status: 200 },
@@ -36,7 +39,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        session: data.session,
+        user,
         userProfile: userData,
       },
       { status: 200 },

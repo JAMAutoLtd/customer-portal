@@ -20,11 +20,6 @@ export default function Orders() {
         router.push('/login')
         return
       }
-
-      if (userProfile?.is_admin) {
-        router.push('/availability')
-        return
-      }
     }
   }, [user, userProfile, loading, router])
 

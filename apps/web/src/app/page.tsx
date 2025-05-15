@@ -22,8 +22,8 @@ export default async function Home() {
 
   // Redirect based on admin status
   if (userData?.is_admin) {
-    redirect('/jobs')
+    redirect('/dashboard/jobs')
   } else {
-    redirect('/orders')
+    redirect('/dashboard/orders')
   }
 }

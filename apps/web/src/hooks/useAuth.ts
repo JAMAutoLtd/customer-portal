@@ -1,98 +1,38 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { UserProfile } from '@/types'
+import { isPublicRoute } from '@/config/routes'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error) {
-        console.error('Error fetching user profile:', error)
-        return null
-      }
-
-      if (data) {
-        return {
-          ...data,
-          email: user?.email || '',
-        } as UserProfile
-      }
-
-      return null
-    } catch (error) {
-      console.error('Error in fetchUserProfile:', error)
-      return null
-    }
-  }
+  const pathname = usePathname()
 
   useEffect(() => {
-    // Check active session using our API endpoint
     const checkSession = async () => {
+      if (isPublicRoute(pathname)) {
+        setLoading(false)
+        return
+      }
+
       try {
-        // First try to get session from the server API
         const response = await fetch('/api/auth/session')
         const data = await response.json()
 
-        let clientSession = null
+        setUser(data.user || null)
+        setUserProfile(data.userProfile || null)
 
-        if (data.session) {
-          setUser(data.session.user)
-
-          // Fetch user profile
-          if (data.session.user) {
-            const profile = await fetchUserProfile(data.session.user.id)
-            setUserProfile(profile)
-          }
-        } else {
-          // Fallback to client-side session check
-          const {
-            data: { session },
-          } = await supabase.auth.getSession()
-          clientSession = session
-          setUser(session?.user || null)
-
-          // Fetch user profile
-          if (session?.user) {
-            const profile = await fetchUserProfile(session.user.id)
-            setUserProfile(profile)
-          }
-        }
-
-        // If session exists but user state is null, refresh the page
-        // This helps with hydration issues
-        if ((data.session?.user || clientSession?.user) && !user) {
+        if (data.user && !user) {
           router.refresh()
         }
       } catch (error) {
         console.error('Error checking session:', error)
-        // Fallback to client-side session check
-        try {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession()
-          setUser(session?.user || null)
-
-          // Fetch user profile
-          if (session?.user) {
-            const profile = await fetchUserProfile(session.user.id)
-            setUserProfile(profile)
-          }
-        } catch (e) {
-          setUser(null)
-          setUserProfile(null)
-        }
+        setUser(null)
+        setUserProfile(null)
       } finally {
         setLoading(false)
       }
@@ -101,21 +41,9 @@ export function useAuth() {
     // Subscribe to auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user || null)
+    } = supabase.auth.onAuthStateChange(async (event) => {
+      await checkSession()
 
-      // Fetch user profile when auth state changes
-      if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id)
-        setUserProfile(profile)
-      } else {
-        setUserProfile(null)
-      }
-
-      setLoading(false)
-
-      // Force a router refresh when auth state changes
-      // This ensures the UI updates with the new auth state
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         router.refresh()
       }
@@ -126,7 +54,7 @@ export function useAuth() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, pathname])
 
   const login = async (email: string, password: string) => {
     try {
@@ -149,31 +77,9 @@ export function useAuth() {
 
       const data = await response.json()
 
-      // After successful login, check the session again
-      const sessionResponse = await fetch('/api/auth/session')
-      const sessionData = await sessionResponse.json()
-
-      if (sessionData.session) {
-        setUser(sessionData.session.user)
-
-        // Fetch user profile
-        if (sessionData.session.user) {
-          const profile = await fetchUserProfile(sessionData.session.user.id)
-          setUserProfile(profile)
-        }
-      } else {
-        // Fallback to client-side session check
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        setUser(session?.user || null)
-
-        // Fetch user profile
-        if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id)
-          setUserProfile(profile)
-        }
-      }
+      // Update state with the login response data
+      setUser(data.user)
+      setUserProfile(data.userProfile)
 
       return { success: true, data }
     } catch (error) {
@@ -190,11 +96,7 @@ export function useAuth() {
     try {
       setLoading(true)
 
-      // Call server-side logout endpoint
       await fetch('/api/auth/logout', { method: 'POST' })
-
-      // Also call Supabase signOut client-side
-      await supabase.auth.signOut()
 
       setUser(null)
       setUserProfile(null)

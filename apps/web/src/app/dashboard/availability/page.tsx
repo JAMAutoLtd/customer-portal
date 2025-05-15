@@ -193,23 +193,25 @@ export default function AvailabilityPage() {
     setDefaultHoursFormKey(Date.now())
   }
 
-  if (authLoading || (loading && availabilities.length === 0))
+  if (authLoading || (loading && availabilities.length === 0)) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader />
       </div>
     )
+  }
 
   if (!userProfile?.is_admin) {
     return null
   }
 
-  if (error && availabilities.length === 0)
+  if (error && availabilities.length === 0) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader />
       </div>
     )
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-[768px]">

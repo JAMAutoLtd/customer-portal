@@ -4,45 +4,28 @@ import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { useEffect } from 'react'
 
 const navigation = [
-  { name: 'Orders', href: '/orders', adminOnly: false },
-  { name: 'Jobs', href: '/jobs', adminOnly: true },
+  { name: 'Orders', href: '/dashboard/orders', adminOnly: false },
+  { name: 'Jobs', href: '/dashboard/jobs', adminOnly: true },
   {
     name: 'Availability',
-    href: '/availability',
+    href: '/dashboard/availability',
     adminOnly: true,
   },
 ]
 
-export default function UserLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { logout, userProfile, loading } = useAuth()
+  const { logout, userProfile } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
-  useEffect(() => {
-    if (!loading) {
-      if (pathname === '/orders' && userProfile?.is_admin) {
-        router.push('/availability')
-      }
-
-      if (
-        pathname === '/availability' &&
-        userProfile &&
-        !userProfile.is_admin
-      ) {
-        router.push('/orders')
-      }
-    }
-  }, [pathname, userProfile, loading, router])
-
   const handleNewOrder = () => {
-    router.push('/order/new')
+    router.push('/dashboard/order/new')
   }
 
   const handleLogout = async () => {
@@ -59,7 +42,7 @@ export default function UserLayout({
                 (item) =>
                   (item.adminOnly === false &&
                     userProfile?.is_admin === false) ||
-                  (item.adminOnly === true && userProfile?.is_admin === true)
+                  (item.adminOnly === true && userProfile?.is_admin === true),
               )
               .map((item) => (
                 <Link
@@ -76,7 +59,7 @@ export default function UserLayout({
               ))}
           </div>
           <div className="flex gap-3">
-            {pathname !== '/order/new' && !userProfile?.is_admin && (
+            {pathname !== '/dashboard/order/new' && !userProfile?.is_admin && (
               <Button onClick={handleNewOrder}>
                 <span className="mr-2">+</span> New Order
               </Button>
