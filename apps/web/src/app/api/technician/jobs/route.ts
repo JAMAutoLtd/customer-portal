@@ -42,14 +42,14 @@ export async function GET() {
 
     // Get the current user session
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
 
     // Get the technician ID for the current user
     const { data: technicianData, error: technicianError } = await supabase

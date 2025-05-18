@@ -35,11 +35,11 @@ export async function POST(request: Request) {
     })
 
     const {
-      data: { session },
+      data: { user },
       error: sessionError,
-    } = await supabase.auth.getSession()
+    } = await supabase.auth.getUser()
 
-    if (sessionError || !session) {
+    if (sessionError || !user) {
       console.error(
         'Error getting session or user not authenticated:',
         sessionError,
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const userId = session.user.id
+    const userId = user.id
 
     // Get user profile to determine customer type
     const { data: userProfile, error: userProfileError } = await supabase

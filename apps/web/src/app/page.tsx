@@ -5,10 +5,10 @@ export default async function Home() {
   const supabase = await createClient()
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     // Not logged in, redirect to login
     redirect('/login')
   }
@@ -17,7 +17,7 @@ export default async function Home() {
   const { data: userData } = await supabase
     .from('users')
     .select('is_admin')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   // Redirect based on admin status
