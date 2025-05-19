@@ -1,16 +1,22 @@
 'use client'
 
 import { Button } from '@/components/ui/Button'
+import {
+  AVAILABILITY_ROUTE,
+  JOBS_ROUTE,
+  NEW_ORDER_ROUTE,
+  ORDERS_ROUTE,
+} from '@/constants/routes'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 
 const navigation = [
-  { name: 'Orders', href: '/dashboard/orders', adminOnly: false },
-  { name: 'Jobs', href: '/dashboard/jobs', adminOnly: true },
+  { name: 'Orders', href: ORDERS_ROUTE, adminOnly: false },
+  { name: 'Jobs', href: JOBS_ROUTE, adminOnly: true },
   {
     name: 'Availability',
-    href: '/dashboard/availability',
+    href: AVAILABILITY_ROUTE,
     adminOnly: true,
   },
 ]
@@ -25,7 +31,7 @@ export default function DashboardLayout({
   const pathname = usePathname()
 
   const handleNewOrder = () => {
-    router.push('/dashboard/order/new')
+    router.push(NEW_ORDER_ROUTE)
   }
 
   const handleLogout = async () => {
@@ -59,7 +65,7 @@ export default function DashboardLayout({
               ))}
           </div>
           <div className="flex gap-3">
-            {pathname !== '/dashboard/order/new' && !userProfile?.is_admin && (
+            {pathname !== NEW_ORDER_ROUTE && !userProfile?.is_admin && (
               <Button onClick={handleNewOrder}>
                 <span className="mr-2">+</span> New Order
               </Button>

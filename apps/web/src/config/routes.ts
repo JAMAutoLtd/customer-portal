@@ -1,16 +1,7 @@
-export const publicRoutes = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-  '/api',
-  '/_next',
-  '/static',
-  '/favicon.ico',
-] as const
+import { PUBLIC_ROUTES } from '@/constants/routes'
 
 export const isPublicRoute = (pathname: string) => {
-  return publicRoutes.some(
+  return PUBLIC_ROUTES.some(
     (route) => pathname.startsWith(route) || pathname === '/',
   )
 }

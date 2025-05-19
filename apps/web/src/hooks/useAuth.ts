@@ -4,6 +4,7 @@ import { User } from '@supabase/supabase-js'
 import { useRouter, usePathname } from 'next/navigation'
 import { UserProfile } from '@/types'
 import { isPublicRoute } from '@/config/routes'
+import { LOGIN_ROUTE } from '@/constants/routes'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -100,7 +101,7 @@ export function useAuth() {
 
       setUser(null)
       setUserProfile(null)
-      router.push('/login')
+      router.push(LOGIN_ROUTE)
       return { success: true }
     } catch (error) {
       console.error('Logout failed:', error)
