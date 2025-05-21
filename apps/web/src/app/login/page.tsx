@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Loader } from '@/components/ui/Loader'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { JOBS_ROUTE, ORDERS_ROUTE } from '@/constants/routes'
 
 function LoginContent() {
   const router = useRouter()
@@ -35,7 +36,6 @@ function LoginContent() {
         throw new Error(result.error || 'Login failed')
       }
 
-      // Get session and user profile data
       const response = await fetch('/api/auth/session')
       const data = await response.json()
 
@@ -43,9 +43,9 @@ function LoginContent() {
         if (redirectPath) {
           router.push(redirectPath)
         } else if (data.userProfile.is_admin) {
-          router.push('/dashboard/jobs')
+          router.push(JOBS_ROUTE)
         } else {
-          router.push('/dashboard/orders')
+          router.push(ORDERS_ROUTE)
         }
       } else {
         throw new Error('Failed to get user profile')
@@ -119,6 +119,7 @@ function LoginContent() {
                 required
                 value={formData.email}
                 onChange={handleChange}
+                autoComplete="email"
               />
             </div>
 
@@ -136,6 +137,7 @@ function LoginContent() {
                 required
                 value={formData.password}
                 onChange={handleChange}
+                autoComplete="current-password"
               />
             </div>
           </div>

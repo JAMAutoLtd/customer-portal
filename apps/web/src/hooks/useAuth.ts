@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { useRouter, usePathname } from 'next/navigation'
 import { UserProfile } from '@/types'
@@ -10,10 +9,15 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isLoggedOut, setIsLoggedOut] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
+    if (isLoggedOut) {
+      return
+    }
+
     const checkSession = async () => {
       if (isPublicRoute(pathname)) {
         setLoading(false)
@@ -22,6 +26,10 @@ export function useAuth() {
 
       try {
         const response = await fetch('/api/auth/session')
+        if (!response.ok) {
+          console.log('Session not found')
+        }
+
         const data = await response.json()
 
         setUser(data.user || null)
@@ -39,23 +47,8 @@ export function useAuth() {
       }
     }
 
-    // Subscribe to auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event) => {
-      await checkSession()
-
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-        router.refresh()
-      }
-    })
-
     checkSession()
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [router, pathname])
+  }, [router, pathname, isLoggedOut])
 
   const login = async (email: string, password: string) => {
     try {
@@ -76,13 +69,12 @@ export function useAuth() {
         throw new Error(data.detail || 'Login failed')
       }
 
-      const data = await response.json()
+      const { user, userProfile } = await response.json()
 
-      // Update state with the login response data
-      setUser(data.user)
-      setUserProfile(data.userProfile)
+      setUser(user)
+      setUserProfile(userProfile)
 
-      return { success: true, data }
+      return { success: true, data: { user, userProfile } }
     } catch (error) {
       return {
         success: false,
@@ -95,13 +87,16 @@ export function useAuth() {
 
   const logout = async () => {
     try {
+      setIsLoggedOut(true)
       setLoading(true)
-
-      await fetch('/api/auth/logout', { method: 'POST' })
 
       setUser(null)
       setUserProfile(null)
+
+      await fetch('/api/auth/logout', { method: 'POST' })
+
       router.push(LOGIN_ROUTE)
+
       return { success: true }
     } catch (error) {
       console.error('Logout failed:', error)
@@ -109,8 +104,6 @@ export function useAuth() {
         success: false,
         error: error instanceof Error ? error.message : 'Logout failed',
       }
-    } finally {
-      setLoading(false)
     }
   }
 

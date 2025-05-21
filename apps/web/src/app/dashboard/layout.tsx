@@ -2,7 +2,9 @@
 
 import { Button } from '@/components/ui/Button'
 import {
+  ADMIN_ROUTES,
   AVAILABILITY_ROUTE,
+  CUSTOMER_ROUTES,
   JOBS_ROUTE,
   NEW_ORDER_ROUTE,
   ORDERS_ROUTE,
@@ -10,6 +12,7 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
+import { useEffect } from 'react'
 
 const navigation = [
   { name: 'Orders', href: ORDERS_ROUTE, adminOnly: false },
@@ -26,9 +29,25 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { logout, userProfile } = useAuth()
+  const { logout, userProfile, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+
+  useEffect(() => {
+    if (loading) return
+
+    if (ADMIN_ROUTES.includes(pathname) && !userProfile?.is_admin) {
+      router.push(ORDERS_ROUTE)
+    }
+
+    if (CUSTOMER_ROUTES.includes(pathname) && userProfile?.is_admin) {
+      router.push(JOBS_ROUTE)
+    }
+  }, [loading, pathname, userProfile, router])
+
+  if (loading) {
+    return null
+  }
 
   const handleNewOrder = () => {
     router.push(NEW_ORDER_ROUTE)
