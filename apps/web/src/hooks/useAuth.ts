@@ -28,16 +28,15 @@ export function useAuth() {
         const response = await fetch('/api/auth/session')
         if (!response.ok) {
           console.log('Session not found')
+          setUser(null)
+          setUserProfile(null)
+          return
         }
 
         const data = await response.json()
 
         setUser(data.user || null)
         setUserProfile(data.userProfile || null)
-
-        if (data.user && !user) {
-          router.refresh()
-        }
       } catch (error) {
         console.error('Error checking session:', error)
         setUser(null)
@@ -48,7 +47,7 @@ export function useAuth() {
     }
 
     checkSession()
-  }, [router, pathname, isLoggedOut])
+  }, [pathname, isLoggedOut])
 
   const login = async (email: string, password: string) => {
     try {
