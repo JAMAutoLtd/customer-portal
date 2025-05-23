@@ -26,6 +26,7 @@ import { Service } from '@/types'
 import { ServicesSection } from './ServicesSection'
 import VehicleInfoInput from './VehicleInfoInput'
 import { validateAndDecodeVin } from '@/utils/vinValidation'
+import { DATE_FORMATS, formDateToAPI } from '@/utils/date'
 
 export const OrderForm: React.FC = () => {
   const { user, loading } = useAuth()
@@ -126,17 +127,17 @@ export const OrderForm: React.FC = () => {
           setFormData(submissionData)
         } catch (err) {
           setError(
-            err instanceof Error ? err.message : 'Failed to validate VIN'
+            err instanceof Error ? err.message : 'Failed to validate VIN',
           )
           window.scrollTo({ top: 0, behavior: 'smooth' })
           return
         }
       }
 
-      const [hours, minutes] = selectedTime.split(':')
-      const earliestDateTimeISO = `${
-        submissionData.earliestDate
-      }T${hours.padStart(2, '0')}:${(minutes || '00').padStart(2, '0')}:00`
+      const earliestDateTimeISO = formDateToAPI(
+        submissionData.earliestDate,
+        selectedTime,
+      )
 
       const requestData = {
         ...submissionData,
@@ -166,7 +167,7 @@ export const OrderForm: React.FC = () => {
         vin: '',
         vinUnknown: false,
         address: '',
-        earliestDate: format(getNextAvailableDate(), 'yyyy-MM-dd'),
+        earliestDate: format(getNextAvailableDate(), DATE_FORMATS.DATE_ONLY),
         notes: '',
         customerEmail: user?.email || '',
         vehicleYear: '',
@@ -189,7 +190,7 @@ export const OrderForm: React.FC = () => {
     (
       e: React.ChangeEvent<
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-      >
+      >,
     ) => {
       const { name, value, type } = e.target
       setFormData((prev) => ({
@@ -198,7 +199,7 @@ export const OrderForm: React.FC = () => {
           type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
       }))
     },
-    [setFormData]
+    [setFormData],
   )
 
   const handleFormDataUpdate = (updates: Partial<OrderFormData>) => {
@@ -219,7 +220,7 @@ export const OrderForm: React.FC = () => {
           keySource: KeySource
           quantity: number
         }
-      | undefined
+      | undefined,
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -232,7 +233,7 @@ export const OrderForm: React.FC = () => {
 
   const handleServiceSelection = (serviceId: number, checked: boolean) => {
     setSelectedServiceIds((prev) =>
-      checked ? [...prev, serviceId] : prev.filter((id) => id !== serviceId)
+      checked ? [...prev, serviceId] : prev.filter((id) => id !== serviceId),
     )
 
     const selectedService = services.find((s) => s.id === serviceId)
@@ -289,7 +290,7 @@ export const OrderForm: React.FC = () => {
               address: string,
               isValid: boolean,
               lat?: number,
-              lng?: number
+              lng?: number,
             ) => {
               setFormData((prev) => ({
                 ...prev,

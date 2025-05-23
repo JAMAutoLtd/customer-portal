@@ -38,6 +38,7 @@ export type Order = {
     estimated_sched?: string
     job_duration?: number
     notes?: string
+    service?: Service
   }[]
 }
 

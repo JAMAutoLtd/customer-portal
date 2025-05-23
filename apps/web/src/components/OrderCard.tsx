@@ -2,10 +2,30 @@ import { Card } from '@/components/ui/Card'
 import { OrderCardProps } from '@/types'
 import { InfoIcon } from './icons/InfoIcon'
 import { LocationIcon } from './icons/LocationIcon'
-import { ClipboardIcon } from './icons/ClipboardIcon'
-import { ServiceIcon } from './icons/ServiceIcon'
+import { Wrench } from 'lucide-react'
+import { DATE_FORMATS, formatUTC } from '@/utils/date'
 
-export function OrderCard({ order }: OrderCardProps) {
+const statusColors = {
+  completed: 'bg-green-100 text-green-800',
+  in_progress: 'bg-blue-100 text-blue-800',
+  queued: 'bg-purple-100 text-purple-800',
+  cancelled: 'bg-red-100 text-red-800',
+  pending_review: 'bg-yellow-100 text-yellow-800',
+}
+
+export function OrderCard({
+  order: {
+    id,
+    repair_order_number,
+    earliest_available_time,
+    invoice,
+    notes,
+    vehicle,
+    address,
+    jobs,
+    uploads,
+  },
+}: OrderCardProps) {
   return (
     <Card>
       <div className="border-l-4 border-blue-500 overflow-hidden">
@@ -14,56 +34,43 @@ export function OrderCard({ order }: OrderCardProps) {
             <div>
               <h3 className="text-lg font-semibold mb-3 text-gray-800 flex items-center">
                 <span className="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">
-                  #{order.id}
+                  #{id}
                 </span>
                 Order Details
               </h3>
-              {order.repair_order_number && (
+              {repair_order_number && (
                 <p className="mb-2">
                   <span className="font-medium text-gray-700">
                     Repair Order:
                   </span>{' '}
-                  <span className="text-gray-800">
-                    {order.repair_order_number}
-                  </span>
+                  <span className="text-gray-800">{repair_order_number}</span>
                 </p>
               )}
-              {order.earliest_available_time && (
+              {earliest_available_time && (
                 <p className="mb-2">
                   <span className="font-medium text-gray-700">Time:</span>{' '}
                   <span className="text-gray-800">
-                    {new Date(order.earliest_available_time).toLocaleDateString(
-                      [],
-                      {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      }
-                    ) +
-                      ' ' +
-                      new Date(
-                        order.earliest_available_time
-                      ).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                    {formatUTC(
+                      earliest_available_time,
+                      DATE_FORMATS.DISPLAY_DATE_TIME,
+                    )}
                   </span>
                 </p>
               )}
-              {order.invoice && (
+              {invoice && (
                 <p className="mb-2">
                   <span className="font-medium text-gray-700">Invoice:</span>{' '}
                   <span className="text-green-600 font-semibold">
-                    ${order.invoice}
+                    ${invoice}
                   </span>
                 </p>
               )}
-              {order.notes && (
+              {notes && (
                 <div className="mt-3 bg-amber-50 p-3 rounded-md border border-amber-100">
                   <span className="font-medium text-amber-800 block mb-1">
                     Notes:
                   </span>
-                  <p className="text-gray-700 text-sm">{order.notes}</p>
+                  <p className="text-gray-700 text-sm">{notes}</p>
                 </div>
               )}
             </div>
@@ -73,12 +80,12 @@ export function OrderCard({ order }: OrderCardProps) {
                 <InfoIcon />
                 Vehicle Information
               </h4>
-              {order.vehicle?.ymm && (
-                <p className="text-gray-800 font-medium">{order.vehicle.ymm}</p>
+              {vehicle?.ymm && (
+                <p className="text-gray-800 font-medium">{vehicle.ymm}</p>
               )}
-              {order.vehicle?.vin && (
+              {vehicle?.vin && (
                 <p className="mt-1">
-                  <span className="font-medium">VIN:</span> {order.vehicle.vin}
+                  <span className="font-medium">VIN:</span> {vehicle.vin}
                 </p>
               )}
 
@@ -86,72 +93,43 @@ export function OrderCard({ order }: OrderCardProps) {
                 <LocationIcon />
                 Service Address
               </h4>
-              <p className="text-gray-800">{order.address.street_address}</p>
+              <p className="text-gray-800">{address.street_address}</p>
             </div>
           </div>
 
-          {/* Services */}
-          {order.services.length > 0 && (
-            <div className="border-t border-gray-100 pt-4">
-              <h4 className="font-medium mb-3 text-gray-700 flex items-center gap-2">
-                <ServiceIcon />
-                Services
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {order.services.map((service) => (
-                  <span
-                    key={service.id}
-                    className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full"
-                  >
-                    {service.service_name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Jobs */}
-          {order.jobs.length > 0 && (
-            <div className="mt-6 border-t border-gray-100 pt-4">
-              <h4 className="font-medium mb-3 text-gray-700 flex items-center">
-                <ClipboardIcon />
+          {jobs.length > 0 && (
+            <div className="mt-2 border-t border-gray-100 pt-4">
+              <h4 className="font-medium mb-3 text-gray-700 flex items-center gap-2">
+                <Wrench />
                 Jobs
               </h4>
               <div className="space-y-3">
-                {order.jobs.map((job) => (
+                {jobs.map((job) => (
                   <div
                     key={job.id}
                     className="bg-white rounded-md border border-gray-200 p-3"
                   >
                     <div className="flex justify-between items-start">
-                      <p className="font-medium text-gray-800">Job #{job.id}</p>
+                      <p className="font-medium text-gray-800">
+                        {job.service?.service_name}
+                      </p>
                       <span
                         className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
-                          job.status === 'completed'
-                            ? 'bg-green-100 text-green-800'
-                            : job.status === 'in_progress'
-                            ? 'bg-blue-100 text-blue-800'
-                            : job.status === 'assigned'
-                            ? 'bg-purple-100 text-purple-800'
-                            : job.status === 'cancelled'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                          statusColors[job.status as keyof typeof statusColors]
                         }`}
                       >
                         {job.status.replace('_', ' ')}
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm">
-                      {job.requested_time && (
-                        <p className="text-gray-600">
-                          <span className="font-medium">Requested:</span>{' '}
-                          {new Date(job.requested_time).toLocaleString()}
-                        </p>
-                      )}
                       {job.estimated_sched && (
                         <p className="text-gray-600">
                           <span className="font-medium">Scheduled:</span>{' '}
-                          {new Date(job.estimated_sched).toLocaleString()}
+                          {formatUTC(
+                            job.estimated_sched,
+                            DATE_FORMATS.DISPLAY_DATE_TIME,
+                          )}
                         </p>
                       )}
                       {job.job_duration && (
@@ -173,7 +151,7 @@ export function OrderCard({ order }: OrderCardProps) {
           )}
 
           {/* Uploads/Attachments */}
-          {order.uploads.length > 0 && (
+          {uploads.length > 0 && (
             <div className="mt-6 border-t border-gray-100 pt-4">
               <h4 className="font-medium mb-3 text-gray-700 flex items-center">
                 <svg
@@ -193,7 +171,7 @@ export function OrderCard({ order }: OrderCardProps) {
                 Attachments
               </h4>
               <div className="flex flex-wrap gap-2">
-                {order.uploads.map((upload) => (
+                {uploads.map((upload) => (
                   <a
                     key={upload.id}
                     href={upload.file_url}

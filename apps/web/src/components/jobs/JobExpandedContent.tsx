@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { format } from 'date-fns'
 import { BaseJob, Technician } from './types'
+import { DATE_FORMATS, formatUTC } from '@/utils/date'
 
 interface TechnicianSelectorProps {
   jobId: number
@@ -60,7 +60,7 @@ export function JobInfoGrid({ job, children }: JobInfoGridProps) {
       <div>
         <p className="text-sm text-gray-500">Requested Time:</p>
         <p className="text-sm">
-          {format(new Date(job.requested_time), 'PPpp')}
+          {formatUTC(job.requested_time, DATE_FORMATS.DISPLAY_DATE_TIME)}
         </p>
       </div>
 

@@ -23,6 +23,7 @@ export interface BaseJob {
   }
   service_name: string
   requested_time: string
+  estimated_sched: string
   status: JobStatus
 }
 

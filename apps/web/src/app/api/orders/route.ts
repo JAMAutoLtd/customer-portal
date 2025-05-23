@@ -55,7 +55,7 @@ export async function GET() {
         const { data: jobsData } = await supabase
           .from('jobs')
           .select(
-            'id, status, requested_time, estimated_sched, job_duration, notes',
+            'id, status, requested_time, estimated_sched, job_duration, notes, service:service_id(id, service_name)',
           )
           .eq('order_id', order.id)
 

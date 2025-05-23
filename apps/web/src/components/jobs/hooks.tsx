@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { PendingJob, TechnicianJob, Technician, GroupedJobs, BaseJob } from './types'
+import {
+  PendingJob,
+  TechnicianJob,
+  Technician,
+  GroupedJobs,
+  BaseJob,
+} from './types'
 import { groupJobsByDate } from './utils'
-import { format } from 'date-fns'
-import { Clock } from 'lucide-react'
-import React from 'react'
 
 export const GOOGLE_MAPS_URL = 'https://www.google.com/maps/dir/?api=1'
 
@@ -125,96 +128,111 @@ export function useQueuedJobs() {
     }
   }, [user])
 
-  const updateJobStatus = useCallback(async (jobId: number, status: TechnicianJob['status']) => {
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to update job status to ${status}`)
-      }
-
-      // Update job in the local state
-      setJobs((prev) =>
-        prev.map((job) => (job.id === jobId ? { ...job, status } : job))
-      )
-
-      // Update grouped jobs
-      setGroupedJobs((prev) => {
-        const newGrouped = { ...prev }
-        Object.keys(newGrouped).forEach((dateKey) => {
-          newGrouped[dateKey] = newGrouped[dateKey].map((job) =>
-            job.id === jobId ? { ...job, status } : job
-          )
+  const updateJobStatus = useCallback(
+    async (jobId: number, status: TechnicianJob['status']) => {
+      try {
+        const response = await fetch(`/api/jobs/${jobId}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status }),
         })
-        return newGrouped
-      })
 
-      return true
-    } catch (error) {
-      console.error(`Error updating job status to ${status}:`, error)
-      return false
-    }
-  }, [])
+        if (!response.ok) {
+          throw new Error(`Failed to update job status to ${status}`)
+        }
 
-  const goToJob = useCallback(async (jobId: number, lat?: number, lng?: number) => {
-    if (lat && lng) {
-      window.open(`${GOOGLE_MAPS_URL}&destination=${lat},${lng}`, '_blank')
-    }
-    return updateJobStatus(jobId, 'en_route')
-  }, [updateJobStatus])
+        // Update job in the local state
+        setJobs((prev) =>
+          prev.map((job) => (job.id === jobId ? { ...job, status } : job)),
+        )
 
-  const startJob = useCallback((jobId: number) => {
-    return updateJobStatus(jobId, 'in_progress')
-  }, [updateJobStatus])
-
-  const completeJob = useCallback((jobId: number) => {
-    return updateJobStatus(jobId, 'completed')
-  }, [updateJobStatus])
-
-  const reassignJob = useCallback(async (jobId: number, technicianId: number) => {
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/reassign`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ technician_id: technicianId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to reassign job')
-      }
-
-      setJobs((prev) => prev.filter((job) => job.id !== jobId))
-
-      // Update grouped jobs
-      setGroupedJobs((prev) => {
-        const newGrouped = { ...prev }
-        Object.keys(newGrouped).forEach((dateKey) => {
-          newGrouped[dateKey] = newGrouped[dateKey].filter(
-            (job) => job.id !== jobId
-          )
-
-          // If no jobs left for this date, remove the date key
-          if (newGrouped[dateKey].length === 0) {
-            delete newGrouped[dateKey]
-          }
+        // Update grouped jobs
+        setGroupedJobs((prev) => {
+          const newGrouped = { ...prev }
+          Object.keys(newGrouped).forEach((dateKey) => {
+            newGrouped[dateKey] = newGrouped[dateKey].map((job) =>
+              job.id === jobId ? { ...job, status } : job,
+            )
+          })
+          return newGrouped
         })
-        return newGrouped
-      })
 
-      return true
-    } catch (error) {
-      console.error('Error reassigning job:', error)
-      return false
-    }
-  }, [])
+        return true
+      } catch (error) {
+        console.error(`Error updating job status to ${status}:`, error)
+        return false
+      }
+    },
+    [],
+  )
+
+  const goToJob = useCallback(
+    async (jobId: number, lat?: number, lng?: number) => {
+      if (lat && lng) {
+        window.open(`${GOOGLE_MAPS_URL}&destination=${lat},${lng}`, '_blank')
+      }
+      return updateJobStatus(jobId, 'en_route')
+    },
+    [updateJobStatus],
+  )
+
+  const startJob = useCallback(
+    (jobId: number) => {
+      return updateJobStatus(jobId, 'in_progress')
+    },
+    [updateJobStatus],
+  )
+
+  const completeJob = useCallback(
+    (jobId: number) => {
+      return updateJobStatus(jobId, 'completed')
+    },
+    [updateJobStatus],
+  )
+
+  const reassignJob = useCallback(
+    async (jobId: number, technicianId: number) => {
+      try {
+        const response = await fetch(`/api/jobs/${jobId}/reassign`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ technician_id: technicianId }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to reassign job')
+        }
+
+        setJobs((prev) => prev.filter((job) => job.id !== jobId))
+
+        // Update grouped jobs
+        setGroupedJobs((prev) => {
+          const newGrouped = { ...prev }
+          Object.keys(newGrouped).forEach((dateKey) => {
+            newGrouped[dateKey] = newGrouped[dateKey].filter(
+              (job) => job.id !== jobId,
+            )
+
+            // If no jobs left for this date, remove the date key
+            if (newGrouped[dateKey].length === 0) {
+              delete newGrouped[dateKey]
+            }
+          })
+          return newGrouped
+        })
+
+        return true
+      } catch (error) {
+        console.error('Error reassigning job:', error)
+        return false
+      }
+    },
+    [],
+  )
 
   return {
     jobs,
@@ -240,9 +258,12 @@ export function useExpandableList() {
     })
   }, [])
 
-  const isItemExpanded = useCallback((itemId: number) => {
-    return expandedItems.includes(itemId)
-  }, [expandedItems])
+  const isItemExpanded = useCallback(
+    (itemId: number) => {
+      return expandedItems.includes(itemId)
+    },
+    [expandedItems],
+  )
 
   return { expandedItems, toggleItem, isItemExpanded }
 }
@@ -260,9 +281,12 @@ export function useExpandableDates(initialDates: string[] = ['today']) {
     })
   }, [])
 
-  const isDateExpanded = useCallback((dateKey: string) => {
-    return expandedDates.includes(dateKey)
-  }, [expandedDates])
+  const isDateExpanded = useCallback(
+    (dateKey: string) => {
+      return expandedDates.includes(dateKey)
+    },
+    [expandedDates],
+  )
 
   return { expandedDates, toggleDate, isDateExpanded }
 }
@@ -272,7 +296,7 @@ export function useMapActions() {
     if (lat && lng) {
       window.open(
         `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-        '_blank'
+        '_blank',
       )
     }
   }, [])
@@ -297,12 +321,12 @@ export function useMapActions() {
 
           window.open(
             `${GOOGLE_MAPS_URL}&origin=${origin}&destination=${destination}${waypointsParam}`,
-            '_blank'
+            '_blank',
           )
         } else {
           window.open(
             `${GOOGLE_MAPS_URL}&destination=${waypoints[0]}`,
-            '_blank'
+            '_blank',
           )
         }
       }
@@ -310,13 +334,4 @@ export function useMapActions() {
   }, [])
 
   return { openLocationInMaps, openRouteInMaps }
-}
-
-// Default rendering functions for JobCard
-export function defaultRenderTimeDisplay(job: BaseJob, fieldName: keyof BaseJob = 'requested_time', title: string = 'Requested Time', formatPattern: string = 'MMM d, h:mm a') {
-  return {
-    icon: <Clock className="w-4 h-4 mr-1 text-gray-500" />,
-    text: format(new Date(job[fieldName] as string), formatPattern),
-    title,
-  }
 }

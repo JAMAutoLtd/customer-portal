@@ -1,7 +1,7 @@
 import { addDays, isBefore } from 'date-fns'
 
 export const getNextAvailableDate = () => {
-  let nextDate = new Date()
+  let nextDate = addDays(new Date(), 1)
 
   // If it's a weekend, move to next Monday
   if (nextDate.getDay() === 0) {
@@ -35,7 +35,7 @@ export const isDateDisabled = (date: Date) => {
   const isWeekend = day === 0 || day === 6
 
   today.setHours(0, 0, 0, 0)
-  const isBeforeToday = isBefore(date, today)
+  const isBeforeTomorrow = isBefore(date, addDays(today, 1))
 
-  return isWeekend || isBeforeToday
+  return isWeekend || isBeforeTomorrow
 }

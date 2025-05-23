@@ -2,10 +2,10 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/Button'
-import { ChevronDown, ChevronUp, MapPin } from 'lucide-react'
+import { ChevronDown, ChevronUp, Clock, MapPin } from 'lucide-react'
 import { BaseJob } from './types'
 import { StatusBadge } from './StatusBadge'
-import { defaultRenderTimeDisplay } from './hooks'
+import { DATE_FORMATS, formatUTC } from '@/utils/date'
 
 interface JobCardProps<T extends BaseJob> {
   job: T
@@ -35,7 +35,6 @@ export function JobCard<T extends BaseJob>({
   renderActions,
   renderExpandedContent,
   renderHeaderActions,
-  timeDisplay,
   onMapClick,
   mapButtonLabel = 'Map',
   mapButtonIcon = <MapPin className="w-4 h-4 mr-1" />,
@@ -47,7 +46,11 @@ export function JobCard<T extends BaseJob>({
   const renderStatus =
     renderStatusBadge || ((job: T) => <StatusBadge status={job.status} />)
 
-  const time = timeDisplay ? timeDisplay(job) : defaultRenderTimeDisplay(job)
+  const scheduledTime = {
+    icon: <Clock className="w-4 h-4 mr-1 text-gray-500" />,
+    text: formatUTC(job.estimated_sched as string, DATE_FORMATS.DISPLAY_TIME),
+    title: 'ETA',
+  }
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Only toggle if the click is directly on an element with the 'cursor-pointer' class
@@ -75,10 +78,10 @@ export function JobCard<T extends BaseJob>({
 
               <div
                 className="w-full sm:w-auto mb-2 sm:mb-0 sm:ml-4 flex items-center"
-                title={time.title}
+                title={scheduledTime.title}
               >
-                {time.icon}
-                <p className="text-sm">{time.text}</p>
+                {scheduledTime.icon}
+                <p className="text-sm">{scheduledTime.text}</p>
               </div>
 
               <div className="flex items-center">
