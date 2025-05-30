@@ -20,9 +20,8 @@ export default function TechnicianJobs() {
         return
       }
 
-      // Check if the user is a technician (you might need to adjust this logic based on how technicians are identified)
+      // Check if the user is a technician
       if (userProfile?.is_admin) {
-        // For now, admins can access this page. You might want to change this logic if needed.
         setIsLoading(false)
       } else {
         setIsLoading(false)

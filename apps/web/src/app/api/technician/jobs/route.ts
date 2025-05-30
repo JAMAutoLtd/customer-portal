@@ -40,7 +40,6 @@ export async function GET() {
   try {
     const supabase = await createClient()
 
-    // Get the current user session
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -182,8 +181,8 @@ export async function GET() {
           },
           service_name: 'Unknown service',
           status: job.status || 'queued',
-          estimated_sched: job.estimated_sched || new Date().toISOString(),
-          requested_time: job.requested_time || new Date().toISOString(),
+          estimated_sched: job.estimated_sched,
+          requested_time: job.requested_time,
           assigned_technician: job.assigned_technician || 0,
         }
       }

@@ -5,6 +5,7 @@ export const DATE_FORMATS = {
   DATE_ONLY: 'yyyy-MM-dd',
   DATE_TIME: 'yyyy-MM-dd HH:mm',
   DISPLAY_DATE: 'MMM d, yyyy',
+  DISPLAY_DATE_FULL: 'EEEE, MMMM d, yyyy',
   DISPLAY_TIME: 'h:mm a',
   DISPLAY_DATE_TIME: 'MMM d, yyyy h:mm a',
 }

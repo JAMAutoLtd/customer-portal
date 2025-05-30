@@ -3,29 +3,9 @@
 import React from 'react'
 import { Button } from '@/components/ui/Button'
 import { ChevronDown, ChevronUp, Clock, MapPin } from 'lucide-react'
-import { BaseJob } from './types'
+import { BaseJob, JobCardProps } from './types'
 import { StatusBadge } from './StatusBadge'
 import { DATE_FORMATS, formatUTC } from '@/utils/date'
-
-interface JobCardProps<T extends BaseJob> {
-  job: T
-  isExpanded: boolean
-  onToggleExpand: (jobId: number) => void
-  renderStatusBadge?: (job: T) => React.ReactNode
-  renderActions?: (job: T) => React.ReactNode
-  renderExpandedContent: (job: T) => React.ReactNode
-  renderHeaderActions?: (job: T) => React.ReactNode
-  timeDisplay?: (job: T) => {
-    icon: React.ReactNode
-    text: string
-    title?: string
-  }
-  onMapClick?: (lat?: number, lng?: number) => void
-  mapButtonLabel?: string
-  mapButtonIcon?: React.ReactNode
-  mapButtonDisabled?: (job: T) => boolean
-  className?: string
-}
 
 export function JobCard<T extends BaseJob>({
   job,
@@ -53,8 +33,6 @@ export function JobCard<T extends BaseJob>({
   }
 
   const handleCardClick = (e: React.MouseEvent) => {
-    // Only toggle if the click is directly on an element with the 'cursor-pointer' class
-    // or one of its direct children that doesn't have stop propagation
     if (
       e.target === e.currentTarget ||
       e.currentTarget.contains(e.target as Node)
@@ -67,17 +45,17 @@ export function JobCard<T extends BaseJob>({
     <div className={`bg-white rounded-md shadow-sm p-4 ${className}`}>
       <div className="cursor-pointer" onClick={handleCardClick}>
         <div>
-          <div className="flex justify-between items-center flex-nowrap gap-4">
+          <div className="flex justify-between items-center flex-wrap gap-4 mb-2">
             <div className="flex gap-3 items-center">
               <p className="text-sm text-gray-500">Order #{job.order_id}</p>
               <h4 className="font-semibold">{job.customer_name}</h4>
             </div>
 
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-3 items-center max-sm:w-full">
               {renderStatus(job)}
 
               <div
-                className="w-full sm:w-auto mb-2 sm:mb-0 sm:ml-4 flex items-center"
+                className="w-full sm:w-auto sm:mb-0 sm:ml-4 flex items-center"
                 title={scheduledTime.title}
               >
                 {scheduledTime.icon}

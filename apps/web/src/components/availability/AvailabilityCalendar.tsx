@@ -62,7 +62,7 @@ export default function AvailabilityCalendar({
   }
 
   const getAvailabilityColor = (
-    availability: AvailabilityResponse | undefined
+    availability: AvailabilityResponse | undefined,
   ) => {
     if (!availability) return 'bg-gray-100'
     if (!availability.is_available) return 'bg-red-100'
@@ -123,13 +123,13 @@ export default function AvailabilityCalendar({
           const start_time = availability?.start_time
             ? format(
                 new Date(`2000-01-01T${availability?.start_time}`),
-                'h:mm a'
+                'h:mm a',
               ).split(' ')
             : null
           const end_time = availability?.end_time
             ? format(
                 new Date(`2000-01-01T${availability?.end_time}`),
-                'h:mm a'
+                'h:mm a',
               ).split(' ')
             : null
 
@@ -138,7 +138,7 @@ export default function AvailabilityCalendar({
               key={day.toString()}
               onClick={() => onDateClick(format(day, 'yyyy-MM-dd'))}
               className={`
-                p-2 text-sm rounded relative h-[75px]
+                p-1 sm:p-2 text-sm rounded relative h-[75px]
                 ${getAvailabilityColor(availability)}
                 ${!isCurrentMonth ? 'opacity-50' : ''}
                 ${isCurrentDay ? 'font-bold' : ''}

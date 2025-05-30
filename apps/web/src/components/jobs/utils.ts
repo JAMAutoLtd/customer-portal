@@ -1,21 +1,43 @@
 import { GroupedJobs, TechnicianJob } from './types'
-import { format } from 'date-fns'
+import { formatUTC, parseUTC, DATE_FORMATS } from '../../utils/date'
 
 export const groupJobsByDate = (jobs: TechnicianJob[]): GroupedJobs => {
+  // Get today's local date but treat it as if it's in UTC for comparison
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const todayUTC = new Date(
+    Date.UTC(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      0,
+      0,
+      0,
+      0,
+    ),
+  )
 
   const grouped: GroupedJobs = {}
 
   jobs.forEach((job) => {
-    const jobDate = new Date(job.estimated_sched)
-    jobDate.setHours(0, 0, 0, 0)
+    // Parse the UTC date and set to start of day in UTC
+    const jobDate = parseUTC(job.estimated_sched)
+    const jobDateUTC = new Date(
+      Date.UTC(
+        jobDate.getUTCFullYear(),
+        jobDate.getUTCMonth(),
+        jobDate.getUTCDate(),
+        0,
+        0,
+        0,
+        0,
+      ),
+    )
 
     let dateKey
-    if (jobDate.getTime() === today.getTime()) {
+    if (jobDateUTC.getTime() === todayUTC.getTime()) {
       dateKey = 'today'
     } else {
-      dateKey = format(jobDate, 'yyyy-MM-dd')
+      dateKey = formatUTC(jobDateUTC, DATE_FORMATS.DATE_ONLY)
     }
 
     if (!grouped[dateKey]) {
@@ -28,8 +50,8 @@ export const groupJobsByDate = (jobs: TechnicianJob[]): GroupedJobs => {
   Object.keys(grouped).forEach((dateKey) => {
     grouped[dateKey].sort(
       (a, b) =>
-        new Date(a.estimated_sched).getTime() -
-        new Date(b.estimated_sched).getTime(),
+        parseUTC(a.estimated_sched).getTime() -
+        parseUTC(b.estimated_sched).getTime(),
     )
   })
 

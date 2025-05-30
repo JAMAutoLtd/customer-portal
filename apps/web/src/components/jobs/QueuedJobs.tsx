@@ -7,12 +7,11 @@ import { Button } from '@/components/ui/Button'
 import {
   ChevronDown,
   ChevronUp,
-  Map,
-  ClockArrowDown,
   Zap,
   Check,
   Send,
   Clock,
+  Route,
 } from 'lucide-react'
 import { TechnicianJob, GroupedJobs, Technician } from './types'
 import { groupJobsByDate } from './utils'
@@ -20,6 +19,7 @@ import { JobCard } from './JobCard'
 import { StatusBadge } from './StatusBadge'
 import { LoadingState, EmptyState } from './JobsStates'
 import { ExpandedJobContent } from './JobExpandedContent'
+import { DATE_FORMATS, formatUTC } from '@/utils/date'
 
 const GOOGLE_MAPS_URL = 'https://www.google.com/maps/dir/?api=1'
 
@@ -36,15 +36,9 @@ export function QueuedJobs() {
     const fetchJobs = async () => {
       try {
         const response = await fetch('/api/technician/jobs')
-        if (!response.ok) {
-          throw new Error('Failed to fetch jobs')
-        }
-
         const data = await response.json()
         setJobs(data)
-
-        const grouped = groupJobsByDate(data)
-        setGroupedJobs(grouped)
+        setGroupedJobs(groupJobsByDate(data))
       } catch (error) {
         console.error('Error fetching jobs:', error)
       } finally {
@@ -55,10 +49,6 @@ export function QueuedJobs() {
     const fetchTechnicians = async () => {
       try {
         const response = await fetch('/api/technicians')
-        if (!response.ok) {
-          throw new Error('Failed to fetch technicians')
-        }
-
         const data = await response.json()
         setTechnicians(data)
       } catch (error) {
@@ -247,21 +237,21 @@ export function QueuedJobs() {
     const jobs = groupedJobs[dateKey]
 
     if (jobs && jobs.length > 0) {
-      const waypoints = jobs
+      const addresses = jobs
         .map((job) => {
-          if (job.address.lat && job.address.lng) {
-            return `${job.address.lat},${job.address.lng}`
+          if (job.address.street_address) {
+            return encodeURIComponent(job.address.street_address)
           }
           return null
         })
         .filter(Boolean)
 
-      if (waypoints.length > 0) {
-        if (waypoints.length > 1) {
-          const origin = waypoints.shift()
-          const destination = waypoints.pop()
+      if (addresses.length > 0) {
+        if (addresses.length > 1) {
+          const origin = addresses.shift()
+          const destination = addresses.pop()
           const waypointsParam =
-            waypoints.length > 0 ? `&waypoints=${waypoints.join('|')}` : ''
+            addresses.length > 0 ? `&waypoints=${addresses.join('|')}` : ''
 
           window.open(
             `${GOOGLE_MAPS_URL}&origin=${origin}&destination=${destination}${waypointsParam}`,
@@ -269,7 +259,7 @@ export function QueuedJobs() {
           )
         } else {
           window.open(
-            `${GOOGLE_MAPS_URL}&destination=${waypoints[0]}`,
+            `${GOOGLE_MAPS_URL}&destination=${addresses[0]}`,
             '_blank',
           )
         }
@@ -297,26 +287,22 @@ export function QueuedJobs() {
             onClick={() => handleStartJob(job.id)}
             className="bg-[#FFB30F] hover:bg-[#FFB30F]/80 flex items-center"
           >
-            <Zap className="w-4 h-4 mr-1" /> Start Job
+            <Zap className="w-4 h-4 mr-1" />
+            Start Job
           </Button>
         )}
 
-        <Button
-          onClick={() => handleCompleteJob(job.id)}
-          className="flex items-center"
-        >
-          <Check className="w-4 h-4 mr-1" /> Complete
-        </Button>
-
-        <Button variant="secondary" className="flex items-center mr-0 ml-auto">
-          <ClockArrowDown className="w-4 h-4 mr-1" /> Delay
-        </Button>
+        {job.status !== 'completed' && (
+          <Button
+            onClick={() => handleCompleteJob(job.id)}
+            className="flex items-center"
+          >
+            <Check className="w-4 h-4 mr-1" />
+            Complete
+          </Button>
+        )}
       </>
     )
-  }
-
-  const renderHeaderActions = (_job: TechnicianJob) => {
-    return null // If needed, add header actions here
   }
 
   const isMapButtonDisabled = (job: TechnicianJob) => {
@@ -343,7 +329,7 @@ export function QueuedJobs() {
         const formattedDate =
           dateKey === 'today'
             ? 'Today'
-            : format(new Date(dateKey), 'EEEE, MMMM d, yyyy')
+            : formatUTC(new Date(dateKey), DATE_FORMATS.DISPLAY_DATE_FULL)
 
         return (
           <div
@@ -363,7 +349,7 @@ export function QueuedJobs() {
                   }}
                   className="mr-4 whitespace-nowrap flex items-center gap-1"
                 >
-                  <Map className="w-8 h-8 text-gray-500 hover:text-gray-700" />
+                  <Route className="w-8 h-8 text-gray-500 hover:text-gray-700" />
                 </button>
                 {isExpanded ? (
                   <ChevronUp className="w-5 h-5 text-gray-500" />
@@ -393,7 +379,6 @@ export function QueuedJobs() {
                       />
                     )}
                     renderActions={renderActions}
-                    renderHeaderActions={renderHeaderActions}
                     timeDisplay={renderTimeDisplay}
                     onMapClick={(lat, lng) => handleGoToJob(job.id, lat, lng)}
                     mapButtonIcon={<Send className="w-4 h-4 mr-1" />}

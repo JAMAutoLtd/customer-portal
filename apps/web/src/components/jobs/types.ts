@@ -47,3 +47,23 @@ export type Technician = {
   id: number
   name: string
 }
+
+export interface JobCardProps<T extends BaseJob> {
+  job: T
+  isExpanded: boolean
+  onToggleExpand: (jobId: number) => void
+  renderStatusBadge?: (job: T) => React.ReactNode
+  renderActions?: (job: T) => React.ReactNode
+  renderExpandedContent: (job: T) => React.ReactNode
+  renderHeaderActions?: (job: T) => React.ReactNode
+  timeDisplay?: (job: T) => {
+    icon: React.ReactNode
+    text: string
+    title?: string
+  }
+  onMapClick?: (lat?: number, lng?: number) => void
+  mapButtonLabel?: string
+  mapButtonIcon?: React.ReactNode
+  mapButtonDisabled?: (job: T) => boolean
+  className?: string
+}
