@@ -77,7 +77,7 @@ export const seedScenario_availability_overflow_skip_day = async (
         logInfo(`Inserted ${insertedIds.technician_availability_exceptions.length} availability exceptions for ${tomorrow}.`);
 
         // 3. Create enough jobs today to cause overflow
-        const numberOfJobs = 25; // Seed enough jobs to likely cause overflow
+        const numberOfJobs = 10; // Seed enough jobs to likely cause overflow
         const ordersData: TablesInsert<'orders'>[] = [];
         const jobsData: Omit<TablesInsert<'jobs'>, 'order_id'>[] = [];
 

@@ -281,15 +281,28 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
     }
     logger.info(`Found ${allTechnicians.length} technicians and ${relevantJobsToday.length} relevant jobs.`);
 
+    const currentTimeForStateInit = new Date(); // Used to ensure we only process non-past fixed_time jobs
+
     relevantJobsToday.forEach(job => {
-        allFetchedJobsMap.set(job.id, job);
-        if (job.status === INITIAL_SCHEDULABLE_STATUS) {
-            jobStates.set(job.id, {
-                jobId: job.id,
-                attempts: [],
-                lastStatus: 'pending' // Start as pending
-            });
-        }
+      allFetchedJobsMap.set(job.id, job);
+
+      const fixedScheduleTime = job.fixed_schedule_time ? new Date(job.fixed_schedule_time) : null;
+      // Check if the job is 'queued' OR if it's a 'fixed_time' job whose scheduled date is not before today
+      // For fixed_time, we compare against the start of today to ensure jobs for today are included.
+      const isFixedJobForTodayOrFuture =
+        job.status === 'fixed_time' &&
+        fixedScheduleTime &&
+        fixedScheduleTime.getTime() >= new Date(currentTimeForStateInit.setHours(0, 0, 0, 0)).getTime();
+
+      if (job.status === INITIAL_SCHEDULABLE_STATUS || isFixedJobForTodayOrFuture) {
+        jobStates.set(job.id, {
+          jobId: job.id,
+          attempts: [],
+          // If 'queued', it's 'pending scheduling'.
+          // If 'fixed_time', its 'pending' state means 'pending confirmation on its day'.
+          lastStatus: 'pending' 
+        });
+      }
     });
 
     // +++ START One Step GPS Integration +++
@@ -351,7 +364,8 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
             baseWindowsMap,         // Pass the full map
             lockedJobsForTechToday,
             tech.id,                // Pass tech ID
-            todayDate               // Pass the target date
+            todayDate,              // Pass the target date
+            todayDate               // Pass current time (same as todayDate for now)
         );
 
         // Get the windows specifically for today from the result map
@@ -692,7 +706,8 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
                 baseWindowsMap,             // Pass the full map
                 lockedJobsForTechThisDay,   // Pass only relevant fixed jobs for this day
                 tech.id,                    // Pass tech ID
-                currentPlanningDate         // Pass the target date
+                currentPlanningDate,        // Pass the target date
+                new Date()                  // Pass current time for today check
             );
 
             // Get the windows specifically for this date from the result map

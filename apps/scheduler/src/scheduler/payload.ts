@@ -83,9 +83,25 @@ function getItemId(item: SchedulableItem): string {
     }
 }
 
+// --- Helper function to check if a date falls on a specific day ---
+// (Copied from orchestrator.ts - ensure consistency or centralize if used in multiple places)
+function isDateOnDay(isoDateTime: string | null | undefined, targetDate: Date): boolean {
+    if (!isoDateTime) return false;
+    try {
+        const jobDate = new Date(isoDateTime);
+        // Compare year, month, and day in UTC to avoid timezone issues with just date comparison
+        return jobDate.getUTCFullYear() === targetDate.getUTCFullYear() &&
+               jobDate.getUTCMonth() === targetDate.getUTCMonth() &&
+               jobDate.getUTCDate() === targetDate.getUTCDate();
+    } catch (e) {
+        logger.error(`Error parsing date ${isoDateTime} in isDateOnDay:`, e);
+        return false; // Treat parse errors as not on the day
+    }
+}
+
 export async function prepareOptimizationPayload(
     technicians: Technician[],
-    items: SchedulableItem[],
+    itemsToSchedule: SchedulableItem[], // Renamed from 'items' for clarity in this scope
     lockedJobs: Job[],
     targetDate: Date
 ): Promise<OptimizationRequestPayload> {
@@ -161,7 +177,7 @@ export async function prepareOptimizationPayload(
         });
 
         // ALWAYS apply relevant locked jobs, not just for today
-        const finalWindows = applyLockedJobsToWindows(baseWindows, relevantLockedJobsForTargetDate, tech.id, targetDate);
+        const finalWindows = applyLockedJobsToWindows(baseWindows, relevantLockedJobsForTargetDate, tech.id, targetDate, new Date());
         
         allTechnicianDailyAvailability.set(tech.id, finalWindows);
 
@@ -211,15 +227,34 @@ export async function prepareOptimizationPayload(
                 }
             );
 
-            // Populate technicianUnavailabilities
+            // Populate technicianUnavailabilities, EXCLUDING gaps that are due to fixed_time jobs being scheduled in this pass
             gaps.forEach(gap => {
-                if (gap.durationSeconds > 0) {
+                // Check if this gap corresponds to a fixed_time job that is part of the current itemsToSchedule for this targetDate
+                const correspondingFixedJob = itemsToSchedule.find(item => {
+                    if (!('jobs' in item)) { // It's a SchedulableJob
+                        const job = item as SchedulableJob;
+                        return job.status === 'fixed_time' && 
+                               job.assigned_technician === gap.technicianId && 
+                               job.fixed_schedule_time && 
+                               new Date(job.fixed_schedule_time).toISOString() === gap.start && // Gap start should match fixed time
+                               (job.job_duration * 60) === gap.durationSeconds && // Gap duration should match job duration
+                               isDateOnDay(job.fixed_schedule_time, targetDate); // And it's for the current targetDate
+                    }
+                    return false;
+                });
+
+                if (correspondingFixedJob) {
+                    logger.debug(
+                        `[payload.ts] Skipping technicianUnavailability for Tech ${gap.technicianId} for gap ${gap.start} - ${gap.end} as it corresponds to fixed job ${getItemId(correspondingFixedJob)} being scheduled in this pass.`,
+                        { gap, fixedJobId: getItemId(correspondingFixedJob) }
+                    );
+                } else if (gap.durationSeconds > 0) {
                     technicianUnavailabilities.push({
                         technicianId: gap.technicianId,
-                        startTimeISO: gap.start, // gap.start is already an ISO string from current logic
+                        startTimeISO: gap.start, 
                         durationSeconds: gap.durationSeconds
                     });
-                    logger.debug(`[payload.ts] Collected unavailability for Tech ${gap.technicianId} on ${formatDateToString(targetDate)}: ${gap.start} for ${gap.durationSeconds}s`);
+                    logger.debug(`[payload.ts] Collected unavailability for Tech ${gap.technicianId} on ${formatDateToString(targetDate)}: ${gap.start} for ${gap.durationSeconds}s (non-fixed-item gap).`);
                 }
             });
             // Log the state of technicianUnavailabilities for this specific tech/date after processing gaps
@@ -241,7 +276,7 @@ export async function prepareOptimizationPayload(
 
     // --- Stage 2: Item Locations ---
     logger.debug("Processing item locations...");
-    items.forEach(item => {
+    itemsToSchedule.forEach(item => {
         if (!item.address?.lat || !item.address?.lng) {
             logger.error(`Item ${getItemId(item)} is missing address coordinates. Skipping.`);
             return; 
@@ -325,66 +360,94 @@ export async function prepareOptimizationPayload(
     });
 
     // --- Format Items ---
-    let optimizationItems: OptimizationItem[] = items
-        .map(item => {
-            const itemLocation = addOrGetLocation(getItemId(item), {
-                lat: item.address?.lat || 0, 
-                lng: item.address?.lng || 0
-            });
-             // finalLocations is now defined before this block
-             if (!finalLocations.find((l: OptimizationLocation) => l.index === itemLocation.index)) {
-                logger.warn(`Skipping item ${getItemId(item)} because its location could not be indexed (likely missing coordinates).`);
-                return null; 
-            }
-            const isBundle = 'jobs' in item;
-            const duration = isBundle ? (item as JobBundle).total_duration : (item as SchedulableJob).job_duration;
-            let earliestItemStartTimeISO: string | undefined = undefined;
-            if ('jobs' in item) {
-                const bundle = item as JobBundle;
-                let latestEarliestTime = 0;
-                bundle.jobs.forEach(job => {
-                    const jobEarliestTimeStr = job.order_details?.earliest_available_time;
-                    if (jobEarliestTimeStr) {
-                        const jobEarliestTime = new Date(jobEarliestTimeStr).getTime();
-                        if (jobEarliestTime > latestEarliestTime) latestEarliestTime = jobEarliestTime;
-                    }
-                });
-                if (latestEarliestTime > 0) earliestItemStartTimeISO = new Date(latestEarliestTime).toISOString();
-            } else {
-                const schedJob = item as SchedulableJob;
-                earliestItemStartTimeISO = schedJob.order_details?.earliest_available_time || undefined;
-            }
-            let isFixed = false;
-            let fixedISO: string | undefined = undefined;
-            if (!('jobs' in item) && (item as SchedulableJob).status === 'fixed_time') {
-                const fixedJob = item as SchedulableJob;
-                if (fixedJob.fixed_schedule_time) {
-                    isFixed = true;
-                    fixedISO = fixedJob.fixed_schedule_time;
-                    logger.debug(`Marking item ${getItemId(item)} as fixed: ${fixedISO}`);
-                } else {
-                    logger.warn(`Item ${getItemId(item)} has status fixed_time but no fixed_schedule_time value.`);
+    const optimizationItems: OptimizationItem[] = [];
+    itemsToSchedule.forEach(item => {
+        const itemLocationCoords: LatLngLiteral | undefined = item.address?.lat && item.address?.lng 
+            ? { lat: item.address.lat, lng: item.address.lng } 
+            : undefined;
+
+        if (!itemLocationCoords) {
+            logger.warn(`Skipping item ${getItemId(item)} due to missing address coordinates.`);
+            return;
+        }
+        const itemLocation = addOrGetLocation(getItemId(item), itemLocationCoords);
+        
+        if (!finalLocations.find((l: OptimizationLocation) => l.index === itemLocation.index)) {
+            logger.warn(`Skipping item ${getItemId(item)} because its location could not be indexed (potentially filtered after initial add).`);
+            return; 
+        }
+
+        if ('jobs' in item) { // It's a JobBundle
+            const bundle = item as JobBundle;
+            let latestEarliestTime = 0;
+            bundle.jobs.forEach(job => {
+                const jobEarliestTimeStr = job.order_details?.earliest_available_time;
+                if (jobEarliestTimeStr) {
+                    const jobEarliestTime = new Date(jobEarliestTimeStr).getTime();
+                    if (jobEarliestTime > latestEarliestTime) latestEarliestTime = jobEarliestTime;
                 }
-            }
-            const baseOptimizationItem: OptimizationItem = {
-                id: getItemId(item),
+            });
+            const bundleEarliestStartTimeISO = latestEarliestTime > 0 ? new Date(latestEarliestTime).toISOString() : undefined;
+            
+            const bundleOptimizationItem: OptimizationItem = {
+                id: `bundle_${bundle.order_id}`,
                 locationIndex: itemLocation.index,
-                durationSeconds: duration * 60,
-                priority: item.priority,
-                eligibleTechnicianIds: 'jobs' in item 
-                    ? (item as JobBundle).eligible_technician_ids
-                    : (item as SchedulableJob).eligibleTechnicians.map(t => t.id),
+                durationSeconds: bundle.total_duration * 60,
+                priority: bundle.priority,
+                eligibleTechnicianIds: bundle.eligible_technician_ids || [],
             };
-            let finalOptimizationItem = { ...baseOptimizationItem };
-            if (earliestItemStartTimeISO) finalOptimizationItem.earliestStartTimeISO = earliestItemStartTimeISO;
+            if (bundleEarliestStartTimeISO) bundleOptimizationItem.earliestStartTimeISO = bundleEarliestStartTimeISO;
+            optimizationItems.push(bundleOptimizationItem);
+            logger.debug(`Final Optimization Item for ${getItemId(item)}:`, bundleOptimizationItem);
+
+        } else { // It's a SchedulableJob
+            const job = item as SchedulableJob;
+            const isFixed = job.status === 'fixed_time' && job.fixed_schedule_time;
+            const jobEarliestStartTimeISO = job.order_details?.earliest_available_time || undefined;
+
             if (isFixed) {
-                finalOptimizationItem.isFixedTime = true;
-                finalOptimizationItem.fixedTimeISO = fixedISO;
+                // For fixed jobs, ONLY include them in optimizationItems if their fixed_schedule_time is ON the targetDate
+                if (isDateOnDay(job.fixed_schedule_time!, targetDate)) {
+                    const fixedJobItem: OptimizationItem = {
+                        id: `job_${job.id}`,
+                        locationIndex: itemLocation.index,
+                        durationSeconds: job.job_duration * 60,
+                        priority: job.priority,
+                        eligibleTechnicianIds: job.eligibleTechnicians.map(t => t.id),
+                        isFixedTime: true,
+                        fixedTimeISO: job.fixed_schedule_time!,
+                    };
+                    if (jobEarliestStartTimeISO) fixedJobItem.earliestStartTimeISO = jobEarliestStartTimeISO; // Can still have an earliest start
+                    optimizationItems.push(fixedJobItem);
+                    logger.debug(`Final Optimization Item for ${getItemId(item)} (Fixed for Target Date):`, fixedJobItem);
+                } else {
+                    // Log that this fixed job (for a different date) is being filtered out from the *items* for this payload
+                    logger.debug(
+                        // Message string first
+                        "Skipping fixed job from optimization items: its fixed_schedule_time is not on the payload's targetDate.",
+                        // Object second
+                        {
+                            jobId: job.id,
+                            jobFixedTime: job.fixed_schedule_time,
+                            payloadTargetDate: targetDate.toISOString(),
+                        }
+                    );
+                }
+            } else {
+                // Non-fixed jobs are included directly
+                const regularJobItem: OptimizationItem = {
+                    id: `job_${job.id}`,
+                    locationIndex: itemLocation.index,
+                    durationSeconds: job.job_duration * 60,
+                    priority: job.priority,
+                    eligibleTechnicianIds: job.eligibleTechnicians.map(t => t.id),
+                };
+                if (jobEarliestStartTimeISO) regularJobItem.earliestStartTimeISO = jobEarliestStartTimeISO;
+                optimizationItems.push(regularJobItem);
+                logger.debug(`Final Optimization Item for ${getItemId(item)}:`, regularJobItem);
             }
-            logger.debug(`Final Optimization Item for ${getItemId(item)}:`, finalOptimizationItem);
-            return finalOptimizationItem;
-        })
-        .filter((item): item is OptimizationItem => item !== null);
+        }
+    });
 
     // Format Fixed Constraints - will be empty now unless actual fixed jobs are handled elsewhere
     const optimizationFixedConstraints: OptimizationFixedConstraint[] = []; // Initialize as empty

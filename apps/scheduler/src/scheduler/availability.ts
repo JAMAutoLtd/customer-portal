@@ -374,15 +374,18 @@ function subtractJobTimeFromWindows(windows: TimeWindow[], jobStartTime: Date, j
  * @param lockedJobs An array of all locked jobs (en_route, in_progress, fixed_time) for the target date.
  * @param technicianId The ID of the technician whose windows are being modified.
  * @param targetDate The specific date to apply locked jobs for.
+ * @param currentTimeUTC The current UTC time, used for tighter timing on ongoing jobs.
  * @returns The modified DailyAvailabilityWindows map.
  */
 export function applyLockedJobsToWindows(
   dailyWindows: DailyAvailabilityWindows,
   lockedJobs: Job[],
   technicianId: number,
-  targetDate: Date
+  targetDate: Date,
+  currentTimeUTC: Date
 ): DailyAvailabilityWindows {
     const dateString = formatDateToString(targetDate);
+    const isTargetDateToday = formatDateToString(targetDate) === formatDateToString(currentTimeUTC);
     let windowsForDay = dailyWindows.get(dateString) || [];
 
     if (windowsForDay.length === 0) {
@@ -392,26 +395,70 @@ export function applyLockedJobsToWindows(
     const techLockedJobs = lockedJobs.filter(job => job.assigned_technician === technicianId);
 
     techLockedJobs.forEach(job => {
-        let jobStartTimeUTC: Date | null = null;
-        let jobEndTimeUTC: Date | null = null;
+        let effectiveBlockStartTime: Date | null = null;
+        let effectiveBlockEndTime: Date | null = null;
 
         // Determine job start/end times (ensure UTC)
         if (job.status === 'fixed_time' && job.fixed_schedule_time) {
-            jobStartTimeUTC = new Date(job.fixed_schedule_time); // Assumes ISO string is UTC
-            jobEndTimeUTC = new Date(jobStartTimeUTC.getTime() + job.job_duration * 60000);
-        } else if ((job.status === 'en_route' || job.status === 'in_progress') && job.estimated_sched) {
-            jobStartTimeUTC = new Date(job.estimated_sched); // Assumes ISO string is UTC
-            jobEndTimeUTC = new Date(jobStartTimeUTC.getTime() + job.job_duration * 60000);
+            // Fixed jobs always use their scheduled time, no tighter timing needed
+            effectiveBlockStartTime = new Date(job.fixed_schedule_time); // Assumes ISO string is UTC
+            effectiveBlockEndTime = new Date(effectiveBlockStartTime.getTime() + (job.job_duration || 0) * 60000);
+            
+            logger.debug(`Fixed time job ${job.id}: blocking ${effectiveBlockStartTime.toISOString()} to ${effectiveBlockEndTime.toISOString()}`);
+        } else if ((job.status === 'en_route' || job.status === 'in_progress') && job.estimated_sched && job.job_duration) {
+            const originalJobStartTimeUTC = new Date(job.estimated_sched); // Assumes ISO string is UTC
+            const originalJobDurationMs = job.job_duration * 60000;
+            const originalJobEndTimeUTC = new Date(originalJobStartTimeUTC.getTime() + originalJobDurationMs);
+
+            // Check if we should apply tighter timing
+            if (isTargetDateToday && 
+                originalJobStartTimeUTC.getUTCFullYear() === targetDate.getUTCFullYear() &&
+                originalJobStartTimeUTC.getUTCMonth() === targetDate.getUTCMonth() &&
+                originalJobStartTimeUTC.getUTCDate() === targetDate.getUTCDate()) {
+                
+                const currentTimeMs = currentTimeUTC.getTime();
+                const jobStartMs = originalJobStartTimeUTC.getTime();
+                const jobEndMs = originalJobEndTimeUTC.getTime();
+
+                if (currentTimeMs >= jobEndMs) {
+                    // Job should have already finished - don't block any time
+                    logger.info(`Job ${job.id} (${job.status}) should have already finished at ${originalJobEndTimeUTC.toISOString()}. Current time: ${currentTimeUTC.toISOString()}. Not blocking any time.`);
+                    return; // Skip this job entirely
+                } else if (currentTimeMs > jobStartMs) {
+                    // Job is currently ongoing (started but not finished)
+                    const elapsedMs = currentTimeMs - jobStartMs;
+                    const remainingMs = Math.max(0, originalJobDurationMs - elapsedMs);
+                    
+                    effectiveBlockStartTime = currentTimeUTC;
+                    effectiveBlockEndTime = new Date(currentTimeMs + remainingMs);
+                    
+                    logger.info(`Technician ${technicianId}: Applying tighter timing for ongoing ${job.status} job ${job.id}. Original: ${originalJobStartTimeUTC.toISOString()} - ${originalJobEndTimeUTC.toISOString()}, Effective: ${effectiveBlockStartTime.toISOString()} - ${effectiveBlockEndTime.toISOString()} (${Math.round(remainingMs / 60000)} mins remaining)`);
+                } else {
+                    // Job hasn't started yet - use original times
+                    effectiveBlockStartTime = originalJobStartTimeUTC;
+                    effectiveBlockEndTime = originalJobEndTimeUTC;
+                    
+                    logger.debug(`Job ${job.id} (${job.status}) hasn't started yet. Using original times: ${effectiveBlockStartTime.toISOString()} - ${effectiveBlockEndTime.toISOString()}`);
+                }
+            } else {
+                // Not today or job not on target date - use original times
+                effectiveBlockStartTime = originalJobStartTimeUTC;
+                effectiveBlockEndTime = originalJobEndTimeUTC;
+                
+                if (!isTargetDateToday) {
+                    logger.debug(`Job ${job.id}: Using original times for future date ${dateString}`);
+                }
+            }
         }
 
-        if (jobStartTimeUTC && jobEndTimeUTC) {
+        if (effectiveBlockStartTime && effectiveBlockEndTime) {
             // Check if the job actually falls on the targetDate
-            if (jobStartTimeUTC.getUTCFullYear() === targetDate.getUTCFullYear() &&
-                jobStartTimeUTC.getUTCMonth() === targetDate.getUTCMonth() &&
-                jobStartTimeUTC.getUTCDate() === targetDate.getUTCDate()) 
+            if (effectiveBlockStartTime.getUTCFullYear() === targetDate.getUTCFullYear() &&
+                effectiveBlockStartTime.getUTCMonth() === targetDate.getUTCMonth() &&
+                effectiveBlockStartTime.getUTCDate() === targetDate.getUTCDate()) 
             {
-                 logger.info(`Technician ${technicianId}: Applying locked job ${job.id} (${jobStartTimeUTC.toISOString()} - ${jobEndTimeUTC.toISOString()}) to availability for ${dateString}`);
-                 windowsForDay = subtractJobTimeFromWindows(windowsForDay, jobStartTimeUTC, jobEndTimeUTC);
+                 logger.info(`Technician ${technicianId}: Applying locked job ${job.id} (${effectiveBlockStartTime.toISOString()} - ${effectiveBlockEndTime.toISOString()}) to availability for ${dateString}`);
+                 windowsForDay = subtractJobTimeFromWindows(windowsForDay, effectiveBlockStartTime, effectiveBlockEndTime);
             }
         }
     });
@@ -436,6 +483,8 @@ export function applyLockedJobsToWindows(
       {
         technicianId: technicianId,
         targetDate: dateString,
+        isToday: isTargetDateToday,
+        currentTime: currentTimeUTC.toISOString(),
         lockedJobsConsidered: techLockedJobs.map(j => ({ // Log IDs and times of jobs applied
           id: j.id,
           status: j.status,

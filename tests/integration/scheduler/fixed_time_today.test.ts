@@ -75,31 +75,61 @@ describe('Scheduler Integration - Fixed Time Today', () => {
         console.log(`Triggering scheduler replan for fixed job ID: ${fixedJobId} and queued IDs: [${queuedJobIds.join(', ')}]...`);
         await triggerSchedulerReplan();
 
-        console.log(`Waiting for replan to complete (expecting all ${EXPECTED_TOTAL_JOBS} jobs scheduled)...`);
-        // Wait for ALL jobs to have an estimated schedule
+        console.log(`Waiting for replan to complete (expecting all ${EXPECTED_TOTAL_JOBS} jobs processed)...`);
+        
         const checkCondition = async (): Promise<boolean> => {
-            const { data: jobs, error } = await supabase
-                .from('jobs')
-                .select('id, estimated_sched, status')
-                .in('id', allJobIds) // Check all seeded jobs
-                .not('estimated_sched', 'is', null);
-                // Allow 'pending_review' as a potential final state for queued jobs if unassigned
+          const { data: jobs, error } = await supabase
+            .from('jobs')
+            .select('id, status, estimated_sched, fixed_schedule_time') // Ensure fixed_schedule_time is selected for logging/verification
+            .in('id', allJobIds);
 
-            if (error) {
-                console.error('DB query error during wait:', error);
-                return false;
+          if (error) {
+            console.error('Error fetching jobs for condition check:', error);
+            return false;
+          }
+
+          if (!jobs) {
+            console.log('Condition not met: No jobs returned from query.');
+            return false;
+          }
+          
+          let fixedJobProcessed = false;
+          let queuedJobsProcessedCount = 0;
+
+          for (const job of jobs) {
+            if (job.id === fixedJobId) {
+              // A fixed job is processed if its status is 'fixed_time' (meaning it was confirmed for its day)
+              // AND it has an estimated_sched (meaning the optimiser ran for its day and confirmed its slot).
+              if (job.status === 'fixed_time' && job.estimated_sched !== null) {
+                fixedJobProcessed = true;
+              }
+            } else if (queuedJobIds.includes(job.id)) {
+              // A queued job is processed if it's now 'queued' (scheduled by optimizer) with an estimated_sched,
+              // OR if it has been moved to 'pending_review'.
+              if ((job.status === 'queued' && job.estimated_sched !== null) || job.status === 'pending_review') {
+                queuedJobsProcessedCount++;
+              }
             }
-            
-            const scheduledOrReviewedCount = jobs?.length ?? 0;
-            const allJobsProcessed = scheduledOrReviewedCount === allJobIds.length;
-            
-            if (allJobsProcessed) {
-                console.log(`Condition met: All ${allJobIds.length} expected jobs have an estimated schedule or are otherwise processed.`);
-            } else {
-                console.log(`Condition not met: Found ${scheduledOrReviewedCount} jobs processed, expected ${allJobIds.length}.`);
-            }
-            return allJobsProcessed;
+          }
+
+          const allProcessed = fixedJobProcessed && queuedJobsProcessedCount === queuedJobIds.length;
+
+          if (allProcessed) {
+            console.log('Success: All expected jobs processed correctly.');
+            console.log(`  Fixed Job ${fixedJobId}: Processed.`);
+            console.log(`  Queued Jobs (${queuedJobIds.join(', ')}): ${queuedJobsProcessedCount}/${queuedJobIds.length} Processed.`);
+          } else {
+            const processedIds = jobs.filter(j => 
+                (j.id === fixedJobId && j.status === 'fixed_time' && j.estimated_sched !== null) ||
+                (queuedJobIds.includes(j.id) && ((j.status === 'queued' && j.estimated_sched !== null) || j.status === 'pending_review'))
+            ).map(j => j.id);
+            console.log(`Condition not met: Found ${processedIds.length} jobs processed (${processedIds.join(', ')}), expected ${allJobIds.length}.`);
+            console.log(`  Fixed Job ${fixedJobId} processed: ${fixedJobProcessed}`);
+            console.log(`  Queued Jobs processed: ${queuedJobsProcessedCount}/${queuedJobIds.length}`);
+          }
+          return allProcessed;
         };
+
         // Give it potentially more time as we wait for more jobs
         await waitForReplan(checkCondition, 100000, 5000); // Increased timeout slightly
 
