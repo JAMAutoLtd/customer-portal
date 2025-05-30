@@ -4,14 +4,7 @@ import { InfoIcon } from './icons/InfoIcon'
 import { LocationIcon } from './icons/LocationIcon'
 import { Wrench } from 'lucide-react'
 import { DATE_FORMATS, formatUTC } from '@/utils/date'
-
-const statusColors = {
-  completed: 'bg-green-100 text-green-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  queued: 'bg-purple-100 text-purple-800',
-  cancelled: 'bg-red-100 text-red-800',
-  pending_review: 'bg-yellow-100 text-yellow-800',
-}
+import { StatusBadge } from './jobs/StatusBadge'
 
 const calculateBorderColor = (jobs: OrderCardProps['order']['jobs']) => {
   const jobStatuses = jobs.map((job) => job.status)
@@ -42,7 +35,6 @@ const calculateBorderColor = (jobs: OrderCardProps['order']['jobs']) => {
 export function OrderCard({
   order: {
     id,
-    repair_order_number,
     earliest_available_time,
     invoice,
     notes,
@@ -58,33 +50,21 @@ export function OrderCard({
         className={`border-l-4 ${calculateBorderColor(jobs)} overflow-hidden`}
       >
         <div className="p-4 pr-0 sm:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2">
             <div>
-              <h3 className="text-lg font-semibold mb-3 text-gray-800 flex items-center">
-                <span className="bg-blue-100 text-blue-800 text-sm font-medium mr-2 px-2.5 py-0.5 rounded">
-                  #{id}
-                </span>
-                Order Details
-              </h3>
-              {repair_order_number && (
-                <p className="mb-2">
-                  <span className="font-medium text-gray-700">
-                    Repair Order:
-                  </span>{' '}
-                  <span className="text-gray-800">{repair_order_number}</span>
-                </p>
-              )}
-              {earliest_available_time && (
-                <p className="mb-2">
-                  <span className="font-medium text-gray-700">Time:</span>{' '}
-                  <span className="text-gray-800">
-                    {formatUTC(
-                      earliest_available_time,
-                      DATE_FORMATS.DISPLAY_DATE_TIME,
-                    )}
-                  </span>
-                </p>
-              )}
+              <div className="flex justify-between items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-800">#{id}</h3>
+                {earliest_available_time && (
+                  <p>
+                    <span className="text-gray-800">
+                      {formatUTC(
+                        earliest_available_time,
+                        DATE_FORMATS.DISPLAY_DATE_TIME,
+                      )}
+                    </span>
+                  </p>
+                )}
+              </div>
               {invoice && (
                 <p className="mb-2">
                   <span className="font-medium text-gray-700">Invoice:</span>{' '}
@@ -142,13 +122,7 @@ export function OrderCard({
                       <p className="font-medium text-gray-800">
                         {job.service?.service_name}
                       </p>
-                      <span
-                        className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
-                          statusColors[job.status as keyof typeof statusColors]
-                        }`}
-                      >
-                        {job.status.replace('_', ' ')}
-                      </span>
+                      <StatusBadge status={job.status} />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm">
                       {job.estimated_sched && (

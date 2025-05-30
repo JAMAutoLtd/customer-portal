@@ -1,3 +1,5 @@
+import { JobStatus } from '@/components/jobs/types'
+
 export type Address = {
   id: number
   street_address: string
@@ -33,7 +35,7 @@ export type Order = {
   }[]
   jobs: {
     id: number
-    status: string
+    status: JobStatus
     requested_time?: string
     estimated_sched?: string
     job_duration?: number
