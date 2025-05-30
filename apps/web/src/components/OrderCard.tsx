@@ -13,6 +13,32 @@ const statusColors = {
   pending_review: 'bg-yellow-100 text-yellow-800',
 }
 
+const calculateBorderColor = (jobs: OrderCardProps['order']['jobs']) => {
+  const jobStatuses = jobs.map((job) => job.status)
+
+  if (jobStatuses.every((status) => status === 'completed')) {
+    return 'border-green-500'
+  }
+
+  if (jobStatuses.every((status) => status === 'cancelled')) {
+    return 'border-red-500'
+  }
+
+  if (
+    jobStatuses.some(
+      (status) =>
+        status === 'in_progress' ||
+        status === 'queued' ||
+        status === 'pending_review' ||
+        status === 'en_route',
+    )
+  ) {
+    return 'border-blue-500'
+  } else {
+    return 'border-green-500'
+  }
+}
+
 export function OrderCard({
   order: {
     id,
@@ -28,8 +54,10 @@ export function OrderCard({
 }: OrderCardProps) {
   return (
     <Card>
-      <div className="border-l-4 border-blue-500 overflow-hidden">
-        <div className="p-6">
+      <div
+        className={`border-l-4 ${calculateBorderColor(jobs)} overflow-hidden`}
+      >
+        <div className="p-4 pr-0 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h3 className="text-lg font-semibold mb-3 text-gray-800 flex items-center">
