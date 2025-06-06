@@ -9,45 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      adas_equipment_requirements: {
-        Row: {
-          equipment_model: string
-          has_adas_service: boolean
-          id: number
-          service_id: number
-          ymm_id: number
-        }
-        Insert: {
-          equipment_model: string
-          has_adas_service?: boolean
-          id?: number
-          service_id: number
-          ymm_id: number
-        }
-        Update: {
-          equipment_model?: string
-          has_adas_service?: boolean
-          id?: number
-          service_id?: number
-          ymm_id?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "adas_equipment_data_ymm_id_fkey"
-            columns: ["ymm_id"]
-            isOneToOne: false
-            referencedRelation: "ymm_ref"
-            referencedColumns: ["ymm_id"]
-          },
-          {
-            foreignKeyName: "adas_equipment_requirements_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       addresses: {
         Row: {
           id: number
@@ -68,42 +29,6 @@ export type Database = {
           street_address?: string
         }
         Relationships: []
-      }
-      airbag_equipment_requirements: {
-        Row: {
-          equipment_model: string
-          id: number
-          service_id: number
-          ymm_id: number
-        }
-        Insert: {
-          equipment_model?: string
-          id?: number
-          service_id: number
-          ymm_id: number
-        }
-        Update: {
-          equipment_model?: string
-          id?: number
-          service_id?: number
-          ymm_id?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "airbag_equipment_requirements_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "airbag_equipment_requirements_ymm_id_fkey"
-            columns: ["ymm_id"]
-            isOneToOne: false
-            referencedRelation: "ymm_ref"
-            referencedColumns: ["ymm_id"]
-          },
-        ]
       }
       customer_vehicles: {
         Row: {
@@ -129,42 +54,6 @@ export type Database = {
         }
         Relationships: []
       }
-      diag_equipment_requirements: {
-        Row: {
-          equipment_model: string
-          id: number
-          service_id: number
-          ymm_id: number
-        }
-        Insert: {
-          equipment_model?: string
-          id?: number
-          service_id: number
-          ymm_id: number
-        }
-        Update: {
-          equipment_model?: string
-          id?: number
-          service_id?: number
-          ymm_id?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "diag_equipment_requirements_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "diag_equipment_requirements_ymm_id_fkey"
-            columns: ["ymm_id"]
-            isOneToOne: false
-            referencedRelation: "ymm_ref"
-            referencedColumns: ["ymm_id"]
-          },
-        ]
-      }
       equipment: {
         Row: {
           equipment_type: Database["public"]["Enums"]["service_category"] | null
@@ -187,7 +76,7 @@ export type Database = {
         }
         Relationships: []
       }
-      immo_equipment_requirements: {
+      equipment_requirements: {
         Row: {
           equipment_model: string
           id: number
@@ -195,7 +84,7 @@ export type Database = {
           ymm_id: number
         }
         Insert: {
-          equipment_model?: string
+          equipment_model: string
           id?: number
           service_id: number
           ymm_id: number
@@ -208,14 +97,14 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "immo_equipment_requirements_service_id_fkey"
+            foreignKeyName: "equipment_requirements_service_id_fkey"
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "immo_equipment_requirements_ymm_id_fkey"
+            foreignKeyName: "equipment_requirements_ymm_id_fkey"
             columns: ["ymm_id"]
             isOneToOne: false
             referencedRelation: "ymm_ref"
@@ -456,42 +345,6 @@ export type Database = {
           },
         ]
       }
-      prog_equipment_requirements: {
-        Row: {
-          equipment_model: string
-          id: number
-          service_id: number
-          ymm_id: number
-        }
-        Insert: {
-          equipment_model?: string
-          id?: number
-          service_id: number
-          ymm_id: number
-        }
-        Update: {
-          equipment_model?: string
-          id?: number
-          service_id?: number
-          ymm_id?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prog_equipment_requirements_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prog_equipment_requirements_ymm_id_fkey"
-            columns: ["ymm_id"]
-            isOneToOne: false
-            referencedRelation: "ymm_ref"
-            referencedColumns: ["ymm_id"]
-          },
-        ]
-      }
       services: {
         Row: {
           id: number
@@ -642,6 +495,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      travel_time_cache: {
+        Row: {
+          destination_lat: number
+          destination_lng: number
+          distance_meters: number | null
+          expires_at: string
+          id: string
+          is_predictive: boolean
+          origin_lat: number
+          origin_lng: number
+          retrieved_at: string
+          target_day_of_week_utc: number | null
+          target_hour_utc: number | null
+          travel_time_seconds: number
+        }
+        Insert: {
+          destination_lat: number
+          destination_lng: number
+          distance_meters?: number | null
+          expires_at: string
+          id?: string
+          is_predictive?: boolean
+          origin_lat: number
+          origin_lng: number
+          retrieved_at?: string
+          target_day_of_week_utc?: number | null
+          target_hour_utc?: number | null
+          travel_time_seconds: number
+        }
+        Update: {
+          destination_lat?: number
+          destination_lng?: number
+          distance_meters?: number | null
+          expires_at?: string
+          id?: string
+          is_predictive?: boolean
+          origin_lat?: number
+          origin_lng?: number
+          retrieved_at?: string
+          target_day_of_week_utc?: number | null
+          target_hour_utc?: number | null
+          travel_time_seconds?: number
+        }
+        Relationships: []
       }
       user_addresses: {
         Row: {
@@ -799,9 +697,43 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_equipment_requirements_by_category: {
+        Row: {
+          equipment_model: string | null
+          id: number | null
+          service_category:
+            | Database["public"]["Enums"]["service_category"]
+            | null
+          service_id: number | null
+          ymm_id: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_requirements_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_requirements_ymm_id_fkey"
+            columns: ["ymm_id"]
+            isOneToOne: false
+            referencedRelation: "ymm_ref"
+            referencedColumns: ["ymm_id"]
+          },
+        ]
+      }
     }
     Functions: {
+      cleanup_expired_travel_cache: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      execute_sql: {
+        Args: { sql: string }
+        Returns: undefined
+      }
       get_user_id_by_email: {
         Args: { user_email: string }
         Returns: string

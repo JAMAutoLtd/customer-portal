@@ -89,16 +89,15 @@ export async function seedScenario_equipment_conflict(
 
 
   // 2. Find a service/YMM combination that requires equipment *not* held by any tech
-  //    We need to query the requirement tables.
-  //    Let's try finding an ADAS service first, as those often have specific requirements.
+  //    We need to query the unified equipment_requirements table.
   //    Need correct types for the join
-  type AdasReqWithDetails = Tables<'adas_equipment_requirements'> & {
+  type EquipmentReqWithDetails = Tables<'equipment_requirements'> & {
       services: Pick<Tables<'services'>, 'service_name'> | null;
       ymm_ref: Pick<Tables<'ymm_ref'>, 'year' | 'make' | 'model'> | null;
   }
 
-  const { data: adasReqs, error: adasReqError } = await supabaseAdmin
-      .from('adas_equipment_requirements')
+  const { data: equipmentReqs, error: equipmentReqError } = await supabaseAdmin
+      .from('equipment_requirements')
       .select(`
           service_id,
           ymm_id,
@@ -107,19 +106,19 @@ export async function seedScenario_equipment_conflict(
           ymm_ref ( year, make, model )
       `)
       .limit(100) // Limit to avoid pulling too much
-      .returns<AdasReqWithDetails[]>(); // Specify the return type
+      .returns<EquipmentReqWithDetails[]>(); // Specify the return type
 
 
-  if (adasReqError) {
-      logError('Failed to query ADAS equipment requirements', adasReqError);
-      throw adasReqError;
+  if (equipmentReqError) {
+      logError('Failed to query equipment requirements', equipmentReqError);
+      throw equipmentReqError;
   }
 
   let conflictingServiceId: number | null = null;
   let conflictingYmmId: number | null = null;
   let requiredModelNotFound: string | null = null;
 
-  for (const req of adasReqs ?? []) {
+  for (const req of equipmentReqs ?? []) {
       // Check if equipment_model exists and is not null
       if (req.equipment_model && !allTechEquipmentModels.has(req.equipment_model)) {
           conflictingServiceId = req.service_id;
@@ -130,8 +129,7 @@ export async function seedScenario_equipment_conflict(
       }
   }
 
-  // TODO: Add similar checks for airbag_equipment_requirements, diag..., immo..., prog...
-  // if conflictingServiceId is still null after checking all requirement tables.
+  // No need to check other tables since all requirements are now in equipment_requirements
 
   if (!conflictingServiceId || !conflictingYmmId || !requiredModelNotFound) {
       logError('Failed to find a suitable service/YMM combination with an equipment conflict against the current technician pool.', { allTechEquipmentModels });
@@ -144,7 +142,7 @@ export async function seedScenario_equipment_conflict(
 
   // --- Find Vehicle ID corresponding to conflictingYmmId (Revised Logic) ---
   // 1. Find the specific requirement object again to safely access its details
-  const conflictingReq = adasReqs?.find(r => r.ymm_id === conflictingYmmId);
+  const conflictingReq = equipmentReqs?.find(r => r.ymm_id === conflictingYmmId);
 
   if (!conflictingReq) {
       // This shouldn't happen if the previous loop found one, but good practice to check
@@ -237,7 +235,7 @@ export async function seedScenario_equipment_conflict(
     equipment: [],
     services: [],
     ymm_ref: [],
-    adas_equipment_requirements: [],
+    equipment_requirements: [],
   };
 
   return {

@@ -567,39 +567,39 @@ export async function seedComprehensiveSchedulerTest(
     }
     insertedIds.rareServiceId = [rareServiceId];
 
-    // 3. Insert into diag_equipment_requirements
+    // 3. Insert into equipment_requirements (unified table)
     if (!baselineRefs.ymmIds?.length) {
       throw new Error('Missing baseline YMM IDs for Scenario C.');
     }
     const ymmIdForRareService = getRandomElement(baselineRefs.ymmIds);
-    const diagRequirement: TablesInsert<'diag_equipment_requirements'> = {
+    const equipmentRequirement: TablesInsert<'equipment_requirements'> = {
       ymm_id: ymmIdForRareService,
       service_id: rareServiceId,
       equipment_model: 'rare_tool', // This must match the equipment model
     };
     // Check if requirement exists before inserting to avoid duplicates if script re-run
-    const { data: existingDiagReq, error: fetchDiagReqError } = await supabaseAdmin
-        .from('diag_equipment_requirements')
+    const { data: existingEquipmentReq, error: fetchEquipmentReqError } = await supabaseAdmin
+        .from('equipment_requirements')
         .select('id')
         .match({ ymm_id: ymmIdForRareService, service_id: rareServiceId, equipment_model: 'rare_tool' })
         .maybeSingle(); // Use maybeSingle to handle 0 or 1 row
 
-    if (fetchDiagReqError) {
-        throw new Error('Error checking existing diag_equipment_requirements: ' + fetchDiagReqError.message);
+    if (fetchEquipmentReqError) {
+        throw new Error('Error checking existing equipment_requirements: ' + fetchEquipmentReqError.message);
     }
-    if (!existingDiagReq) {
-        const { error: diagReqError } = await insertData(
+    if (!existingEquipmentReq) {
+        const { error: equipmentReqError } = await insertData(
             supabaseAdmin,
-            'diag_equipment_requirements',
-            [diagRequirement],
-            'Scenario C Diag Equipment Requirement'
+            'equipment_requirements',
+            [equipmentRequirement],
+            'Scenario C Equipment Requirement'
         );
-        if (diagReqError) {
-            throw new Error('Failed to insert diag_equipment_requirement for Scenario C: ' + diagReqError.message);
+        if (equipmentReqError) {
+            throw new Error('Failed to insert equipment_requirement for Scenario C: ' + equipmentReqError.message);
         }
-        logInfo(`Created new diag_equipment_requirement for rare_tool and Rare Service.`);
+        logInfo(`Created new equipment_requirement for rare_tool and Rare Service.`);
     } else {
-        logInfo(`Diag_equipment_requirement for rare_tool and Rare Service already exists (ID: ${existingDiagReq.id}).`);
+        logInfo(`Equipment_requirement for rare_tool and Rare Service already exists (ID: ${existingEquipmentReq.id}).`);
     }
     
     // 4. Create Order E

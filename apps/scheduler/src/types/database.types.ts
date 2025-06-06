@@ -113,15 +113,13 @@ export interface YmmRef {
   model: string;
 }
 
-// Interface for Equipment Requirements (Generic structure)
-// Specific tables are adas_, prog_, immo_, airbag_, diag_equipment_requirements
+// Interface for Equipment Requirements (Unified structure)
+// Single unified table: equipment_requirements
 export interface EquipmentRequirement {
   id: number;
   ymm_id: number;
   service_id: number;
   equipment_model: string;
-  // Field specific to adas_
-  has_adas_service?: boolean;
 }
 
 // Type for job bundles used in scheduling
