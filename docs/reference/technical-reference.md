@@ -72,7 +72,7 @@ The primary public interface is the entry point that executes `runFullReplan` or
 **`apps/scheduler/src/supabase/equipment.ts`**
 
 *   `getEquipmentForVans(vanIds: number[]): Promise<Map<number, VanEquipment[]>>`: Fetches equipment assigned to the specified van IDs, joining `equipment` details. Returns a map where keys are `van_id` and values are arrays of `VanEquipment`.
-*   `getRequiredEquipmentForJob(job: Job): Promise<string[]>`: Determines the required equipment model names for a given job. It fetches the `ymm_id` for the job's order (using `getYmmIdForOrder`) and queries the appropriate `*_equipment_requirements` table based on the job's service category.
+*   `getRequiredEquipmentForJob(job: Job): Promise<string[]>`: Determines the required equipment model names for a given job. It fetches the `ymm_id` for the job's order (using `getYmmIdForOrder`) and queries the unified `equipment_requirements` table filtered by `ymm_id` and `service_id`.
 
 **`apps/scheduler/src/supabase/orders.ts`**
 

@@ -85,12 +85,8 @@ export async function cleanupAllTestData(
         'technician_default_hours',
         'user_addresses',
         'van_equipment',
-        // Requirement tables
-        'diag_equipment_requirements',
-        'immo_equipment_requirements',
-        'prog_equipment_requirements',
-        'airbag_equipment_requirements',
-        'adas_equipment_requirements',
+        // Requirement table (unified)
+        'equipment_requirements',
     ];
 
     // Construct the TRUNCATE command

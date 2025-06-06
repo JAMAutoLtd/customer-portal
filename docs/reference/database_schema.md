@@ -37,22 +37,29 @@ This document outlines the structure of the Supabase database defined in `schema
 
 ## Tables
 
-### `adas_equipment_requirements`
+### `equipment_requirements` (Unified Table)
 
-| Column Name        | Type           | Nullable | Default         | Constraints        |
-| :----------------- | :------------- | :------- | :-------------- | :----------------- |
-| id                 | integer        | NO       | nextval(...)    | PK                 |
-| ymm_id             | integer        | NO       |                 | FK -> ymm_ref(ymm_id) |
-| service_id         | integer        | NO       |                 | FK -> services(id) |
-| equipment_model    | varchar(100)   | NO       |                 |                    |
-| has_adas_service | boolean        | NO       | false           |                    |
+| Column Name     | Type    | Nullable | Default      | Constraints                |
+| :-------------- | :------ | :------- | :----------- | :------------------------- |
+| id              | integer | NO       | nextval(...) | PK                         |
+| ymm_id          | integer | NO       |              | FK -> ymm_ref(ymm_id)      |
+| service_id      | integer | NO       |              | FK -> services(id)         |
+| equipment_model | text    | NO       |              |                            |
 
 *   **Primary Key:** `(id)`
 *   **Foreign Keys:**
     *   `ymm_id` -> `ymm_ref(ymm_id)`
     *   `service_id` -> `services(id)`
 *   **Unique Constraints:**
-    *   `adas_equipment_data_ymm_id_service_id_key`: (`ymm_id`, `service_id`)
+    *   `equipment_requirements_ymm_service_model_key`: (`ymm_id`, `service_id`, `equipment_model`)
+*   **Indexes:**
+    *   `idx_equipment_requirements_ymm_service` on (`ymm_id`, `service_id`)
+    *   `idx_equipment_requirements_model` on (`equipment_model`)
+*   **Purpose:** Unified table that replaces the category-specific equipment requirement tables. Links specific vehicles (via YMM) and services to required equipment.
+
+### [DEPRECATED] `adas_equipment_requirements`
+
+**Note:** This table has been replaced by the unified `equipment_requirements` table. See migration notes in `/apps/web/src/db/migrations/002_unify_equipment_requirements.sql`.
 
 ### `ymm_ref`
 
@@ -79,21 +86,9 @@ This document outlines the structure of the Supabase database defined in `schema
 *   **Primary Key:** `(id)`
 *   **Indexes:** `idx_addresses_coords` on (`lat`, `lng`)
 
-### `airbag_equipment_requirements`
+### [DEPRECATED] `airbag_equipment_requirements`
 
-| Column Name     | Type    | Nullable | Default        | Constraints        |
-| :-------------- | :------ | :------- | :------------- | :----------------- |
-| id              | integer | NO       | nextval(...)   | PK                 |
-| ymm_id          | integer | NO       |                | FK -> ymm_ref(ymm_id) |
-| service_id      | integer | NO       |                | FK -> services(id) |
-| equipment_model | text    | NO       | 'airbag'::text |                    |
-
-*   **Primary Key:** `(id)`
-*   **Foreign Keys:**
-    *   `service_id` -> `services(id)`
-    *   `ymm_id` -> `ymm_ref(ymm_id)`
-*   **Unique Constraints:**
-    *   `airbag_equipment_requirements_ymm_id_service_id_key`: (`ymm_id`, `service_id`)
+**Note:** This table has been replaced by the unified `equipment_requirements` table. See migration notes in `/apps/web/src/db/migrations/002_unify_equipment_requirements.sql`.
 
 ### `customer_vehicles`
 
@@ -109,21 +104,9 @@ This document outlines the structure of the Supabase database defined in `schema
 *   **Unique Constraints:**
     *   `vehicles_vin_key`: (`vin`)
 
-### `diag_equipment_requirements`
+### [DEPRECATED] `diag_equipment_requirements`
 
-| Column Name     | Type    | Nullable | Default      | Constraints        |
-| :-------------- | :------ | :------- | :----------- | :----------------- |
-| id              | integer | NO       | nextval(...) | PK                 |
-| ymm_id          | integer | NO       |              | FK -> ymm_ref(ymm_id) |
-| service_id      | integer | NO       |              | FK -> services(id) |
-| equipment_model | text    | NO       | 'diag'::text |                    |
-
-*   **Primary Key:** `(id)`
-*   **Foreign Keys:**
-    *   `service_id` -> `services(id)`
-    *   `ymm_id` -> `ymm_ref(ymm_id)`
-*   **Unique Constraints:**
-    *   `diag_equipment_requirements_ymm_service_key`: (`ymm_id`, `service_id`)
+**Note:** This table has been replaced by the unified `equipment_requirements` table. See migration notes in `/apps/web/src/db/migrations/002_unify_equipment_requirements.sql`.
 
 ### `equipment`
 
@@ -149,21 +132,9 @@ This document outlines the structure of the Supabase database defined in `schema
 
 *   **Primary Key:** `(id)`
 
-### `immo_equipment_requirements`
+### [DEPRECATED] `immo_equipment_requirements`
 
-| Column Name     | Type    | Nullable | Default        | Constraints        |
-| :-------------- | :------ | :------- | :------------- | :----------------- |
-| id              | integer | NO       | nextval(...)   | PK                 |
-| ymm_id          | integer | NO       |                | FK -> ymm_ref(ymm_id) |
-| service_id      | integer | NO       |                | FK -> services(id) |
-| equipment_model | text    | NO       | 'immo'::text |                    |
-
-*   **Primary Key:** `(id)`
-*   **Foreign Keys:**
-    *   `service_id` -> `services(id)`
-    *   `ymm_id` -> `ymm_ref(ymm_id)`
-*   **Unique Constraints:**
-    *   `immo_equipment_requirements_ymm_id_service_id_key`: (`ymm_id`, `service_id`)
+**Note:** This table has been replaced by the unified `equipment_requirements` table. See migration notes in `/apps/web/src/db/migrations/002_unify_equipment_requirements.sql`.
 
 ### `jobs`
 
@@ -261,21 +232,9 @@ This document outlines the structure of the Supabase database defined in `schema
     *   `user_id` -> `users(id)` ON DELETE RESTRICT
     *   `vehicle_id` -> `customer_vehicles(id)` ON DELETE RESTRICT
 
-### `prog_equipment_requirements`
+### [DEPRECATED] `prog_equipment_requirements`
 
-| Column Name     | Type    | Nullable | Default      | Constraints        |
-| :-------------- | :------ | :------- | :----------- | :----------------- |
-| id              | integer | NO       | nextval(...) | PK                 |
-| ymm_id          | integer | NO       |              | FK -> ymm_ref(ymm_id) |
-| service_id      | integer | NO       |              | FK -> services(id) |
-| equipment_model | text    | NO       | 'prog'::text |                    |
-
-*   **Primary Key:** `(id)`
-*   **Foreign Keys:**
-    *   `service_id` -> `services(id)`
-    *   `ymm_id` -> `ymm_ref(ymm_id)`
-*   **Unique Constraints:**
-    *   `prog_equipment_requirements_ymm_service_key`: (`ymm_id`, `service_id`)
+**Note:** This table has been replaced by the unified `equipment_requirements` table. See migration notes in `/apps/web/src/db/migrations/002_unify_equipment_requirements.sql`.
 
 ### `services`
 

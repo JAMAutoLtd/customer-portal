@@ -3,15 +3,6 @@ import { VanEquipment, Equipment, Job, ServiceCategory, EquipmentRequirement } f
 import { getYmmIdForOrder } from './orders'; // Import the helper function
 import { logger } from '../utils/logger'; // Import logger
 
-// Mapping from service category to the corresponding equipment requirement table name
-const requirementTableMap: Record<ServiceCategory, string> = {
-  adas: 'adas_equipment_requirements',
-  airbag: 'airbag_equipment_requirements',
-  immo: 'immo_equipment_requirements',
-  prog: 'prog_equipment_requirements',
-  diag: 'diag_equipment_requirements',
-};
-
 /**
  * Fetches the equipment inventory for a given list of van IDs.
  *
@@ -84,13 +75,14 @@ export async function getEquipmentForVans(vanIds: number[]): Promise<Map<number,
 
 /**
  * Determines the required equipment model(s) for a specific job.
+ * Uses the unified equipment_requirements table instead of category-specific tables.
  *
- * @param {Job} job - The job object (must include service details).
+ * @param {Job} job - The job object (must include service_id).
  * @returns {Promise<string[]>} A promise that resolves to an array of required equipment model strings, or an empty array if none are found or required.
  */
 export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
-  if (!job.service || !job.service.service_category) {
-    logger.warn(`Job ${job.id} is missing service category information. Cannot determine required equipment.`);
+  if (!job.service_id) {
+    logger.warn(`Job ${job.id} is missing service_id. Cannot determine equipment requirements.`);
     return [];
   }
   if (!job.order_id) {
@@ -98,7 +90,7 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
      return [];
   }
 
-  logger.debug(`Determining required equipment for Job ID: ${job.id}, Service Category: ${job.service.service_category}`);
+  logger.debug(`Determining required equipment for Job ID: ${job.id}, Service ID: ${job.service_id}`);
 
   // 1. Get the ymm_id for the order associated with the job
   const ymmId = await getYmmIdForOrder(job.order_id);
@@ -107,35 +99,40 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
     return [];
   }
 
-  // 2. Determine the correct requirement table
-  const tableName = requirementTableMap[job.service.service_category];
-  if (!tableName) {
-    // This case should ideally not happen if service_category enum is enforced
-    logger.error(`Invalid service category '${job.service.service_category}' for job ${job.id}. No requirement table mapped.`);
-    return [];
-  }
+  logger.debug(`Fetching equipment requirements for ymm_id: ${ymmId}, service_id: ${job.service_id}`);
 
-  logger.debug(`Querying table '${tableName}' for ymm_id: ${ymmId}, service_id: ${job.service_id}`);
+  // 2. Query the unified equipment_requirements table
+  try {
+    const { data, error } = await supabase
+      .from('equipment_requirements') // Query the unified table
+      .select('equipment_model') // Select the model name/identifier
+      .eq('ymm_id', ymmId)
+      .eq('service_id', job.service_id);
 
-  // 3. Query the specific requirements table
-  const { data, error } = await supabase
-    .from(tableName)
-    .select('equipment_model') // Select only the equipment model string(s)
-    .eq('ymm_id', ymmId)
-    .eq('service_id', job.service_id);
-    // Note: DB schema suggests unique constraint on (ymm_id, service_id), but let's handle potential multiple rows just in case
+    if (error) {
+      logger.error(`Error fetching equipment requirements for ymm_id ${ymmId}, service_id ${job.service_id}:`, error);
+      return []; // Return empty array on error
+    }
 
-  if (error) {
-    // Don't throw, just warn and return empty - maybe this specific combo doesn't require equipment
-    logger.warn(`Could not fetch equipment requirements from ${tableName} for ymm_id ${ymmId}, service_id ${job.service_id}: ${error.message}`);
-    return [];
-  }
+    if (!data || data.length === 0) {
+      // No specific requirements found - check for generic category tool
+      logger.debug(`No specific equipment requirements found for ymm_id ${ymmId}, service_id ${job.service_id}. Checking for generic category tool...`);
+      
+      // --- BEGIN FALLBACK LOGIC ---
+      try {
+        // Get service category for fallback
+        const { data: serviceData, error: serviceError } = await supabase
+          .from('services')
+          .select('service_category')
+          .eq('id', job.service_id)
+          .single();
 
-  if (!data || data.length === 0) {
-    logger.debug(`No specific equipment requirement found in ${tableName} for ymm_id ${ymmId}, service_id ${job.service_id}. Checking for generic category tool...`);
-    // --- BEGIN FALLBACK LOGIC ---
-    try {
-        const genericModelName = job.service.service_category; // e.g., 'prog'
+        if (serviceError || !serviceData?.service_category) {
+          logger.warn(`Could not determine service category for service_id ${job.service_id}: ${serviceError?.message || 'No data'}`);
+          return [];
+        }
+
+        const genericModelName = serviceData.service_category; // e.g., 'prog'
         const { data: genericData, error: genericError } = await supabase
             .from('equipment')
             .select('model')
@@ -155,18 +152,22 @@ export async function getRequiredEquipmentForJob(job: Job): Promise<string[]> {
             logger.debug(`No generic equipment requirement found for category '${genericModelName}'.`);
             return []; // Return empty if no generic found either
         }
-    } catch (fallbackError: any) {
+      } catch (fallbackError: any) {
         logger.error(`Error during generic equipment fallback check: ${fallbackError.message}`);
         return [];
+      }
+      // --- END FALLBACK LOGIC ---
     }
-    // --- END FALLBACK LOGIC ---
-  }
 
-  // Extract the equipment model strings
-  const requiredModels = data.map(req => req.equipment_model).filter(model => !!model); // Filter out any null/empty strings
-  
-  logger.debug(`Required equipment models for Job ID ${job.id}: ${requiredModels.join(', ')}`);
-  return requiredModels;
+    // Extract the equipment model strings from the result
+    const requiredModels = data.map(req => req.equipment_model).filter(model => !!model); // Filter out any null/empty strings
+    logger.debug(`Required equipment models for Job ID ${job.id}: [${requiredModels.join(', ')}]`);
+    return requiredModels;
+
+  } catch (fetchError: any) {
+     logger.error(`Exception during equipment requirement fetch for job ${job.id}:`, fetchError);
+     return [];
+  }
 }
 
 // Example usage (can be removed later)

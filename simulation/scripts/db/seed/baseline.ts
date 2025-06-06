@@ -177,12 +177,15 @@ export async function seedBaseline(
     if (vansResult.error) throw vansResult.error;
     refs.vanIds = vansResult.data?.map((r) => r.id) ?? [];
 
-    // Insert requirements data
-    await insertData(supabaseAdmin, 'diag_equipment_requirements', diagRequirementsData, 'Diag requirements').then(r => { if (r.error) throw r.error; });
-    await insertData(supabaseAdmin, 'immo_equipment_requirements', immoRequirementsData, 'Immo requirements').then(r => { if (r.error) throw r.error; });
-    await insertData(supabaseAdmin, 'prog_equipment_requirements', progRequirementsData, 'Prog requirements').then(r => { if (r.error) throw r.error; });
-    await insertData(supabaseAdmin, 'airbag_equipment_requirements', airbagRequirementsData, 'Airbag requirements').then(r => { if (r.error) throw r.error; });
-    await insertData(supabaseAdmin, 'adas_equipment_requirements', adasRequirementsData, 'ADAS requirements').then(r => { if (r.error) throw r.error; });
+    // Insert unified requirements data
+    const allRequirementsData = [
+      ...diagRequirementsData.map(req => ({ ...req, equipment_model: 'diag' })),
+      ...immoRequirementsData.map(req => ({ ...req, equipment_model: 'immo' })),
+      ...progRequirementsData.map(req => ({ ...req, equipment_model: 'prog' })),
+      ...airbagRequirementsData.map(req => ({ ...req, equipment_model: 'airbag' })),
+      ...adasRequirementsData
+    ];
+    await insertData(supabaseAdmin, 'equipment_requirements', allRequirementsData, 'All equipment requirements').then(r => { if (r.error) throw r.error; });
 
     // Insert default van equipment associations
     await insertData(supabaseAdmin, 'van_equipment', vanEquipmentData, 'Default van equipment').then(r => { if (r.error) throw r.error; });

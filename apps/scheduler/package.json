@@ -10,7 +10,7 @@
     "dev": "ts-node src/index.ts",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "test": "jest --config ../../jest.config.js",
+    "test": "pnpm exec jest --config ../../jest.config.js",
     "test:e2e": "node ../../simulation/run-e2e-tests.js",
     "seed:generate": "node ../../simulation/generate-seed.js",
     "db:generate-types": "echo \"Attempting type generation...\" && echo \"Using Project ID: $SUPABASE_PROJECT_ID\" && supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public --debug"
