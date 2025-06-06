@@ -61,13 +61,13 @@ This memory system ensures consistent development patterns, preserves important 
 pnpm install
 
 # Run dev servers
-pnpm run dev              # Web app (port 3000)
-pnpm run dev:scheduler    # Scheduler service
+pnpm run dev              # Web app (port 3000) - uses workspace filtering
+pnpm run dev:scheduler    # Scheduler service - uses workspace filtering  
 pnpm run dev:optimiser    # Optimizer service (port 8080)
 
 # Build for production
-pnpm run build:web
-pnpm run build:scheduler
+pnpm run build:web        # Uses pnpm --filter @jamauto/web run build
+pnpm run build:scheduler  # Uses pnpm --filter @jamauto/scheduler run build
 ```
 
 ### Testing
@@ -75,9 +75,9 @@ pnpm run build:scheduler
 # Run all unit tests
 pnpm run test
 
-# Run specific service tests
-pnpm run test:web
-pnpm run test:scheduler
+# Run specific service tests  
+pnpm run test:web         # Uses pnpm --filter @jamauto/web run test
+pnpm run test:scheduler   # Uses pnpm --filter @jamauto/scheduler run test
 pnpm run test:optimiser
 
 # Run integration tests

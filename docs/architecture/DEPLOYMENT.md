@@ -17,7 +17,7 @@ Deployments for the backend services are automated via Google Cloud Build trigge
 -   **Dockerfile**: `apps/scheduler/Dockerfile`
     -   Uses a multi-stage build pattern.
     -   Installs dependencies using `pnpm` from the workspace root.
-    -   Uses `pnpm deploy --filter @jamauto/scheduler --prod --legacy` (or similar workspace command) in the builder stage to prepare production-only `node_modules` for the final stage.
+    -   Uses `pnpm --filter @jamauto/scheduler deploy --prod --legacy` workspace command in the builder stage to prepare production-only `node_modules` for the final stage.
     -   Final stage runs `node dist/server.js`.
 -   **Cloud Run Service**: `scheduler-node` (Deployed to `us-west1`)
 -   **Service Account (Build Execution)**: Cloud Build executes builds using its service account (`[PROJECT_NUMBER]@cloudbuild.gserviceaccount.com`). This account requires the necessary IAM roles (see Permissions section).

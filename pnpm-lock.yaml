@@ -91,7 +91,7 @@ importers:
         specifier: ^3.4.1
         version: 3.4.1
       '@supabase/supabase-js':
-        specifier: ^2.39.0
+        specifier: ^2.49.4
         version: 2.49.4
       '@types/cors':
         specifier: ^2.8.17
@@ -164,7 +164,7 @@ importers:
         specifier: ^0.6.1
         version: 0.6.1(@supabase/supabase-js@2.49.4)
       '@supabase/supabase-js':
-        specifier: ^2.39.0
+        specifier: ^2.49.4
         version: 2.49.4
       '@tailwindcss/forms':
         specifier: ^0.5.7

@@ -8,7 +8,7 @@ module.exports = {
   // Point ts-jest to the correct tsconfig - updated to new format
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: 'tsconfig.base.json',
+      tsconfig: '<rootDir>/tsconfig.base.json',
       isolatedModules: true // This disables type checking for faster tests
     }]
   },
