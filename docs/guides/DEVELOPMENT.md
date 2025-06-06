@@ -30,6 +30,9 @@ This guide covers setting up the development environment, common development wor
             *   `SUPABASE_DB_PASSWORD`: Database password (for simulation environment).
         *   **Google Maps (Backend):**
             *   `GOOGLE_MAPS_API_KEY`: API Key (used by `apps/scheduler`).
+        *   **Travel Time Caching (Backend, Optional):**
+            *   `CACHE_TTL_MINUTES_REALTIME`: TTL for real-time cache entries (default: 20 minutes).
+            *   `CACHE_TTL_HOURS_PREDICTIVE`: TTL for predictive cache entries (default: 24 hours).
         *   **Optimiser Service (Backend):**
             *   `OPTIMIZER_URL`: URL for the deployed `apps/optimiser` service (used by `apps/scheduler`).
         *   **One Step GPS (Backend):**

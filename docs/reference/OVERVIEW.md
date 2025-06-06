@@ -8,6 +8,7 @@ This file orchestrates the main replan process. It imports and calls functions f
     *   `technicians.ts`: `getActiveTechnicians` (Gets active technicians and their locations).
     *   `jobs.ts`: `getRelevantJobs` (Gets jobs for today's plan) and `getJobsByStatus` (Gets overflow jobs).
     *   `client.ts`: Provides the Supabase client instance.
+    *   `travel-time-cache.ts`: `TravelTimeCacheService` (Two-level cache for Google Maps API results).
 *   **Scheduling Logic (`apps/scheduler/src/scheduler/`)**:
     *   `availability.ts`: `calculateWindowsForTechnician`, `applyLockedJobsToWindows` (Uses DB data & locked jobs to determine availability windows).
     *   `bundling.ts`: `bundleQueuedJobs`.

@@ -397,6 +397,32 @@ This document outlines the structure of the Supabase database defined in `schema
     *   `equipment_id` -> `equipment(id)` ON DELETE CASCADE
     *   `van_id` -> `vans(id)` ON DELETE CASCADE
 
+### `travel_time_cache`
+
+| Column Name              | Type                     | Nullable | Default             | Constraints                                        |
+| :----------------------- | :----------------------- | :------- | :------------------ | :------------------------------------------------- |
+| id                       | uuid                     | NO       | gen_random_uuid()   | PK                                                 |
+| origin_lat               | numeric                  | NO       |                     |                                                    |
+| origin_lng               | numeric                  | NO       |                     |                                                    |
+| destination_lat          | numeric                  | NO       |                     |                                                    |
+| destination_lng          | numeric                  | NO       |                     |                                                    |
+| is_predictive            | boolean                  | NO       | false               |                                                    |
+| target_hour_utc          | smallint                 | YES      |                     | CHECK (target_hour_utc >= 0 AND target_hour_utc <= 23) |
+| target_day_of_week_utc   | smallint                 | YES      |                     | CHECK (target_day_of_week_utc >= 0 AND target_day_of_week_utc <= 6) |
+| travel_time_seconds      | integer                  | NO       |                     |                                                    |
+| distance_meters          | integer                  | YES      |                     |                                                    |
+| retrieved_at             | timestamp with time zone | NO       | now()               |                                                    |
+| expires_at               | timestamp with time zone | NO       |                     |                                                    |
+
+*   **Primary Key:** `(id)`
+*   **Purpose:** Persistent cache for Google Maps Distance Matrix API results to reduce API costs and improve performance.
+*   **Cache Strategy:** Two-level caching system:
+    *   **Real-time queries**: 20-minute TTL for current traffic conditions
+    *   **Predictive queries**: 24-hour TTL for specific hour/day combinations  
+*   **Coordinate Precision:** Rounded to 6 decimal places for consistent cache hits
+*   **Unique Constraints:**
+    *   Composite unique constraint on `(origin_lat, origin_lng, destination_lat, destination_lng, is_predictive, COALESCE(target_hour_utc, -1), COALESCE(target_day_of_week_utc, -1))`
+
 ---
 
 Relevant Files:
