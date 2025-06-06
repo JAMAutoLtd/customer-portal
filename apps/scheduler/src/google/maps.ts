@@ -1,8 +1,10 @@
 import { Client, LatLngLiteral, TravelMode, DistanceMatrixRequest, DistanceMatrixResponseData } from '@googlemaps/google-maps-services-js';
 import { logger } from '../utils/logger'; // Import logger
 import { OptimizationLocation, TravelTimeMatrix } from '../types/optimization.types'; // Added imports
+import { TravelTimeCacheService } from '../supabase/travel-time-cache';
+import { createClient } from '@supabase/supabase-js';
 
-// Basic in-memory cache for travel times
+// Basic in-memory cache for travel times (Level 1 cache)
 // Key format: "originLat,originLng:destLat,destLng" - for standard requests
 // Key format: "originLat,originLng:destLat,destLng:realtime" - for real-time requests
 // Value: duration in seconds
@@ -18,6 +20,19 @@ if (!apiKey) {
 }
 
 const mapsClient = new Client({});
+
+// Initialize Supabase cache service (Level 2 cache)
+let cacheService: TravelTimeCacheService | null = null;
+if (process.env.NODE_ENV !== 'test' && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+  cacheService = new TravelTimeCacheService(supabase);
+  logger.info('Initialized Supabase travel time cache service');
+} else {
+  logger.warn('Supabase travel time cache service not initialized - using in-memory cache only');
+}
 
 /**
  * Generates a cache key from origin and destination coordinates, including request type suffix.
@@ -54,11 +69,22 @@ function cleanExpiredCache(): void {
 if (process.env.NODE_ENV !== 'test') {
   // Shorten interval for faster cleanup of real-time entries
   setInterval(cleanExpiredCache, 1 * 60 * 1000); // Check every minute
+  
+  // Also periodically clean up Supabase cache (less frequently)
+  if (cacheService) {
+    setInterval(async () => {
+      try {
+        await cacheService!.cleanupExpiredEntries();
+      } catch (error) {
+        logger.error('Error cleaning up Supabase cache', { error });
+      }
+    }, 60 * 60 * 1000); // Every hour
+  }
 }
 
 /**
  * Fetches travel time between two points using Google Maps Distance Matrix API.
- * Uses a simple in-memory cache with different TTLs for standard vs. real-time requests.
+ * Uses a two-level cache: in-memory (L1) and Supabase (L2) with different TTLs.
  *
  * @param {LatLngLiteral} origin - The starting point coordinates.
  * @param {LatLngLiteral} destination - The ending point coordinates.
@@ -72,7 +98,7 @@ export async function getTravelTime(
   useRealTime: boolean = false,
   departureTime?: Date
 ): Promise<number | null> {
-  // --- Start: Cache Check Logic --- 
+  // --- Start: L1 Cache Check (In-Memory) --- 
   const cacheKey = getCacheKey(origin, destination, useRealTime, departureTime);
   // Determine TTL based on key suffix
   const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
@@ -85,11 +111,28 @@ export async function getTravelTime(
     } else {
         travelTimeCache.delete(cacheKey);
         cacheTimeStamps.delete(cacheKey);
-        // console.log(`Cache expired for ${cacheKey}.`);
         // logger.debug(`Cache expired for ${cacheKey}.`); // Commented out
     }
   }
-  // --- End: Cache Check Logic ---
+  // --- End: L1 Cache Check ---
+
+  // --- Start: L2 Cache Check (Supabase) ---
+  if (cacheService) {
+    try {
+      const isPredictive = !!departureTime;
+      const cachedTime = await cacheService.getCacheEntry(origin, destination, isPredictive, departureTime);
+      if (cachedTime !== null) {
+        // Store in L1 cache for faster subsequent access
+        travelTimeCache.set(cacheKey, cachedTime);
+        cacheTimeStamps.set(cacheKey, Date.now());
+        return cachedTime;
+      }
+    } catch (error) {
+      logger.error('Error checking Supabase cache', { error });
+      // Continue to API call if cache check fails
+    }
+  }
+  // --- End: L2 Cache Check ---
 
   try {
     const apiParams: DistanceMatrixRequest['params'] = {
@@ -115,15 +158,33 @@ export async function getTravelTime(
     const data = response.data as DistanceMatrixResponseData; 
 
     if (data.status === 'OK' && data.rows[0]?.elements[0]?.status === 'OK') {
-      const durationSeconds = (departureTime || useRealTime) && data.rows[0].elements[0].duration_in_traffic
-          ? data.rows[0].elements[0].duration_in_traffic.value
-          : data.rows[0].elements[0].duration.value;
+      const element = data.rows[0].elements[0];
+      const durationSeconds = (departureTime || useRealTime) && element.duration_in_traffic
+          ? element.duration_in_traffic.value
+          : element.duration.value;
+      const distanceMeters = element.distance?.value;
 
       // console.log(`Successfully fetched travel time for ${cacheKey}: ${durationSeconds}s ${departureTime ? `(predictive @ ${departureTime.toISOString()})` : (useRealTime ? '(real-time)' : '(standard)')}`);
 
-      // --- Start: Cache Update Logic (Consistent with Bulk) ---
+      // --- Start: Cache Update Logic (L1 and L2) ---
+      // Update L1 cache
       travelTimeCache.set(cacheKey, durationSeconds);
       cacheTimeStamps.set(cacheKey, Date.now());
+      
+      // Update L2 cache
+      if (cacheService) {
+        const isPredictive = !!departureTime;
+        cacheService.setCacheEntry(
+          origin, 
+          destination, 
+          durationSeconds, 
+          distanceMeters,
+          isPredictive, 
+          departureTime
+        ).catch(error => {
+          logger.error('Error storing in Supabase cache', { error });
+        });
+      }
       // --- End: Cache Update Logic ---
 
       return durationSeconds;
@@ -151,7 +212,7 @@ const HIGH_PENALTY_SECONDS = 999999;
 
 /**
  * Fetches travel times for multiple locations and returns a complete TravelTimeMatrix.
- * Handles batching API requests and uses an internal cache.
+ * Handles batching API requests and uses both in-memory and Supabase caches.
  *
  * @param {OptimizationLocation[]} locations - Array of locations with coordinates and unique IDs.
  * @param {boolean} [useRealTime=false] - Whether to request real-time traffic data.
@@ -176,36 +237,81 @@ export async function getBulkTravelTimes(
 
   const pairsToFetch: { originIndex: number; destIndex: number }[] = [];
   let cacheHits = 0;
+  let supabaseCacheHits = 0;
 
-  // Check Cache
-  logger.debug('Checking cache for existing travel times...');
+  // Check L1 Cache (In-Memory)
+  logger.debug('Checking in-memory cache for existing travel times...');
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       if (i === j) continue;
       const origin = locationCoords[i];
       const destination = locationCoords[j];
       const cacheKey = getCacheKey(origin, destination, useRealTime, departureTime);
-    const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
+      const cacheTTL = cacheKey.endsWith(':predictive') ? PREDICTIVE_CACHE_TTL : REALTIME_CACHE_TTL;
 
-    if (travelTimeCache.has(cacheKey)) {
+      if (travelTimeCache.has(cacheKey)) {
         const cachedTime = travelTimeCache.get(cacheKey);
         const cacheTimestamp = cacheTimeStamps.get(cacheKey) || 0;
         if (Date.now() - cacheTimestamp <= cacheTTL) {
           matrix[i][j] = cachedTime as number;
-            cacheHits++;
+          cacheHits++;
         } else {
-            // Expired, needs fetching
-            travelTimeCache.delete(cacheKey);
-            cacheTimeStamps.delete(cacheKey);
+          // Expired, needs fetching
+          travelTimeCache.delete(cacheKey);
+          cacheTimeStamps.delete(cacheKey);
           pairsToFetch.push({ originIndex: i, destIndex: j });
         }
-    } else {
-        // Not in cache, needs fetching
+      } else {
+        // Not in L1 cache, needs checking in L2 or fetching
         pairsToFetch.push({ originIndex: i, destIndex: j });
       }
     }
   }
-  logger.debug(`Cache check complete. Hits: ${cacheHits}, Pairs to fetch: ${pairsToFetch.length}`);
+  
+  // Check L2 Cache (Supabase) for pairs not in L1
+  if (cacheService && pairsToFetch.length > 0) {
+    logger.debug(`Checking Supabase cache for ${pairsToFetch.length} pairs...`);
+    const isPredictive = !!departureTime;
+    const pairsForSupabase = pairsToFetch.map(pair => ({
+      origin: locationCoords[pair.originIndex],
+      destination: locationCoords[pair.destIndex]
+    }));
+    
+    try {
+      const supabaseResults = await cacheService.getBulkCacheEntries(pairsForSupabase, isPredictive, departureTime);
+      
+      // Process Supabase results and update pairsToFetch
+      const stillNeedsFetching: typeof pairsToFetch = [];
+      
+      for (const pair of pairsToFetch) {
+        const origin = locationCoords[pair.originIndex];
+        const destination = locationCoords[pair.destIndex];
+        const key = `${origin.lat},${origin.lng}:${destination.lat},${destination.lng}`;
+        
+        if (supabaseResults.has(key)) {
+          const travelTime = supabaseResults.get(key)!;
+          matrix[pair.originIndex][pair.destIndex] = travelTime;
+          
+          // Also update L1 cache
+          const cacheKey = getCacheKey(origin, destination, useRealTime, departureTime);
+          travelTimeCache.set(cacheKey, travelTime);
+          cacheTimeStamps.set(cacheKey, Date.now());
+          
+          supabaseCacheHits++;
+        } else {
+          stillNeedsFetching.push(pair);
+        }
+      }
+      
+      pairsToFetch.length = 0;
+      pairsToFetch.push(...stillNeedsFetching);
+    } catch (error) {
+      logger.error('Error checking Supabase cache in bulk', { error });
+      // Continue with API calls for all pairs
+    }
+  }
+  
+  logger.debug(`Cache check complete. L1 hits: ${cacheHits}, L2 hits: ${supabaseCacheHits}, Pairs to fetch from API: ${pairsToFetch.length}`);
 
   if (pairsToFetch.length === 0) {
     logger.info('No pairs need fetching from API.');
@@ -229,6 +335,14 @@ export async function getBulkTravelTimes(
     }
     requestsByOrigin.get(pair.originIndex)?.push(pair.destIndex);
   });
+
+  // Collect entries for bulk Supabase storage
+  const cacheEntriesToStore: Array<{
+    origin: LatLngLiteral;
+    destination: LatLngLiteral;
+    travelTimeSeconds: number;
+    distanceMeters?: number;
+  }> = [];
 
   // Process API requests batching by origin and destination
   logger.debug(`Processing API fetches for ${requestsByOrigin.size} unique origins.`);
@@ -262,15 +376,28 @@ export async function getBulkTravelTimes(
                     const row = data.rows[0];
           row.elements.forEach((element, k) => {
             const destIndex = destIndexSubBatch[k]; // Get original destination index
-            const cacheKey = getCacheKey(originCoord, locationCoords[destIndex], useRealTime, departureTime);
+            const destCoord = locationCoords[destIndex];
+            const cacheKey = getCacheKey(originCoord, destCoord, useRealTime, departureTime);
 
                         if (element.status === 'OK') {
                           const durationSeconds = (departureTime || useRealTime) && element.duration_in_traffic
                             ? element.duration_in_traffic.value
                             : element.duration.value;
+                          const distanceMeters = element.distance?.value;
+                          
               matrix[originIndex][destIndex] = durationSeconds;
+                          
+                          // Update L1 cache
                           travelTimeCache.set(cacheKey, durationSeconds);
                           cacheTimeStamps.set(cacheKey, Date.now());
+                          
+                          // Collect for L2 cache batch update
+                          cacheEntriesToStore.push({
+                            origin: originCoord,
+                            destination: destCoord,
+                            travelTimeSeconds: durationSeconds,
+                            distanceMeters
+                          });
                         } else {
               logger.warn(`Element status error for Origin ${originIndex} -> Dest ${destIndex}: ${element.status}. Assigning penalty.`);
               matrix[originIndex][destIndex] = HIGH_PENALTY_SECONDS;
@@ -295,6 +422,14 @@ export async function getBulkTravelTimes(
             }
         } // End loop over destination sub-batches
   } // End loop over origins
+
+  // Bulk store to Supabase cache
+  if (cacheService && cacheEntriesToStore.length > 0) {
+    const isPredictive = !!departureTime;
+    cacheService.setBulkCacheEntries(cacheEntriesToStore, isPredictive, departureTime).catch(error => {
+      logger.error('Error bulk storing to Supabase cache', { error });
+    });
+  }
 
   // Final check for any undefined entries (shouldn't happen ideally)
   for (let i = 0; i < n; i++) {

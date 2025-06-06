@@ -569,3 +569,40 @@ CREATE INDEX IF NOT EXISTS "idx_tech_exceptions_date_range" ON "public"."technic
 -- Add Triggers
 CREATE OR REPLACE TRIGGER "update_technician_availability_exceptions_updated_at" BEFORE UPDATE ON "public"."technician_availability_exceptions" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 CREATE OR REPLACE TRIGGER "update_technician_default_hours_updated_at" BEFORE UPDATE ON "public"."technician_default_hours" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+-- Travel Time Cache Table for Google Maps API Results
+CREATE TABLE IF NOT EXISTS "public"."travel_time_cache" (
+    "id" uuid DEFAULT gen_random_uuid() NOT NULL,
+    "origin_lat" numeric(9,6) NOT NULL,
+    "origin_lng" numeric(9,6) NOT NULL,
+    "destination_lat" numeric(9,6) NOT NULL,
+    "destination_lng" numeric(9,6) NOT NULL,
+    "is_predictive" boolean NOT NULL DEFAULT false,
+    "target_hour_utc" smallint CHECK (target_hour_utc >= 0 AND target_hour_utc <= 23),
+    "target_day_of_week_utc" smallint CHECK (target_day_of_week_utc >= 0 AND target_day_of_week_utc <= 6),
+    "travel_time_seconds" integer NOT NULL,
+    "distance_meters" integer,
+    "retrieved_at" timestamp with time zone NOT NULL DEFAULT now(),
+    "expires_at" timestamp with time zone NOT NULL
+);
+
+ALTER TABLE "public"."travel_time_cache" OWNER TO "postgres";
+
+-- Primary key
+ALTER TABLE ONLY "public"."travel_time_cache"
+    ADD CONSTRAINT "travel_time_cache_pkey" PRIMARY KEY ("id");
+
+-- Unique index for cache lookups
+CREATE UNIQUE INDEX idx_travel_cache_lookup ON travel_time_cache 
+    (origin_lat, origin_lng, destination_lat, destination_lng, is_predictive, target_hour_utc, target_day_of_week_utc);
+
+-- Index for expiration cleanup
+CREATE INDEX idx_travel_cache_expires_at ON travel_time_cache (expires_at);
+
+-- Function to cleanup expired cache entries (can be called by a cron job)
+CREATE OR REPLACE FUNCTION cleanup_expired_travel_cache()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM travel_time_cache WHERE expires_at < NOW();
+END;
+$$ LANGUAGE plpgsql;

@@ -32,6 +32,7 @@ const BASIC_SERVICE_IDS = [6, 7, 8, 9, 10, 14, 15, 16, 17, 18, 19];
  * @param baselineRefs References to the baseline seeded data.
  * @param technicianDbIds - The DB IDs of technicians created for this scenario run.
  * @returns A ScenarioSeedResult object containing the IDs of the created records.
+ * @description Tests handling of a fixed-time job that is impossible to schedule. Seeds a technician to be unavailable for an entire future day (Day+2) via a 'time_off' exception, then creates a fixed-time job assigned to that technician for that specific unavailable day. Verifies the job is marked 'pending_review'.
  */
 export const seedScenario_unschedulable_fixed_time = async (
     supabase: SupabaseClient<Database>,

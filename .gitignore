@@ -78,23 +78,28 @@ PLAN.md
 # Simulation/Test artifacts
 simulation/seed-metadata.json
 
-# Added by Claude Task Master
-# Logs
-logs
-dev-debug.log
-# Dependency directories
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-# OS specific
-# Task files
+# AI Assistant Files (Personal - Don't commit to team repo)
+.cursor/rules/          # Claude Code memory system
+.github/workflows/memory-system-audit.yml  # AI memory validation workflow
+.roo/                   # Roo AI files  
+.roomodes              # Roo configuration
+.taskmaster/           # Task Master files
+.taskmasterconfig      # Task Master config
+CLAUDE.md              # Claude Code instructions
+init_mem0_client.py    # Memory client
+tasks-*/               # Generated task directories
+*.prd.txt              # PRD files
+scripts/prd-*.txt      # PRD scripts
+.cursorignore          # Cursor ignore file
+
+# Task files (AI generated)
 tasks.json
 tasks/
 
+# Debug and temporary files  
+debug/
+downloaded-logs-*.json
+run_remaining_tests.sh
+
 # Accidental commits
-doghole 
+doghole

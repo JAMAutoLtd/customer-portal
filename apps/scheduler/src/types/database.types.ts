@@ -241,4 +241,19 @@ export interface CustomerVehicle {
   year: number | null;
   make: string | null;
   model: string | null;
+}
+
+export interface TravelTimeCache {
+  id: string;
+  origin_lat: number;
+  origin_lng: number;
+  destination_lat: number;
+  destination_lng: number;
+  is_predictive: boolean;
+  target_hour_utc: number | null;
+  target_day_of_week_utc: number | null;
+  travel_time_seconds: number;
+  distance_meters: number | null;
+  retrieved_at: string;
+  expires_at: string;
 } 

@@ -59,53 +59,7 @@ export async function cleanupAllTestData(
   }
 
   try {
-    // 1. Delete ALL Auth Users first
-    logInfo('Attempting to delete ALL auth users from staging...');
-    let allAuthUsers: any[] = [];
-    let page = 0;
-    const pageSize = 100; // Adjust page size as needed
-    while (true) {
-        const { data: usersPage, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-            page: page + 1, // API is 1-based
-            perPage: pageSize,
-        });
-        if (listError) {
-            logError('Error listing auth users:', listError);
-            throw listError; // Stop if we can't list users
-        }
-        if (usersPage && usersPage.users.length > 0) {
-            allAuthUsers = allAuthUsers.concat(usersPage.users);
-            page++;
-        } else {
-            break; // No more users
-        }
-    }
-    const allAuthUserIds = allAuthUsers.map(u => u.id);
-
-    if (allAuthUserIds.length > 0) {
-        logInfo(`Found ${allAuthUserIds.length} auth users to delete...`);
-        let authDeletionCount = 0;
-        for (const userId of allAuthUserIds) {
-          try {
-            const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-            if (authError) {
-              if (!(authError instanceof AuthApiError && authError.status === 404)) {
-                logError(`Error deleting auth user ${userId}: ${authError.message}`, authError);
-                // Decide whether to continue or stop on error
-              }
-            } else {
-              authDeletionCount++;
-            }
-          } catch (indivError) {
-            logError(`Caught exception deleting auth user ${userId}:`, indivError);
-          }
-        }
-        logInfo(`Attempted deletion of ${allAuthUserIds.length} auth users. Success count: ${authDeletionCount}.`);
-    } else {
-      logInfo('No auth users found in staging to delete.');
-    }
-
-    // 2. TRUNCATE Public Tables
+    // 1. TRUNCATE Public Tables FIRST (to remove foreign key constraints)
     logInfo('Truncating public schema tables using CASCADE...');
 
     // List all tables known to be populated by tests/baseline data.
@@ -153,6 +107,96 @@ export async function cleanupAllTestData(
       logInfo('Successfully truncated public tables.');
     }
 
+    // 2. Delete ALL Auth Users (after public tables are truncated)
+    logInfo('Attempting to delete ALL auth users from staging...');
+    
+    // Helper function to delete auth users with retry logic
+    async function deleteAuthUsersWithRetry(maxAttempts: number = 2): Promise<void> {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (attempt > 1) {
+          logInfo(`Retrying auth user deletion (attempt ${attempt}/${maxAttempts})...`);
+        }
+        
+        // Fetch all auth users
+        let allAuthUsers: any[] = [];
+        let page = 0;
+        const pageSize = 100;
+        
+        while (true) {
+          const { data: usersPage, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+            page: page + 1, // API is 1-based
+            perPage: pageSize,
+          });
+          if (listError) {
+            logError('Error listing auth users:', listError);
+            throw listError;
+          }
+          if (usersPage && usersPage.users.length > 0) {
+            allAuthUsers = allAuthUsers.concat(usersPage.users);
+            page++;
+          } else {
+            break;
+          }
+        }
+        
+        const allAuthUserIds = allAuthUsers.map(u => u.id);
+        
+        if (allAuthUserIds.length === 0) {
+          logInfo('No auth users found in staging to delete.');
+          return; // Success - no users left
+        }
+        
+        logInfo(`Found ${allAuthUserIds.length} auth users to delete...`);
+        let authDeletionCount = 0;
+        let failedDeletions: { userId: string; error: any }[] = [];
+        
+        for (const userId of allAuthUserIds) {
+          try {
+            const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+            if (authError) {
+              if (!(authError instanceof AuthApiError && authError.status === 404)) {
+                failedDeletions.push({ userId, error: authError });
+                // Continue trying other users
+              }
+            } else {
+              authDeletionCount++;
+            }
+          } catch (indivError) {
+            failedDeletions.push({ userId, error: indivError });
+          }
+        }
+        
+        logInfo(`Attempt ${attempt}: Deleted ${authDeletionCount}/${allAuthUserIds.length} auth users.`);
+        
+        if (failedDeletions.length > 0) {
+          logInfo(`${failedDeletions.length} auth user(s) failed to delete.`);
+          // Log details only on the last attempt
+          if (attempt === maxAttempts) {
+            failedDeletions.forEach(({ userId, error }) => {
+              logError(`Failed to delete auth user ${userId}: ${error.message}`, error);
+            });
+          }
+          
+          // If this wasn't the last attempt and we had failures, continue to retry
+          if (attempt < maxAttempts) {
+            // Small delay before retry to allow any async operations to complete
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+        } else {
+          // All users deleted successfully
+          logInfo('All auth users deleted successfully.');
+          return;
+        }
+      }
+      
+      // If we get here, we've exhausted all attempts
+      logInfo('Some auth users could not be deleted after all attempts. This may be due to database constraints that will be resolved on the next run.');
+    }
+    
+    // Execute the auth user deletion with retry logic
+    await deleteAuthUsersWithRetry();
+    
     logInfo('STAGING DATABASE PURGE finished.');
 
   } catch (error) {

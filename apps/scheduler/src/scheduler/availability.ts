@@ -16,6 +16,7 @@ import {
     isSunday,
 } from 'date-fns';
 import { logger } from '../utils/logger'; // Import logger
+import { parseCalgaryTimeToUTC, formatUTCAsCalgary } from '../utils/timezone';
 
 // --- New Data Structures for Detailed Availability ---
 /**
@@ -42,8 +43,9 @@ export type AllTechnicianAvailability = Map<number, DailyAvailabilityWindows>;
 // --- Helper Functions ---
 
 /**
- * Parses a time string (HH:MM:SS) and combines it with a date object 
+ * LEGACY: Parses a time string (HH:MM:SS) and combines it with a date object 
  * to create a new Date object representing that time in UTC.
+ * @deprecated Use parseCalgaryBusinessTimeToUTC instead for Calgary business hours
  * @param timeString The time string (e.g., "09:00:00").
  * @param date The date object (time part is ignored).
  * @returns A Date object set to the specified time in UTC for the given date.
@@ -54,6 +56,20 @@ export function parseTimeStringToUTCDate(timeString: string, date: Date): Date {
   const month = date.getUTCMonth();
   const day = date.getUTCDate();
   return new Date(Date.UTC(year, month, day, hours, minutes, seconds || 0));
+}
+
+/**
+ * Parses a time string from the database (representing Calgary business hours) 
+ * and converts it to the proper UTC time for scheduling calculations.
+ * 
+ * @param timeString The time string (e.g., "09:00:00" = 9 AM Calgary time).
+ * @param date The date object (time part is ignored).
+ * @returns A Date object set to the Calgary time converted to UTC.
+ */
+export function parseCalgaryBusinessTimeToUTC(timeString: string, date: Date): Date {
+  const utcDate = parseCalgaryTimeToUTC(timeString, date);
+  logger.debug(`Converted Calgary business time ${timeString} on ${formatDateToString(date)} to UTC: ${formatUTCAsCalgary(utcDate)}`);
+  return utcDate;
 }
 
 /**
@@ -244,8 +260,8 @@ export function calculateWindowsForTechnician(
     if (exception) {
       if (exception.exception_type === 'custom_hours' && exception.is_available && exception.start_time && exception.end_time) {
         // Custom hours override defaults
-        const start = parseTimeStringToUTCDate(exception.start_time, currentDate);
-        const end = parseTimeStringToUTCDate(exception.end_time, currentDate);
+        const start = parseCalgaryBusinessTimeToUTC(exception.start_time, currentDate);
+        const end = parseCalgaryBusinessTimeToUTC(exception.end_time, currentDate);
         if (start < end) {
           windowsForDay.push({ start, end });
         }
@@ -265,8 +281,8 @@ export function calculateWindowsForTechnician(
       // <<< End Logging >>>
       defaults.forEach(dh => {
           if (dh.start_time && dh.end_time) {
-            const start = parseTimeStringToUTCDate(dh.start_time, currentDate);
-            const end = parseTimeStringToUTCDate(dh.end_time, currentDate);
+            const start = parseCalgaryBusinessTimeToUTC(dh.start_time, currentDate);
+            const end = parseCalgaryBusinessTimeToUTC(dh.end_time, currentDate);
              if (start < end) {
                 windowsForDay.push({ start, end });
              }

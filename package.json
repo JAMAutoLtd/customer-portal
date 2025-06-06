@@ -19,9 +19,9 @@
     "test:integration": "jest tests/integration/scheduler",
     "e2e:run": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/e2e-runner.ts",
     "db:generate-types": "dotenv -e .env.test -- supabase gen types typescript --schema public,auth --debug > simulation/scripts/db/seed/staged.database.types.ts",
-    "db:seed:staging": "cross-env dotenv_config_path=.env.test ts-node -r dotenv/config --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/db/seed/index.ts",
-    "db:clean:staging": "cross-env dotenv_config_path=.env.test ts-node -r dotenv/config --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/db/cleanup-staging.ts",
-    "clean": "rm -fo package-lock.json -ErrorAction SilentlyContinue; rm -fo pnpm-lock.yaml -ErrorAction SilentlyContinue; rm -r -fo node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/web/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/node_modules -ErrorAction SilentlyContinue; rm -r -fo apps/scheduler/dist -ErrorAction SilentlyContinue; rm -r -fo apps/web/.next -ErrorAction SilentlyContinue",
+    "db:seed:staging": "cross-env DOTENV_CONFIG_PATH=.env.test ts-node -r dotenv/config --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/db/seed/index.ts",
+    "db:clean:staging": "cross-env DOTENV_CONFIG_PATH=.env.test ts-node -r dotenv/config --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" simulation/scripts/db/cleanup-staging.ts",
+    "clean": "rm -f package-lock.json pnpm-lock.yaml; rm -rf node_modules apps/web/node_modules apps/scheduler/node_modules apps/scheduler/dist apps/web/.next",
     "type-check": "tsc --noEmit -p apps/web/tsconfig.json"
   },
   "devDependencies": {

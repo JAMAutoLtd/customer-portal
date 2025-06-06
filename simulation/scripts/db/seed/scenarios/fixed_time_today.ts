@@ -8,6 +8,25 @@ import utc from 'dayjs/plugin/utc';
 
 dayjs.extend(utc);
 
+// Calgary DST helper function
+function isDaylightSavingTime(date: Date): boolean {
+  const year = date.getFullYear();
+  
+  // DST starts: Second Sunday in March at 2:00 AM
+  const dstStart = getNthSundayOfMonth(year, 2, 2); // March (month 2), 2nd Sunday
+  
+  // DST ends: First Sunday in November at 2:00 AM  
+  const dstEnd = getNthSundayOfMonth(year, 10, 1); // November (month 10), 1st Sunday
+  
+  return date >= dstStart && date < dstEnd;
+}
+
+function getNthSundayOfMonth(year: number, month: number, n: number): Date {
+  const firstDay = new Date(year, month, 1);
+  const firstSunday = new Date(year, month, 1 + (7 - firstDay.getDay()) % 7);
+  return new Date(year, month, firstSunday.getDate() + (n - 1) * 7, 2, 0, 0); // 2:00 AM
+}
+
 // Define types using the standard Supabase helpers
 type OrderInsert = TablesInsert<'orders'>;
 type JobInsert = TablesInsert<'jobs'>;
@@ -59,16 +78,44 @@ export const seedScenario_fixed_time_today = async (
             throw new Error('No technicianDbIds provided for scenario.');
         }
 
-        // 2. Determine a valid fixed time slot today
-        const now = dayjs.utc();
-        // Try to schedule for 2 PM UTC today, adjust if needed
-        let fixedTimeToday = now.set('hour', 15).set('minute', 0).set('second', 0);
-        // If it's already past 2 PM UTC, schedule for tomorrow 10 AM UTC instead
-        if (now.hour() >= 14) {
-            logInfo('Current time past 2 PM UTC, scheduling fixed job for tomorrow 10 AM UTC.');
-            fixedTimeToday = now.add(1, 'day').set('hour', 10).set('minute', 0).set('second', 0);
+        // 2. Determine a valid fixed time slot today (Calgary business hours)
+        const nowUTC = dayjs.utc();
+        
+        // Convert current UTC time to Calgary time for business hour calculations
+        // Calgary is UTC-7 (MST) or UTC-6 (MDT) depending on DST
+        const isDST = isDaylightSavingTime(nowUTC.toDate());
+        const calgaryOffset = isDST ? -6 : -7; // Hours to subtract from UTC to get Calgary time
+        const nowCalgary = nowUTC.utcOffset(calgaryOffset);
+        
+        const jobDurationMinutes = 60; // 1 hour job
+        const workingHoursEnd = 18.5; // 18:30 (6:30 PM Calgary time)
+        
+        // For a meaningful test, we need enough time for the fixed job AND buffer for other jobs
+        // Let's require at least 3 hours remaining in the Calgary work day
+        const minimumTimeRemainingHours = 3;
+        const currentHourCalgary = nowCalgary.hour() + (nowCalgary.minute() / 60);
+        const timeRemainingToday = workingHoursEnd - currentHourCalgary;
+        
+        if (timeRemainingToday < minimumTimeRemainingHours) {
+            const timeZone = isDST ? 'MDT' : 'MST';
+            throw new Error(
+                `Cannot run 'fixed_time_today' test meaningfully. ` +
+                `Need ${minimumTimeRemainingHours} hours remaining in Calgary business day, but only ${timeRemainingToday.toFixed(1)} hours left. ` +
+                `Current Calgary time: ${nowCalgary.format('HH:mm')} ${timeZone}, Business day ends: 6:30 PM ${timeZone}. ` +
+                `Please run this test earlier in the Calgary business day.`
+            );
         }
-        const fixedTimeString = fixedTimeToday.toISOString();
+        
+        // Schedule fixed job for 2 hours from now (or 11 AM if it's still early) in Calgary time
+        const targetHourCalgary = Math.max(11, Math.ceil(currentHourCalgary + 2));
+        const fixedTimeCalgary = nowCalgary.set('hour', targetHourCalgary).set('minute', 0).set('second', 0);
+        
+        // Convert Calgary time back to UTC for database storage
+        const fixedTimeUTC = fixedTimeCalgary.utc();
+        
+        const timeZone = isDST ? 'MDT' : 'MST';
+        logInfo(`Scheduling fixed job for ${fixedTimeCalgary.format('HH:mm')} ${timeZone} (${fixedTimeUTC.format('HH:mm')} UTC). ${timeRemainingToday.toFixed(1)} hours remaining in Calgary business day.`);
+        const fixedTimeString = fixedTimeUTC.toISOString();
 
         // 3. Assign the fixed job to a specific technician (e.g., the first one)
         const assignedTechId = technicianDbIds[0];
