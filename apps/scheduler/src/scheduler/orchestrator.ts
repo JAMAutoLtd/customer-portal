@@ -27,6 +27,37 @@ const PENDING_REVIEW_STATUS: JobStatus = 'pending_review';
 const FINAL_SUCCESS_STATUS: JobStatus = 'queued';
 const MAX_OVERFLOW_ATTEMPTS = 5;
 
+/**
+ * Checks if a fixed-time job is scheduled outside all technician availability windows.
+ * If true, this job should be skipped from the planning pipeline entirely.
+ * 
+ * @param job The fixed-time job to check
+ * @param technicians All available technicians
+ * @returns true if the job is outside all availability windows, false otherwise
+ */
+function isFixedTimeJobOutsideAllAvailability(job: Job, technicians: Technician[]): boolean {
+    if (job.status !== 'fixed_time' || !job.fixed_schedule_time) {
+        return false;
+    }
+
+    const fixedDate = new Date(job.fixed_schedule_time);
+    const fixedDateStr = formatDateToString(fixedDate);
+
+    // Check if ANY technician has availability on the fixed job's date
+    for (const tech of technicians) {
+        const techWindows = calculateWindowsForTechnician(tech, fixedDate, fixedDate);
+        const windowsForDay = techWindows.get(fixedDateStr) || [];
+        
+        if (windowsForDay.length > 0) {
+            // Found at least one technician with availability on this day
+            return false;
+        }
+    }
+
+    // No technician has availability windows on this day - job is outside all availability
+    return true;
+}
+
 interface FinalAssignment {
     technicianId: number;
     estimatedSchedISO: string;
@@ -293,6 +324,13 @@ export async function runFullReplan(dbClient: SupabaseClient<any>): Promise<void
         job.status === 'fixed_time' &&
         fixedScheduleTime &&
         fixedScheduleTime.getTime() >= new Date(currentTimeForStateInit.setHours(0, 0, 0, 0)).getTime();
+
+      // Skip fixed-time jobs that are outside all availability windows
+      // These jobs are human agreements that should not be touched by automation
+      if (isFixedJobForTodayOrFuture && isFixedTimeJobOutsideAllAvailability(job, allTechnicians)) {
+        logger.info(`Skipping fixed-time job ${job.id} from planning pipeline - outside all availability windows (human agreement)`);
+        return; // Skip adding to jobStates - automation will not touch this job
+      }
 
       if (job.status === INITIAL_SCHEDULABLE_STATUS || isFixedJobForTodayOrFuture) {
         jobStates.set(job.id, {

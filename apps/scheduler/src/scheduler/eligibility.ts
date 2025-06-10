@@ -108,16 +108,35 @@ export async function determineTechnicianEligibility(
 
                 // If bundle breaking is needed, process each job individually
                 for (const job of bundle.jobs) {
+                    const schedulableJob: SchedulableJob = {
+                        ...job,
+                        eligibleTechnicians: [],
+                        originalItem: job,
+                    };
+
+                    // Fixed-time jobs bypass eligibility checks even when broken out of bundles
+                    if (job.status === 'fixed_time' && job.fixed_schedule_time) {
+                        logger.info(`Fixed-time job ${job.id} (from bundle ${bundle.order_id}) bypassing eligibility checks - pre-approved appointment`);
+                        
+                        // For fixed-time jobs, prioritize assigned technician or all technicians
+                        if (job.assigned_technician) {
+                            const assignedTech = technicians.find(t => t.id === job.assigned_technician);
+                            schedulableJob.eligibleTechnicians = assignedTech ? [assignedTech] : technicians;
+                        } else {
+                            schedulableJob.eligibleTechnicians = technicians;
+                        }
+                        
+                        eligibleItems.push(schedulableJob);
+                        logger.debug(`  -> Added fixed-time Job ID ${job.id} (from bundle ${bundle.order_id}) as ELIGIBLE (bypass). Assigned technician: ${job.assigned_technician || 'None'}`);
+                        continue;
+                    }
+
                     const singleJobReqs = await getRequiredEquipmentForJob(job);
                     const singleJobEligibleTechs = findEligibleTechnicians(singleJobReqs, technicians, vanEquipmentMap);
                     
-                    const schedulableJob: SchedulableJob = {
-                        ...job,
-                        eligibleTechnicians: singleJobEligibleTechs.map(id => 
-                            technicians.find(t => t.id === id)
-                        ).filter((t): t is Technician => !!t),
-                        originalItem: job,
-                    };
+                    schedulableJob.eligibleTechnicians = singleJobEligibleTechs.map(id => 
+                        technicians.find(t => t.id === id)
+                    ).filter((t): t is Technician => !!t);
 
                     if (singleJobEligibleTechs.length > 0) {
                         eligibleItems.push(schedulableJob);
@@ -140,6 +159,24 @@ export async function determineTechnicianEligibility(
         } else {
             // Process a single SchedulableJob
             const schedJob = item as SchedulableJob;
+            
+            // Fixed-time jobs bypass eligibility checks - they are pre-approved by humans
+            if (schedJob.status === 'fixed_time' && schedJob.fixed_schedule_time) {
+                logger.info(`Fixed-time job ${schedJob.id} bypassing eligibility checks - pre-approved appointment`);
+                
+                // For fixed-time jobs, all technicians are considered "eligible" since the appointment is pre-arranged
+                // However, if the job has an assigned_technician, prioritize that assignment
+                if (schedJob.assigned_technician) {
+                    const assignedTech = technicians.find(t => t.id === schedJob.assigned_technician);
+                    schedJob.eligibleTechnicians = assignedTech ? [assignedTech] : technicians;
+                } else {
+                    schedJob.eligibleTechnicians = technicians;
+                }
+                
+                eligibleItems.push(schedJob);
+                logger.debug(`Fixed-time job ${schedJob.id} marked as ELIGIBLE (bypass). Assigned technician: ${schedJob.assigned_technician || 'None'}`);
+                continue;
+            }
             
             logger.debug(`Processing Single Job ID: ${schedJob.id}`);
             requiredModels = await getRequiredEquipmentForJob(schedJob);
