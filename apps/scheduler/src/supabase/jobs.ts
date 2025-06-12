@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { Job, JobStatus, Address, Service } from '../types/database.types';
+import { logger } from '../utils/logger';
 
 // Define the job statuses relevant for the replanning process
 const RELEVANT_JOB_STATUSES: JobStatus[] = [
@@ -17,6 +18,8 @@ const RELEVANT_JOB_STATUSES: JobStatus[] = [
  * @returns {Promise<Job[]>} A promise that resolves to an array of relevant jobs.
  */
 export async function getRelevantJobs(): Promise<Job[]> {
+  if (!supabase) throw new Error("Supabase client not initialized");
+
   console.log(`Fetching jobs with statuses: ${RELEVANT_JOB_STATUSES.join(', ')}...`);
 
   let data: any[] | null = null;
@@ -42,7 +45,11 @@ export async function getRelevantJobs(): Promise<Job[]> {
         fixed_schedule_time,
         addresses ( id, street_address, lat, lng ),
         services ( id, service_name, service_category ),
-        order_details:orders ( earliest_available_time )
+        order_details:orders ( 
+          earliest_available_time,
+          vehicle_id, 
+          customer_vehicles ( make, model, year ) 
+        )
       `)
       // Filter for statuses IN the list OR status IS NULL
       .or(`status.in.(${RELEVANT_JOB_STATUSES.map(s => `"${s}"`).join(',')}),status.is.null`);
@@ -52,19 +59,19 @@ export async function getRelevantJobs(): Promise<Job[]> {
     error = response.error;
 
   } catch (fetchError) {
-    console.error('Error during Supabase fetch operation (jobs):', fetchError);
-    throw new Error(`Network or fetch error occurred while fetching jobs: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+    logger.error('Error during Supabase fetch operation (jobs):', fetchError);
+    throw fetchError;
   }
 
   if (error) {
-    console.error('Error object details from Supabase response (jobs):', JSON.stringify(error, null, 2));
+    logger.error('Error object details from Supabase response (jobs):', JSON.stringify(error, null, 2));
     // It seems error.message might be undefined, let's provide a fallback
     const errorMessage = error.message || 'Unknown error structure';
     throw new Error(`Failed to fetch jobs: ${errorMessage}`);
   }
 
-  if (!data) {
-    console.warn('No relevant jobs found.');
+  if (!data || data.length === 0) {
+    logger.warn('No relevant jobs found.');
     return [];
   }
 
@@ -120,8 +127,9 @@ export async function getRelevantJobs(): Promise<Job[]> {
  * @returns {Promise<Job[]>} A promise that resolves to an array of jobs matching the statuses.
  */
 export async function getJobsByStatus(statuses: JobStatus[]): Promise<Job[]> {
+  if (!supabase) throw new Error("Supabase client not initialized");
   if (!statuses || statuses.length === 0) {
-    console.warn('getJobsByStatus called with empty status list. Returning empty array.');
+    logger.warn('getJobsByStatus called with empty status list. Returning empty array.');
     return [];
   }
   console.log(`Fetching jobs with statuses: ${statuses.join(', ')}...`);
@@ -145,18 +153,22 @@ export async function getJobsByStatus(statuses: JobStatus[]): Promise<Job[]> {
       fixed_schedule_time,
       addresses ( id, street_address, lat, lng ),
       services ( id, service_name, service_category ),
-      order_details:orders ( earliest_available_time )
+      order_details:orders ( 
+        earliest_available_time,
+        vehicle_id, 
+        customer_vehicles ( make, model, year ) 
+      )
     `)
     // Use the provided statuses array for filtering
     .in('status', statuses);
 
   if (error) {
-    console.error(`Error fetching jobs with statuses [${statuses.join(', ')}]:`, error);
+    logger.error(`Error fetching jobs with statuses [${statuses.join(', ')}]:`, error);
     throw new Error(`Failed to fetch jobs by status: ${error.message}`);
   }
 
-  if (!data) {
-    console.warn(`No jobs found with statuses: ${statuses.join(', ')}.`);
+  if (!data || data.length === 0) {
+    logger.warn(`No jobs found with statuses: ${statuses.join(', ')}.`);
     return [];
   }
 

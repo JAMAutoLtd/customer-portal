@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { logger } from '../utils/logger'; // Import logger
 
 const apiKey = process.env.ONESTEP_GPS_API_KEY;
 const baseUrl = 'https://track.onestepgps.com/v3/api/public/device-info';
@@ -34,7 +35,7 @@ export interface DeviceLocationMap {
  */
 export async function fetchDeviceLocations(): Promise<DeviceLocationMap | null> {
     if (!apiKey) {
-        console.error('OneStepGPS Error: ONESTEP_GPS_API_KEY environment variable not set.');
+        logger.error('OneStepGPS Error: ONESTEP_GPS_API_KEY environment variable not set.');
         return null;
     }
 
@@ -46,7 +47,7 @@ export async function fetchDeviceLocations(): Promise<DeviceLocationMap | null> 
     };
 
     try {
-        console.log('Fetching real-time locations from One Step GPS...');
+        logger.info('Fetching real-time locations from One Step GPS...');
         const response = await axios.get<OneStepGpsDevice[]>(baseUrl, {
             params,
             headers: {
@@ -74,35 +75,44 @@ export async function fetchDeviceLocations(): Promise<DeviceLocationMap | null> 
                     processedCount++;
                 } else {
                     // Optional: Log devices skipped due to missing or invalid data
-                    console.warn(`OneStepGPS: Skipping device due to missing/invalid data: ${JSON.stringify(device)}`);
+                    logger.warn(`OneStepGPS: Skipping device due to missing/invalid data: ${JSON.stringify(device)}`);
                 }
             });
-            console.log(`OneStepGPS: Successfully processed ${processedCount} device locations.`);
+            logger.info(`OneStepGPS: Successfully processed ${processedCount} device locations.`);
             return locationData;
         } else {
             // This case might be less likely with axios as it throws for non-2xx status codes
-            console.error(`OneStepGPS Error: Received non-200 status code: ${response.status}`);
+            logger.error(`OneStepGPS Error: Received non-200 status code: ${response.status}`);
             return null;
         }
     } catch (error) {
-        const axiosError = error as AxiosError;
-        if (axiosError.response) {
-            // The request was made and the server responded with a status code (4xx, 5xx)
-            console.error(`OneStepGPS API Error: Status ${axiosError.response.status}`, axiosError.response.data || axiosError.message);
-             if (axiosError.response.status === 401 || axiosError.response.status === 403) {
-                 console.error("OneStepGPS API Error: Authentication failed. Check API Key.");
-             } else if (axiosError.response.status === 429) {
-                console.warn("OneStepGPS API rate limit likely exceeded.");
-                // Future: Implement backoff/retry here if needed
+        // Check if it's an AxiosError
+        if (axios.isAxiosError(error)) {
+            const axiosError = error as AxiosError;
+            if (axiosError.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                logger.error(`OneStepGPS API Error: Status ${axiosError.response.status}`, axiosError.response.data || axiosError.message);
+                if (axiosError.response.status === 401 || axiosError.response.status === 403) {
+                    logger.error("OneStepGPS API Error: Authentication failed. Check API Key.");
+                } else if (axiosError.response.status === 429) {
+                    logger.warn("OneStepGPS API rate limit likely exceeded.");
+                    // Future: Implement backoff/retry here if needed
+                }
+                // Depending on the status code, you might want to return null or throw
+            } else if (axiosError.request) {
+                // The request was made but no response was received
+                logger.error('OneStepGPS Network Error: No response received.', axiosError.message);
+            } else {
+                // Something happened in setting up the request that triggered an Error
+                logger.error('OneStepGPS Request Setup Error:', axiosError.message);
             }
-        } else if (axiosError.request) {
-            // The request was made but no response was received
-            console.error('OneStepGPS Network Error: No response received.', axiosError.message);
+            // Ensure null is returned if it's an AxiosError and none of the specific returns were hit
+            return null;
         } else {
-            // Something happened in setting up the request that triggered an Error
-            console.error('OneStepGPS Request Setup Error:', axiosError.message);
+            // Handle non-Axios errors (e.g., programming errors)
+            logger.error('OneStepGPS Non-Axios Error:', error);
+            return null;
         }
-        // Note: Retry logic is currently out of scope. Returning null on first error.
-        return null;
     }
 } 

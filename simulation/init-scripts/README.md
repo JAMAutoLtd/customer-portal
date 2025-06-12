@@ -20,7 +20,7 @@ The `../run-e2e-tests.js` script handles the execution of these scripts within t
     *   Contains static, hand-crafted or previously generated base data for core tables like `users`, `addresses`, `vans`, `equipment`, `services`, `ymm_ref`, `customer_vehicles`, etc. This provides a stable foundation of reference data.
 
 4.  **`06-equipment-requirements-test-data.sql`**:
-    *   Contains static data defining the equipment requirements for specific services based on the vehicle's Year-Make-Model (`ymm_id`). This populates tables like `adas_equipment_requirements`, `prog_equipment_requirements`, etc.
+    *   Contains static data defining the equipment requirements for specific services based on the vehicle's Year-Make-Model (`ymm_id`). This populates the unified `equipment_requirements` table.
 
 5.  **`07-generated-seed-data.sql`**:
     *   **Dynamically Generated:** This file is created by running the `../generate-dynamic-seed.js` script (typically triggered by `../run-e2e-tests.js --generate`).

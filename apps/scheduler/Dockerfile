@@ -50,4 +50,7 @@ COPY --from=builder /usr/src/app/apps/scheduler/dist ./dist
 EXPOSE 8080
 
 # Start the server using the compiled JavaScript entry point
-CMD [ "node", "dist/server.js" ] 
+# apps/scheduler/Dockerfile - Change the CMD line
+
+# Add Node.js flags for heap dump on unhandled rejection and pending async ops
+CMD ["node", "--trace-warnings", "--unhandled-rejections=throw", "--pending-deprecation", "dist/server.js"]

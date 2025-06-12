@@ -1,0 +1,81 @@
+# docker-compose.test.yml
+version: '3.8'
+
+services:
+  # Optimiser Service (Python Backend)
+  optimiser:
+    build:
+      context: ./apps/optimiser
+      dockerfile: Dockerfile
+    container_name: test_optimiser
+    ports:
+      - "8081:8080" # Expose on host 8081 to avoid conflict
+    env_file:
+      - ./.env.test # Uses PORT=8080 from Dockerfile, can override if needed
+    networks:
+      - test-network
+    restart: unless-stopped
+    healthcheck:
+      # Added -v for verbose output, --connect-timeout, --max-time
+      test: ["CMD", "curl", "-v", "-f", "--connect-timeout", "5", "--max-time", "10", "http://localhost:8080/health"]
+      interval: 120s
+      timeout: 10s  # Increased from 5s
+      retries: 10   # Increased from 5
+      start_period: 30s
+
+  # Scheduler Service (Node.js Backend)
+  scheduler:
+    build:
+      context: . # Build from root for pnpm workspace access
+      dockerfile: apps/scheduler/Dockerfile
+    container_name: test_scheduler
+    # Expose port 3001 on the host, mapping to 8080 inside the container
+    ports:
+      - "3001:8080"
+    env_file:
+      - ./.env.test # Uses SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPTIMIZATION_SERVICE_URL, etc.
+    depends_on:
+      optimiser:
+        condition: service_healthy
+    networks:
+      - test-network
+    restart: unless-stopped
+    # Add healthcheck if scheduler implements one; ensure it doesn't fail if DB connection takes time
+
+  # Web Service (Next.js Frontend)
+  web:
+    build:
+      context: . # Build from root for pnpm workspace access
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Pass SUPABASE URL required during build time by Next.js
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        # Pass other required public variables
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_NHTSA_API_URL=${NEXT_PUBLIC_NHTSA_API_URL}
+    container_name: test_web
+    ports:
+      - "3000:3000" # Expose on host 3000 for E2E runner access
+    env_file:
+      - ./.env.test # Uses NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+    depends_on:
+       # Depends only on local services now
+       optimiser:
+         condition: service_healthy
+       scheduler: # Although no direct calls, ensures scheduler is ready if triggered indirectly
+         condition: service_started # Or service_healthy if scheduler has healthcheck
+    networks:
+      - test-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"] # Check internal port
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s # Allow time for Next.js build/start
+
+networks:
+  test-network:
+    driver: bridge
+
+# No local volumes needed for database 

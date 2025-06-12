@@ -1,6 +1,7 @@
 # Environment variables
 .env
 .env.*
+!.env.example # Allow example env file
 
 # Node / TypeScript
 node_modules/
@@ -51,15 +52,11 @@ yarn-error.log*
 coverage/
 .coverage
 
-# env files (can opt-in for committing if needed)
-.env*
-
 # Downloaded Logs (Ignore all)
 downloaded-logs-*.json
 
 # Sensitive configuration / documentation
 .cursor/mcp.json
-# docs/developer-info.md # Removed, should likely be tracked
 
 # vercel
 .vercel
@@ -68,15 +65,41 @@ downloaded-logs-*.json
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
-
-# supabase
-supabase
-
 # vibe tools
 .repomix-output.txt
+.repomix-plan-files.txt
+.repomix-plan-filtered.txt
 vibe-tools.config.json
 repomix.config.json
 .repomixignore
-
+.cursor
 PLAN.md
+
+# Simulation/Test artifacts
+simulation/seed-metadata.json
+
+# AI Assistant Files (Personal - Don't commit to team repo)
+.cursor/rules/          # Claude Code memory system
+.github/workflows/memory-system-audit.yml  # AI memory validation workflow
+.roo/                   # Roo AI files  
+.roomodes              # Roo configuration
+.taskmaster/           # Task Master files
+.taskmasterconfig      # Task Master config
+CLAUDE.md              # Claude Code instructions
+init_mem0_client.py    # Memory client
+tasks-*/               # Generated task directories
+*.prd.txt              # PRD files
+scripts/prd-*.txt      # PRD scripts
+.cursorignore          # Cursor ignore file
+
+# Task files (AI generated)
+tasks.json
+tasks/
+
+# Debug and temporary files  
+debug/
+downloaded-logs-*.json
+run_remaining_tests.sh
+
+# Accidental commits
+doghole

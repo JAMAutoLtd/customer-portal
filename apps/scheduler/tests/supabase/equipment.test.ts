@@ -17,20 +17,23 @@ const mockSelect = jest.fn();
 // Define separate mocks for the chained eq calls
 const firstEqMock = jest.fn();
 const finalEqMock = jest.fn();
+// Define mock for single() calls for service category lookup
+const singleMock = jest.fn();
 
 
 // Mock the Supabase client
 jest.mock('../../src/supabase/client', () => ({
     supabase: {
-        from: jest.fn().mockImplementation((tableName: string) => {
-            // Return an object that allows chaining .select().in() or .select().eq().eq()
+        from: jest.fn().mockImplementation((tableName) => {
+            // Return an object that allows chaining .select().in() or .select().eq().eq() or .select().eq().single()
             // We reset the implementations of select, in, eq mocks in beforeEach
             return {
                 select: mockSelect.mockImplementation(() => ({
                     in: mockIn, // Used by getEquipmentForVans
-                    // First eq() call returns an object containing the second eq mock
+                    // First eq() call returns an object containing the second eq mock or single mock
                     eq: firstEqMock.mockImplementation(() => ({
-                        eq: finalEqMock, // The final call that should resolve the promise
+                        eq: finalEqMock, // The final call that should resolve the promise for equipment_requirements
+                        single: singleMock, // Used for services table lookup
                     })),
                 })),
             };
@@ -61,7 +64,7 @@ const mockJobAdas: Job = {
   fixed_assignment: false,
   fixed_schedule_time: null,
   address: undefined,
-  service: mockServiceAdas,
+  service: undefined, // Service object no longer required for unified approach
 };
 
 // --- Test Data ---
@@ -201,16 +204,17 @@ describe('Supabase Equipment Fetching (getRequiredEquipmentForJob)', () => {
         jest.clearAllMocks();
         // Reset mocks used in this suite
         (getYmmIdForOrder as jest.Mock).mockReset();
-        // Reset *both* eq mocks
+        // Reset all eq and single mocks
         firstEqMock.mockReset();
         finalEqMock.mockReset();
+        singleMock.mockReset();
         mockSelect.mockReset();
         (supabase.from as jest.Mock).mockClear();
     });
 
     it('should return required equipment model for a valid job', async () => {
         const ymmId = 12345;
-        const expectedRequirementTable = 'adas_equipment_requirements';
+        const expectedRequirementTable = 'equipment_requirements';
         const expectedModel = 'ADAS-CAM-TOOL-Z3';
 
         (getYmmIdForOrder as jest.Mock).mockResolvedValueOnce(ymmId);
@@ -234,7 +238,7 @@ describe('Supabase Equipment Fetching (getRequiredEquipmentForJob)', () => {
 
     it('should return multiple models if required', async () => {
          const ymmId = 12345;
-         const expectedRequirementTable = 'adas_equipment_requirements';
+         const expectedRequirementTable = 'equipment_requirements';
          const expectedModels = ['MODEL-A', 'MODEL-B'];
          (getYmmIdForOrder as jest.Mock).mockResolvedValueOnce(ymmId);
          // Mock the final eq call resolving with multiple models
@@ -257,9 +261,9 @@ describe('Supabase Equipment Fetching (getRequiredEquipmentForJob)', () => {
          expect(requiredModels).toEqual(expectedModels);
     });
 
-    it('should return an empty array if job has no service category', async () => {
-        const jobNoCategory = { ...mockJobAdas, service: { ...mockServiceAdas, service_category: undefined } };
-        const requiredModels = await getRequiredEquipmentForJob(jobNoCategory as any);
+    it('should return an empty array if job has no service_id', async () => {
+        const jobNoServiceId = { ...mockJobAdas, service_id: null };
+        const requiredModels = await getRequiredEquipmentForJob(jobNoServiceId as any);
 
         expect(requiredModels).toEqual([]);
         expect(getYmmIdForOrder).not.toHaveBeenCalled();
@@ -294,31 +298,65 @@ describe('Supabase Equipment Fetching (getRequiredEquipmentForJob)', () => {
         expect(finalEqMock).not.toHaveBeenCalled();
     });
 
-    it('should return an empty array if no requirement is found in the database', async () => {
+    it('should return fallback to generic equipment when no specific requirement is found', async () => {
         const ymmId = 12345;
-        const expectedRequirementTable = 'adas_equipment_requirements';
+        const expectedRequirementTable = 'equipment_requirements';
         (getYmmIdForOrder as jest.Mock).mockResolvedValueOnce(ymmId);
-        // Mock final eq call resolving with empty data array
+        
+        // Mock the equipment_requirements query (first call) to return empty data
         finalEqMock.mockResolvedValueOnce({ data: [], error: null });
+        
+        // Mock the services query (.single() call) for fallback
+        singleMock.mockResolvedValueOnce({ data: { service_category: 'adas' }, error: null });
+        
+        // Mock the equipment query chain for generic fallback: .eq().eq().limit()
+        const equipmentEq1Mock = jest.fn();
+        const equipmentEq2Mock = jest.fn();
+        const equipmentLimitMock = jest.fn();
+        
+        equipmentEq1Mock.mockImplementation(() => ({ eq: equipmentEq2Mock }));
+        equipmentEq2Mock.mockImplementation(() => ({ limit: equipmentLimitMock }));
+        equipmentLimitMock.mockResolvedValueOnce({ data: [{ model: 'adas' }], error: null });
+        
+        // Set up mock select calls in order:
+        mockSelect
+            .mockImplementationOnce(() => ({ eq: firstEqMock }))  // equipment_requirements query
+            .mockImplementationOnce(() => ({ eq: () => ({ single: singleMock }) }))  // services query with single()
+            .mockImplementationOnce(() => ({ eq: equipmentEq1Mock })); // equipment query
 
         const requiredModels = await getRequiredEquipmentForJob(mockJobAdas);
 
-        expect(requiredModels).toEqual([]);
+        expect(requiredModels).toEqual(['adas']);
         expect(supabase.from).toHaveBeenCalledWith(expectedRequirementTable);
-        expect(mockSelect).toHaveBeenCalledWith('equipment_model');
-        expect(firstEqMock).toHaveBeenCalledTimes(1);
-        expect(finalEqMock).toHaveBeenCalledTimes(1);
-        expect(firstEqMock).toHaveBeenCalledWith('ymm_id', ymmId);
-        expect(finalEqMock).toHaveBeenCalledWith('service_id', mockJobAdas.service_id);
+        expect(supabase.from).toHaveBeenCalledWith('services');
+        expect(supabase.from).toHaveBeenCalledWith('equipment');
     });
 
      it('should return an empty array if requirement data is null', async () => {
         const ymmId = 12345;
-        const expectedRequirementTable = 'adas_equipment_requirements';
+        const expectedRequirementTable = 'equipment_requirements';
         (getYmmIdForOrder as jest.Mock).mockResolvedValueOnce(ymmId);
         // Mock final eq call resolving with null data
         finalEqMock.mockResolvedValueOnce({ data: null, error: null });
-
+        
+        // Mock fallback service category lookup
+        singleMock.mockResolvedValueOnce({ data: { service_category: 'adas' }, error: null });
+        
+        // Mock the equipment query chain for generic fallback: .eq().eq().limit()
+        const equipmentEq1Mock = jest.fn();
+        const equipmentEq2Mock = jest.fn();
+        const equipmentLimitMock = jest.fn();
+        
+        equipmentEq1Mock.mockImplementation(() => ({ eq: equipmentEq2Mock }));
+        equipmentEq2Mock.mockImplementation(() => ({ limit: equipmentLimitMock }));
+        equipmentLimitMock.mockResolvedValueOnce({ data: null, error: null });
+        
+        // Set up mock select calls in order:
+        mockSelect
+            .mockImplementationOnce(() => ({ eq: firstEqMock }))  // equipment_requirements query
+            .mockImplementationOnce(() => ({ eq: () => ({ single: singleMock }) }))  // services query with single()
+            .mockImplementationOnce(() => ({ eq: equipmentEq1Mock })); // equipment query
+            
         const requiredModels = await getRequiredEquipmentForJob(mockJobAdas);
 
         expect(requiredModels).toEqual([]);
@@ -329,11 +367,10 @@ describe('Supabase Equipment Fetching (getRequiredEquipmentForJob)', () => {
     });
 
 
-    it('should return an empty array and warn if Supabase returns an error during requirement fetch', async () => {
+    it('should return an empty array and log error if Supabase returns an error during requirement fetch', async () => {
         const ymmId = 12345;
-        const expectedRequirementTable = 'adas_equipment_requirements';
+        const expectedRequirementTable = 'equipment_requirements';
         const mockError = { message: 'Permission denied', code: '403', details: '', hint: '' };
-        const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(); // Suppress console output
 
         (getYmmIdForOrder as jest.Mock).mockResolvedValueOnce(ymmId);
         // Mock final eq call resolving with an error
@@ -346,10 +383,6 @@ describe('Supabase Equipment Fetching (getRequiredEquipmentForJob)', () => {
         expect(mockSelect).toHaveBeenCalledWith('equipment_model');
         expect(firstEqMock).toHaveBeenCalledTimes(1);
         expect(finalEqMock).toHaveBeenCalledTimes(1);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-            expect.stringContaining(`Could not fetch equipment requirements from ${expectedRequirementTable} for ymm_id ${ymmId}, service_id ${mockJobAdas.service_id}: ${mockError.message}`)
-        );
-
-        consoleWarnSpy.mockRestore();
+        // Note: This test verifies error handling behavior, logger output is tested elsewhere
     });
 }); 

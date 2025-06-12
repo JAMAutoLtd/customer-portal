@@ -4,6 +4,7 @@ import {
     RouteStop
 } from '../types/optimization.types';
 import { SchedulableItem, Job, SchedulableJob } from '../types/database.types';
+import { logger } from '../utils/logger';
 
 // Define the ETA window in minutes (e.g., +/- 30 minutes for a 1-hour window)
 // const ETA_WINDOW_MINUTES = 30; // Removed
@@ -44,8 +45,20 @@ export function processOptimizationResults(
 ): ProcessedSchedule {
     console.log('Processing optimization results...');
 
+    logger.info("Processing optimization results", {
+      responseStatus: response.status,
+      responseMessage: response.message,
+      routeCount: response.routes.length,
+      unassignedItemCount: response.unassignedItemIds?.length || 0
+    });
+
     if (response.status === 'error') {
         console.error('Cannot process results: Optimization service returned an error.', response.message);
+        logger.error("Cannot process results: Optimization service returned an error.", {
+            responseStatus: response.status,
+            responseMessage: response.message,
+            errorSource: "OptimizerResponse"
+        });
         throw new Error(`Optimization failed: ${response.message || 'Unknown error'}`);
     }
 

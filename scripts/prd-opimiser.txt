@@ -1,0 +1,225 @@
+**Product Requirements Document: Automated Job Scheduling System**
+
+**Version:** 1.0 (Target State Definition & Refactoring Guide)
+**Date:** 2024-07-31
+
+**1. Introduction & Overview**
+
+This document outlines the functional and non-functional requirements for the **target state** of the Automated Job Scheduling System.
+
+*   **Problem:** Manually scheduling field service jobs is complex, time-consuming, and often suboptimal, leading to inefficient routes, missed appointments, and technician burnout. Constraints like technician availability, skills/equipment, job locations, fixed appointment times, and traffic further complicate the process.
+*   **Solution:** This system automates the assignment of eligible technicians to jobs and determines optimal scheduled times and routes.
+*   **Target Users:** System Operators, Schedulers (indirectly via reviewing outputs and managing exceptions).
+*   **Value:** Increase scheduling efficiency, reduce travel time/costs, improve technician utilization, ensure constraints are met, and provide a foundation for handling more complex scenarios.
+
+The system's primary purpose is to automatically assign eligible technicians to jobs and determine optimal scheduled times and routes. It must intelligently consider and strictly respect various operational constraints, including:
+*   Technician availability schedules derived from database records (defaults and exceptions).
+*   Time blocked by jobs already in progress or locked (`en_route`, `in_progress`).
+*   Explicit fixed start times for certain jobs (`fixed_schedule_time`), enforced on the correct day.
+*   Earliest possible start times for orders (`earliestStartTimeISO`).
+*   Technician eligibility based on required job equipment and van inventory.
+*   Job priority.
+*   Travel time, incorporating real-time (today) and predictive (future) traffic estimates.
+
+The system aims to schedule all possible jobs, planning first for the current day and then handling overflow onto subsequent days. Jobs that are fundamentally unschedulable due to persistent, hard constraints (e.g., no technician possesses required equipment, fixed time falls entirely outside all availability windows) shall be identified early and flagged for manual review (`pending_review` status).
+
+This document also serves as a guide for the necessary refactoring effort to align the current codebase with this target state.
+
+**2. Goals**
+
+*   Automate the assignment of technicians to all schedulable pending jobs (`queued`/`pending_review`).
+*   Generate optimized daily schedules that minimize travel time while strictly respecting **all** operational constraints (DB-driven availability, fixed times, equipment eligibility, locked jobs).
+*   Provide accurate schedule outputs for operational use (updated DB, logs, direction links).
+*   Reliably differentiate between transient scheduling issues (e.g., tight capacity *today*) and persistent, fundamental constraints requiring manual intervention. Flag persistently unschedulable jobs as `pending_review`.
+*   Leverage real-time technician location data (today) and predictive traffic data (future) for improved schedule accuracy.
+
+**3. Scope**
+
+*   **In Scope (Target State):**
+    *   Processing jobs initially `queued` ~~or `pending_review`~~.
+    *   Determining technician eligibility based on equipment requirements (DB service/YMM lookup + generic fallback) vs. van inventory.
+    *   Calculating multi-segment daily availability windows per technician based on DB defaults, DB exceptions, and time blocked by locked jobs.
+    *   Respecting job durations.
+    *   Strictly enforcing `fixed_schedule_time` constraints via the optimizer **on the specific day they occur**, including future overflow days.
+    *   Respecting `earliestStartTimeISO` constraints.
+    *   Bundling same-order jobs (sum duration, max priority).
+    *   Breaking bundles if no single technician has all required equipment.
+    *   Utilizing job priority to influence optimizer decisions *if* dropping jobs becomes unavoidable (though the primary goal is maximizing scheduled jobs).
+    *   Calculating travel times (Google Maps API) using real-time (today) and predictive (future) estimates.
+    *   Planning for the current day and subsequent overflow days (up to `MAX_OVERFLOW_ATTEMPTS`).
+    *   Using real-time technician location (One Step GPS) for today's start point.
+    *   Updating job statuses to `queued` (scheduled) or `pending_review` (fundamentally unschedulable/failed after max retries).
+    *   Early identification and filtering of persistently unschedulable jobs to avoid redundant planning attempts.
+    *   Generating summary logs and Google Maps direction links.
+*   **Out of Scope:**
+    *   Manual scheduling UI / adjustments post-optimization.
+    *   Real-time traffic updates *during* route execution.
+    *   Equipment quantity/capacity constraints or sequencing.
+    *   Key/consumable inventory tracking.
+    *   Dynamic replanning based on mid-day events (cancellations, delays) without re-triggering `runFullReplan`.
+    *   Cost modeling beyond travel/priority penalties.
+    *   Explicit technician skill modeling.
+
+**4. User Roles**
+
+*   **System/Operator:** Triggers `runFullReplan`, monitors logs, manages database availability records, reviews jobs flagged as `pending_review`, utilizes generated schedules/links.
+
+**5. User Experience**
+
+*   **User Personas:**
+    *   **Scheduler/Dispatcher (Operator):** Monitors the system, reviews `pending_review` jobs, potentially manages DB availability records, uses generated schedules/links for dispatch.
+*   **Key User Flows:**
+    1.  Operator triggers `runFullReplan` (e.g., nightly, on-demand).
+    2.  System fetches data, calculates availability, determines eligibility, bundles jobs.
+    3.  System plans for Today (Payload -> Optimizer -> Results -> State Update).
+    4.  System plans for Overflow Days iteratively (Availability -> Eligibility -> Payload -> Optimizer -> Results -> State Update), filtering unschedulable jobs.
+    5.  System performs final DB update (`queued` / `pending_review`).
+    6.  System generates summary logs and direction links.
+    7.  Operator reviews logs, schedules, links, and manually addresses `pending_review` jobs.
+*   **UI/UX Considerations:** (Primarily non-visual)
+    *   Logging must be clear, informative, and easily parsable for diagnosing issues.
+    *   Error messages should be actionable.
+    *   Summary output should be concise and provide necessary operational details (who, what, when, where).
+
+**6. Technical Architecture**
+
+*   **System Components:**
+    *   **Scheduler (Node.js/TypeScript - `apps/scheduler`):** Orchestrates the process, interacts with the database, calculates availability/eligibility, prepares payloads, processes results. Contains modules for: `orchestrator`, `availability`, `bundling`, `eligibility`, `payload`, `results`, `supabase` (DB interaction), `google` (Maps API), `onestepgps` (GPS API), `optimize` (Optimizer interaction).
+    *   **Optimizer (Python - `apps/optimiser`):** Receives payload via API endpoint (`/optimize-schedule`), builds and solves the VRP using Google OR-Tools, returns results.
+    *   **Database (Supabase/PostgreSQL):** Stores all persistent data (jobs, techs, availability, orders, etc.). Source of truth for availability.
+    *   **External APIs:** Google Maps (Distance Matrix), OneStepGPS.
+*   **Data Models:**
+    *   **Database:** Defined by `schema.sql` and represented by interfaces in `apps/scheduler/src/types/database.types.ts`.
+    *   **Optimization Payload/Response:** Defined by `apps/scheduler/src/types/optimization.types.ts` and `apps/optimiser/models.py`.
+*   **APIs and Integrations:**
+    *   Scheduler -> Database (Supabase client)
+    *   Scheduler -> Google Maps API (`@googlemaps/google-maps-services-js`)
+    *   Scheduler -> OneStepGPS API (`axios` or similar client in `onestepgps/client.ts`)
+    *   Scheduler -> Optimizer API (Authenticated HTTP POST via `axios` in `optimize.ts`)
+*   **Infrastructure Requirements:**
+    *   Hosting for Scheduler service (e.g., Cloud Run, VM).
+    *   Hosting for Optimizer service (e.g., Cloud Run, VM - needs Python env).
+    *   Supabase instance.
+    *   API Keys/Credentials for Google Maps, OneStepGPS, potentially service-to-service auth (OIDC used in `optimize.ts`).
+
+**7. Functional Requirements**
+
+**FR-SCHED-001: Job Ingestion**
+*   The system shall identify jobs relevant for planning: primarily those initially null ~~`pending_review`~~ or `queued`.
+*   Jobs with statuses `en_route`, `in_progress`, `fixed_time` (locked jobs) shall be considered for calculating technician availability but not actively rescheduled unless their status changes.
+
+**FR-SCHED-002: Technician Data Retrieval (Desired State)**
+*   The system **shall** fetch all currently active technicians.
+*   For each technician, the system requires their base details (ID, user_id, assigned_van_id), linked user details (name, home_address_id), linked van details (ID, location, device ID), home location coordinates (lat/lng derived from user's home address), **and all associated availability records** from `technician_default_hours` and `technician_availability_exceptions`. *(Refactoring required)*.
+
+**FR-SCHED-003: Real-time Location Integration (Today Only)**
+*   For the initial planning pass ("today"), the system shall attempt to fetch real-time technician locations via the One Step GPS integration.
+*   If real-time location is available, it shall be used as the starting location for that technician's route *for today's pass*.
+*   If real-time location is unavailable, the system shall fall back to the technician's last known location (van location from DB or home location).
+*   For overflow planning passes (future days), the system shall use the technician's default start location (home location).
+
+**FR-SCHED-004: Technician Availability Calculation (Desired State)**
+*   The system **shall** calculate daily availability windows for each technician for a given `targetDate`, considering DB records and locked jobs, using logic refactored in `@availability.ts`. *(Refactoring required)*.
+*   **Core Logic (Per Technician, Per Day):**
+    1.  Determine base availability window(s) using DB `technician_availability_exceptions` (priority) and `technician_default_hours`. Handle `is_available = false`. This may result in zero, one, or multiple distinct time windows for the day (e.g., if there's a mid-day exception).
+    2.  Convert determined window(s) start/end times into UTC ISO 8601 strings.
+*   **Today Pass (`calculateTechnicianAvailability`):**
+    *   Calculate today's base availability window(s) using the core logic.
+    *   Factor in time blocked by today's `lockedJobs` (comparing job start/end times against base windows). This may further split or shrink the available windows.
+    *   The output needs to represent **all resulting available blocks** for today and the final `current_location`. *(Refactoring required: Current logic only outputs a single `earliest_availability`)*.
+*   **Overflow Passes (`calculateAvailabilityForDay`):**
+    *   Calculate the availability window(s) for the future `targetDate` using only the core logic (DB defaults + exceptions).
+    *   The output is `TechnicianAvailability` object(s) defining the available window(s) and the start location (home). *(Refactoring required: Current logic returns only one window based on hardcoded times)*.
+
+**FR-SCHED-005: Job Bundling (Revised)**
+*   The system shall group schedulable jobs belonging to the same `order_id` using the logic in `@bundling.ts`.
+*   Multiple jobs for an order form a `JobBundle` (sum duration, max priority).
+*   Single jobs become `SchedulableJob` items.
+*   Output is a list of `SchedulableItem`s.
+
+**FR-SCHED-006: Technician Eligibility Determination (Revised)**
+*   The system shall determine eligible technicians for each `SchedulableItem` based on equipment requirements and van assignment, using logic from `@eligibility.ts`.
+*   **Process:** Fetch van equipment (`getEquipmentForVans`), determine job requirements (`getRequiredEquipmentForJob` including YMM/service lookup and generic fallback), evaluate eligibility (tech needs van, van needs all required equipment), break bundles if no single tech is eligible.
+*   **Output:** List of `SchedulableItem`s annotated with eligibility, filtered to exclude items with no eligible technicians.
+
+**FR-SCHED-007: Optimization Payload Preparation (Desired State)**
+*   The system **shall** prepare a payload for the external optimization service (`main.py`), translating all constraints into a format OR-Tools understands.
+*   The payload **shall** include:
+    *   Technicians available for the planning pass, with their **full set of availability windows** for that day (from `FR-SCHED-004`) translated into appropriate OR-Tools constraints (likely via `time_dimension.CumulVar(start/end).SetRange`).
+    *   **Representation of Unavailability Gaps:** Time periods *within* a technician's overall workday where they are unavailable (due to DB exceptions or locked jobs identified in `FR-SCHED-004`) **must be modeled as constraints**. This will likely involve creating **"dummy break" nodes/items** in the payload assigned only to that technician, with `fixedConstraints` forcing them to occur during the unavailable times. *(Refactoring required in `payload.ts` or orchestrator)*.
+    *   Eligible `SchedulableItem`s formatted as `OptimizationItem`s (duration, priority, location, eligible techs, `earliestStartTimeISO`).
+    *   Unique locations (`OptimizationLocation`).
+    *   Travel time matrix calculated via `FR-SCHED-013`.
+    *   `fixedConstraints` for **all** jobs originally marked `fixed_time` whose `fixed_schedule_time` falls **on the specific date being planned**.
+
+**FR-SCHED-008: Optimization Service Interaction**
+*   The system shall send the prepared payload to the optimization service endpoint (`/optimize-schedule`) via `optimize.ts`.
+*   The system shall receive the `OptimizationResponsePayload` (routes, unassigned items).
+
+**FR-SCHED-009: Optimization Logic (External Service)**
+*   The optimization service (`main.py`) shall use OR-Tools to solve the VRP.
+*   It shall respect technician time windows (modeled via start/end nodes and potentially dummy break nodes), job durations, and `earliestStartTimeISO`.
+*   It **shall** strictly enforce `fixedConstraints` (for real fixed jobs and dummy break/unavailability nodes).
+*   It shall enforce technician eligibility via arc costs.
+*   It shall aim to schedule all possible jobs, minimizing travel and penalties.
+*   It shall return routes with absolute ISO UTC times and `unassignedItemIds`.
+
+**FR-SCHED-010: Result Processing & State Update (Revised)**
+*   The system **shall** process the `OptimizationResponsePayload` using logic in `results.ts`.
+*   For each successfully scheduled job in the returned routes:
+    *   The job **shall** be marked internally for final update (`status: 'queued'`, assign `technicianId`, `estimated_sched`).
+    *   The job **shall** be definitively removed from the set of jobs needing further planning attempts (`jobsToPlan` or equivalent state).
+*   For jobs identified as unassigned by the optimizer OR jobs filtered out pre-optimization due to lack of eligible technicians *on that specific day*:
+    *   The system **shall** attempt to determine if the failure is persistent (e.g., equipment eligibility failure across all technicians) versus transient (e.g., lack of available time slot *on that day*).
+    *   Jobs identified as **persistently unschedulable** (e.g., due to equipment) **shall** be removed from further planning attempts and marked internally for a final `pending_review` status.
+    *   Jobs failing due to **transient constraints** (e.g., lack of time *today*) shall remain in the pool for subsequent overflow planning passes.
+    *   *(Refactoring required: Requires enhancing state management beyond a simple `jobsToPlan` set and potentially enhancing eligibility/optimizer result analysis to differentiate failure reasons)*.
+
+**FR-SCHED-011: Multi-Day Overflow Handling (Desired State - Revised)**
+*   If jobs remain eligible for planning after the "today" pass (i.e., not scheduled and not identified as persistently unschedulable), the system **shall** iteratively plan for subsequent days (Day+1, Day+2, ...) up to `MAX_OVERFLOW_ATTEMPTS`.
+*   Each overflow pass **shall only consider jobs still eligible for planning** (i.e., excluding those identified as persistently unschedulable in previous passes).
+*   Each overflow pass recalculates availability (using DB data via `FR-SCHED-004`) and eligibility (per `FR-SCHED-006`) specifically for that future day, considering only the technicians available on that day and the jobs still needing planning.
+*   The system **shall** identify jobs originally marked `fixed_time` whose constraint falls on the specific future day being planned and **include them in the `fixedConstraints` list** passed to the optimizer for that day's pass. *(Refactoring required: Current implementation in `orchestrator.ts` needs refactoring)*.
+*   The optimizer is invoked for the subset of jobs eligible for that specific future day.
+*   Results are processed according to `FR-SCHED-010`, potentially identifying more jobs as persistently unschedulable.
+
+**FR-SCHED-012: Final Database Update (Revised)**
+*   After all planning passes are complete (either all jobs scheduled/marked persistently unschedulable, or `MAX_OVERFLOW_ATTEMPTS` reached), the system **shall** perform a single bulk update.
+*   Jobs successfully assigned **shall** be updated to `status: 'queued'` with assignments.
+*   Jobs identified as **persistently unschedulable** during any pass (due to equipment, etc.) OR jobs remaining after `MAX_OVERFLOW_ATTEMPTS` **shall** be updated to `status: 'pending_review'`, indicating manual intervention is required.
+
+**FR-SCHED-013: Travel Time Calculation (Revised)**
+*   The system **shall** calculate travel times between required locations using the Google Maps Distance Matrix API (`maps.ts`).
+*   The calculation **shall** be optimized by making bulk requests (multiple origins/destinations per API call) rather than individual requests per pair. *(Refactoring required in `payload.ts`)*.
+*   For the "Today" planning pass, the calculation **shall** request real-time traffic estimates.
+*   For future "Overflow" passes, calculations **should** specify a future `departureTime` to leverage predictive traffic estimates. *(Refactoring required in `maps.ts`)*.
+*   Travel times are cached in memory.
+
+**FR-SCHED-014: Reporting & Logging (Renumbered & Revised)**
+*   The system **shall** log key steps, decisions, warnings, and errors throughout the orchestration process.
+*   The system **shall** log the final schedule details for each technician.
+*   The system **shall** log the list of jobs remaining in `pending_review` after all passes.
+*   If the optimization service or internal logic identifies specific reasons why a job was left unscheduled (e.g., dropped by optimizer due to high penalty/constraint violation, failed eligibility check), these reasons **must** be logged clearly for diagnosis.
+*   The system **shall** generate a final summary log including schedules, van equipment, unschedulable jobs (`pending_review`), and Google Maps direction links.
+
+**8. Non-Functional Requirements**
+
+*   **NFR-PERF-001:** Optimization service calls should complete within a configurable time limit (e.g., 30-60 seconds).
+*   **NFR-PERF-002:** Travel matrix calculation should be reasonably efficient. *(Consider optimizing individual API calls in `payload.ts` to bulk calls later)*.
+*   **NFR-RELY-001:** The system must handle external API failures (Google Maps, OneStepGPS, Optimizer) gracefully, logging errors and potentially completing the cycle with available data or failing cleanly.
+*   **NFR-RELY-002:** Database operations (fetching, updating) should include error handling.
+*   **NFR-RELY-003:** The final database update should be performed as a single operation or transaction if possible.
+*   **NFR-MAINT-001:** Code should be modular with clear separation of concerns.
+*   **NFR-CONFIG-001:** Key parameters like default depot location, standard work hours (UTC), overflow attempt limits, and API endpoints should be configurable via environment variables or a configuration file.
+
+**9. Data Requirements**
+
+*   **Input Data:** `jobs`, `technicians`, `users`, `addresses`, `vans`, `services`, `orders`, `customer_vehicles`, `ymm_ref`, `equipment`, `van_equipment`, `technician_default_hours`, `technician_availability_exceptions`, `*_equipment_requirements` tables, Travel Time Matrix (via Google Maps API), Real-time Locations (via OneStepGPS API).
+*   **Output Data:** Updated `jobs` table records, System Logs, Google Maps Links.
+
+**10. Key Design Decisions & Required Refactoring (Target State)**
+
+This section summarizes the target design and necessary code modifications.
+
+*   **A. Availability Source & Calculation:**
+    *   **Decision:** Must be driven by DB (`

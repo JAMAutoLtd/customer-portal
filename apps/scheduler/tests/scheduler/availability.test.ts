@@ -1,244 +1,365 @@
-import { calculateTechnicianAvailability, calculateAvailabilityForDay } from '../../src/scheduler/availability';
-import { Technician, Job, TechnicianAvailability } from '../../src/types/database.types';
-import { describe, it, expect, beforeEach, jest, test } from '@jest/globals';
+import { 
+    applyLockedJobsToWindows, 
+    formatDateToString,
+    DailyAvailabilityWindows
+} from '../../src/scheduler/availability';
+import { Technician, Job } from '../../src/types/database.types';
 
-// Mock Date
-const MOCK_WORKDAY_DATE = new Date('2024-07-23T10:00:00.000Z'); // Tuesday 10:00 AM UTC
-const MOCK_WEEKEND_DATE = new Date('2024-07-27T10:00:00.000Z'); // Saturday 10:00 AM UTC
-const MOCK_MONDAY_DATE = new Date('2024-07-29T00:00:00.000Z'); // Monday Midnight UTC
-
-// Constants for work hours (assuming UTC for simplicity in tests)
-const WORK_START_HOUR_UTC = 9;
-const WORK_END_HOUR_UTC = 18;
-const WORK_END_MINUTE_UTC = 30;
-
-describe('Scheduler Availability Logic', () => {
+describe('applyLockedJobsToWindows', () => {
+    let mockTechnician: Technician;
+    let baseWindows: DailyAvailabilityWindows;
+    let targetDate: Date;
+    let currentTimeUTC: Date;
 
     beforeEach(() => {
-        // Reset date mocks before each test using Jest
-        jest.useRealTimers();
+        // Set up a consistent test date (a Monday)
+        targetDate = new Date('2024-01-15T00:00:00Z');
+        currentTimeUTC = new Date('2024-01-15T14:30:00Z'); // 2:30 PM UTC
+
+        // Mock technician with default hours
+        mockTechnician = {
+            id: 1,
+            user_id: 'test-user-id',
+            assigned_van_id: 1,
+            workload: 0,
+            current_location: { lat: 40, lng: -74 },
+            home_location: { lat: 40, lng: -74 },
+            defaultHours: [
+                {
+                    id: 1,
+                    technician_id: 1,
+                    day_of_week: 1, // Monday
+                    start_time: '09:00:00',
+                    end_time: '18:00:00',
+                    is_available: true,
+                    created_at: '2024-01-15T00:00:00Z',
+                    updated_at: '2024-01-15T00:00:00Z'
+                }
+            ],
+            availabilityExceptions: []
+        };
+
+        // Calculate base windows for the test date
+        baseWindows = new Map();
+        const dateStr = formatDateToString(targetDate);
+        baseWindows.set(dateStr, [
+            {
+                start: new Date('2024-01-15T09:00:00Z'),
+                end: new Date('2024-01-15T18:00:00Z')
+            }
+        ]);
     });
 
-    // --- Tests for calculateTechnicianAvailability (Today's Planning) ---
-    describe('calculateTechnicianAvailability', () => {
-        const mockTech1: Technician = {
-            id: 1,
-            user_id: 'uuid1',
-            assigned_van_id: 101,
-            workload: 100,
-            current_location: { lat: 40.0, lng: -75.0 }, // Depot
-            home_location: { lat: 40.1, lng: -75.1 },
-        };
-        const mockTech2: Technician = {
-            id: 2,
-            user_id: 'uuid2',
-            assigned_van_id: 102,
-            workload: 100,
-            current_location: { lat: 40.0, lng: -75.0 }, // Depot
-            home_location: { lat: 40.2, lng: -75.2 },
-        };
+    describe('tighter timing for ongoing jobs', () => {
+        it('should apply tighter timing for in_progress job when current time is during the job', () => {
+            const inProgressJob: Job = {
+                id: 100,
+                order_id: 1,
+                assigned_technician: 1,
+                address_id: 1,
+                address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
+                priority: 1,
+                status: 'in_progress',
+                requested_time: null,
+                estimated_sched: '2024-01-15T13:00:00Z', // Started at 1 PM
+                job_duration: 120, // 2 hour job (ends at 3 PM)
+                notes: null,
+                service_id: 1,
+                fixed_assignment: false,
+                fixed_schedule_time: null,
+                technician_notes: null
+            };
 
-        it('should set availability to current time if no locked jobs and within work hours', () => {
-            jest.useFakeTimers(); // Use Jest fake timers
-            jest.setSystemTime(MOCK_WORKDAY_DATE); // Set time with Jest
-            const techs = [JSON.parse(JSON.stringify(mockTech1))]; // Deep copy
-            const lockedJobs: Job[] = [];
+            const result = applyLockedJobsToWindows(
+                new Map(baseWindows), // Create a copy
+                [inProgressJob],
+                mockTechnician.id,
+                targetDate,
+                currentTimeUTC // Current time is 2:30 PM
+            );
 
-            calculateTechnicianAvailability(techs, lockedJobs);
+            const windows = result.get(formatDateToString(targetDate));
+            expect(windows).toBeDefined();
+            expect(windows!.length).toBe(2);
 
-            const expectedStartTime = new Date(MOCK_WORKDAY_DATE);
-            expect(techs[0].earliest_availability).toBe(expectedStartTime.toISOString());
-            expect(techs[0].current_location).toEqual(mockTech1.current_location);
+            // First window: 9 AM to 2:30 PM (current time)
+            expect(windows![0].start.toISOString()).toBe('2024-01-15T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-15T14:30:00.000Z');
+
+            // Second window: 3:00 PM (30 mins after current time) to 6 PM
+            expect(windows![1].start.toISOString()).toBe('2024-01-15T15:00:00.000Z');
+            expect(windows![1].end.toISOString()).toBe('2024-01-15T18:00:00.000Z');
         });
 
-        it('should set availability based on the end time of the latest locked job', () => {
-            jest.useFakeTimers();
-            jest.setSystemTime(MOCK_WORKDAY_DATE); // 10:00 AM
-            const techs = [JSON.parse(JSON.stringify(mockTech1))]; // Deep copy
-            const lockedJob: Job = {
+        it('should use original times for jobs that haven\'t started yet', () => {
+            const futureJob: Job = {
                 id: 101,
                 order_id: 1,
                 assigned_technician: 1,
                 address_id: 1,
+                address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
+                priority: 1,
+                status: 'en_route',
+                requested_time: null,
+                estimated_sched: '2024-01-15T16:00:00Z', // Starts at 4 PM (after current time)
+                job_duration: 60, // 1 hour job
+                notes: null,
+                service_id: 1,
+                fixed_assignment: false,
+                fixed_schedule_time: null,
+                technician_notes: null
+            };
+
+            const result = applyLockedJobsToWindows(
+                new Map(baseWindows),
+                [futureJob],
+                mockTechnician.id,
+                targetDate,
+                currentTimeUTC
+            );
+
+            const windows = result.get(formatDateToString(targetDate));
+            expect(windows).toBeDefined();
+            expect(windows!.length).toBe(2);
+
+            // First window: 9 AM to 4 PM (job start)
+            expect(windows![0].start.toISOString()).toBe('2024-01-15T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-15T16:00:00.000Z');
+
+            // Second window: 5 PM (job end) to 6 PM
+            expect(windows![1].start.toISOString()).toBe('2024-01-15T17:00:00.000Z');
+            expect(windows![1].end.toISOString()).toBe('2024-01-15T18:00:00.000Z');
+        });
+
+        it('should not block any time for jobs that should have already finished', () => {
+            const pastJob: Job = {
+                id: 102,
+                order_id: 1,
+                assigned_technician: 1,
+                address_id: 1,
+                address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
                 priority: 1,
                 status: 'in_progress',
                 requested_time: null,
-                estimated_sched: '2024-07-23T09:30:00.000Z', // Started 9:30 AM
-                job_duration: 60, // 60 minutes
+                estimated_sched: '2024-01-15T10:00:00Z', // Started at 10 AM
+                job_duration: 120, // 2 hour job (should have ended at 12 PM)
                 notes: null,
-                technician_notes: null,
                 service_id: 1,
-                fixed_assignment: null,
+                fixed_assignment: false,
                 fixed_schedule_time: null,
-                address: { id: 1, street_address: '123 Main St', lat: 40.5, lng: -75.5 },
+                technician_notes: null
             };
 
-            calculateTechnicianAvailability(techs, [lockedJob]);
+            const result = applyLockedJobsToWindows(
+                new Map(baseWindows),
+                [pastJob],
+                mockTechnician.id,
+                targetDate,
+                currentTimeUTC // Current time is 2:30 PM, job should have finished at 12 PM
+            );
 
-            // Job ends at 10:30 AM (9:30 + 60 mins)
-            const expectedEndTime = new Date('2024-07-23T10:30:00.000Z');
-            expect(techs[0].earliest_availability).toBe(expectedEndTime.toISOString());
-            // Expect only the coordinates, not the full address object
-            expect(techs[0].current_location).toEqual({ lat: lockedJob.address!.lat, lng: lockedJob.address!.lng });
+            const windows = result.get(formatDateToString(targetDate));
+            expect(windows).toBeDefined();
+            expect(windows!.length).toBe(1);
+
+            // Full window remains: 9 AM to 6 PM
+            expect(windows![0].start.toISOString()).toBe('2024-01-15T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-15T18:00:00.000Z');
         });
 
-        it('should cap availability at the end of the workday if locked jobs finish late', () => {
-            jest.useFakeTimers();
-            jest.setSystemTime(MOCK_WORKDAY_DATE); // 10:00 AM
-            const techs = [JSON.parse(JSON.stringify(mockTech1))]; // Deep copy
-            const lockedJob: Job = {
-                id: 102,
-                order_id: 2,
+        it('should not apply tighter timing for future dates', () => {
+            const futureDate = new Date('2024-01-16T00:00:00Z'); // Tuesday
+            const futureDateStr = formatDateToString(futureDate);
+            
+            // Set up windows for future date
+            const futureWindows = new Map();
+            futureWindows.set(futureDateStr, [
+                {
+                    start: new Date('2024-01-16T09:00:00Z'),
+                    end: new Date('2024-01-16T18:00:00Z')
+                }
+            ]);
+
+            const futureJob: Job = {
+                id: 103,
+                order_id: 1,
                 assigned_technician: 1,
-                address_id: 2,
+                address_id: 1,
+                address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
+                priority: 1,
+                status: 'in_progress',
+                requested_time: null,
+                estimated_sched: '2024-01-16T13:00:00Z', // 1 PM tomorrow
+                job_duration: 120, // 2 hour job
+                notes: null,
+                service_id: 1,
+                fixed_assignment: false,
+                fixed_schedule_time: null,
+                technician_notes: null
+            };
+
+            const result = applyLockedJobsToWindows(
+                futureWindows,
+                [futureJob],
+                mockTechnician.id,
+                futureDate,
+                currentTimeUTC // Current time is still Jan 15
+            );
+
+            const windows = result.get(futureDateStr);
+            expect(windows).toBeDefined();
+            expect(windows!.length).toBe(2);
+
+            // Should use original times, not tighter timing
+            // First window: 9 AM to 1 PM (job start)
+            expect(windows![0].start.toISOString()).toBe('2024-01-16T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-16T13:00:00.000Z');
+
+            // Second window: 3 PM (job end) to 6 PM
+            expect(windows![1].start.toISOString()).toBe('2024-01-16T15:00:00.000Z');
+            expect(windows![1].end.toISOString()).toBe('2024-01-16T18:00:00.000Z');
+        });
+
+        it('should always use scheduled time for fixed_time jobs', () => {
+            const fixedJob: Job = {
+                id: 104,
+                order_id: 1,
+                assigned_technician: 1,
+                address_id: 1,
+                address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
                 priority: 1,
                 status: 'fixed_time',
                 requested_time: null,
                 estimated_sched: null,
-                job_duration: 120, // 120 minutes
+                job_duration: 60,
                 notes: null,
-                technician_notes: null,
                 service_id: 1,
                 fixed_assignment: true,
-                fixed_schedule_time: '2024-07-23T17:00:00.000Z', // Fixed at 5:00 PM
-                address: { id: 2, street_address: '456 Oak Ave', lat: 40.6, lng: -75.6 },
+                fixed_schedule_time: '2024-01-15T14:00:00Z', // 2 PM
+                technician_notes: null
             };
 
-            calculateTechnicianAvailability(techs, [lockedJob]);
+            const result = applyLockedJobsToWindows(
+                new Map(baseWindows),
+                [fixedJob],
+                mockTechnician.id,
+                targetDate,
+                currentTimeUTC // Current time is 2:30 PM (during the fixed job)
+            );
 
-            // Job ends at 7:00 PM (5:00 PM + 120 mins), but workday ends 6:30 PM
-            const expectedEndTime = new Date(MOCK_WORKDAY_DATE);
-            expectedEndTime.setUTCHours(WORK_END_HOUR_UTC, WORK_END_MINUTE_UTC, 0, 0);
-            expect(techs[0].earliest_availability).toBe(expectedEndTime.toISOString());
-            // Expect only the coordinates, not the full address object
-            expect(techs[0].current_location).toEqual({ lat: lockedJob.address!.lat, lng: lockedJob.address!.lng });
+            const windows = result.get(formatDateToString(targetDate));
+            expect(windows).toBeDefined();
+            expect(windows!.length).toBe(2);
+
+            // Should use fixed time, not tighter timing
+            // First window: 9 AM to 2 PM (fixed job start)
+            expect(windows![0].start.toISOString()).toBe('2024-01-15T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-15T14:00:00.000Z');
+
+            // Second window: 3 PM (fixed job end) to 6 PM
+            expect(windows![1].start.toISOString()).toBe('2024-01-15T15:00:00.000Z');
+            expect(windows![1].end.toISOString()).toBe('2024-01-15T18:00:00.000Z');
         });
-        
-        // Add more tests for calculateTechnicianAvailability: edge cases, multiple jobs, etc.
     });
 
-    // --- Tests for calculateAvailabilityForDay (Future/Overflow Planning) ---
-    describe('calculateAvailabilityForDay', () => {
-        const mockTech1: Technician = {
-            id: 1,
-            user_id: 'uuid1',
-            assigned_van_id: 101,
-            workload: 100,
-            home_location: { lat: 40.1, lng: -75.1 }, // Valid home location
-            current_location: { lat: 40.0, lng: -75.0 }, // Should be ignored
-        };
-        const mockTech2: Technician = { // Second valid tech
-            id: 2,
-            user_id: 'uuid2',
-            assigned_van_id: 102,
-            workload: 100,
-            home_location: { lat: 40.2, lng: -75.2 }, // Valid home location
-            current_location: { lat: 40.0, lng: -75.0 },
-        };
-         const mockTech3MissingHome: Technician = {
-            id: 3,
-            user_id: 'uuid3',
-            assigned_van_id: 103,
-            workload: 100,
-            home_location: undefined, // Missing home location
-            current_location: { lat: 40.0, lng: -75.0 },
-        };
-        const MOCK_SUNDAY_DATE = new Date('2024-07-28T10:00:00.000Z'); // Sunday 10:00 AM UTC
+    describe('edge cases', () => {
+        it('should handle jobs with zero remaining duration', () => {
+            // Current time is exactly at job end time
+            const exactEndTimeJob: Job = {
+                id: 105,
+                order_id: 1,
+                assigned_technician: 1,
+                address_id: 1,
+                address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
+                priority: 1,
+                status: 'in_progress',
+                requested_time: null,
+                estimated_sched: '2024-01-15T13:30:00Z', // Started at 1:30 PM
+                job_duration: 60, // 1 hour job (ends at 2:30 PM)
+                notes: null,
+                service_id: 1,
+                fixed_assignment: false,
+                fixed_schedule_time: null,
+                technician_notes: null
+            };
 
-        it('should calculate correct availability window for a weekday using home location', () => {
-            const techs = [JSON.parse(JSON.stringify(mockTech1))]; // Deep copy
-            const targetDate = MOCK_MONDAY_DATE; // Monday
+            const result = applyLockedJobsToWindows(
+                new Map(baseWindows),
+                [exactEndTimeJob],
+                mockTechnician.id,
+                targetDate,
+                currentTimeUTC // Current time is exactly 2:30 PM
+            );
 
-            const availability = calculateAvailabilityForDay(techs, targetDate);
-
-            expect(availability).toHaveLength(1);
-            const result = availability[0];
-
-            const expectedStart = new Date(targetDate);
-            expectedStart.setUTCHours(WORK_START_HOUR_UTC, 0, 0, 0);
-            const expectedEnd = new Date(targetDate);
-            expectedEnd.setUTCHours(WORK_END_HOUR_UTC, WORK_END_MINUTE_UTC, 0, 0);
-
-            expect(result.technicianId).toBe(mockTech1.id);
-            expect(result.availabilityStartTimeISO).toBe(expectedStart.toISOString());
-            expect(result.availabilityEndTimeISO).toBe(expectedEnd.toISOString());
-            expect(result.startLocation).toEqual(mockTech1.home_location);
+            const windows = result.get(formatDateToString(targetDate));
+            expect(windows).toBeDefined();
+            
+            // Since current time equals job end time, the job is considered finished
+            // and doesn't block any time, so the full window remains
+            expect(windows!.length).toBe(1);
+            
+            // Full window remains: 9 AM to 6 PM
+            expect(windows![0].start.toISOString()).toBe('2024-01-15T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-15T18:00:00.000Z');
         });
 
-        it('should return an empty array for a Saturday date', () => {
-             const techs = [JSON.parse(JSON.stringify(mockTech1))]; // Deep copy
-             const targetDate = MOCK_WEEKEND_DATE; // Saturday
-
-             const availability = calculateAvailabilityForDay(techs, targetDate);
-
-             expect(availability).toHaveLength(0);
-        });
-
-        it('should return an empty array for a Sunday date', () => {
-            const techs = [JSON.parse(JSON.stringify(mockTech1))]; // Deep copy
-            const targetDate = MOCK_SUNDAY_DATE; // Sunday
-
-            const availability = calculateAvailabilityForDay(techs, targetDate);
-
-            expect(availability).toHaveLength(0);
-        });
-
-        it('should calculate availability for multiple valid technicians', () => {
-            const techs = [
-                JSON.parse(JSON.stringify(mockTech1)),
-                JSON.parse(JSON.stringify(mockTech2))
+        it('should handle multiple overlapping jobs correctly', () => {
+            const jobs: Job[] = [
+                {
+                    id: 106,
+                    order_id: 1,
+                    assigned_technician: 1,
+                    address_id: 1,
+                    address: { id: 1, street_address: '123 Main St', lat: 40, lng: -74 },
+                    priority: 1,
+                    status: 'in_progress',
+                    requested_time: null,
+                    estimated_sched: '2024-01-15T13:00:00Z',
+                    job_duration: 120, // Ends at 3 PM
+                    notes: null,
+                    service_id: 1,
+                    fixed_assignment: false,
+                    fixed_schedule_time: null,
+                    technician_notes: null
+                },
+                {
+                    id: 107,
+                    order_id: 2,
+                    assigned_technician: 1,
+                    address_id: 2,
+                    address: { id: 2, street_address: '456 Oak St', lat: 40, lng: -74 },
+                    priority: 1,
+                    status: 'en_route',
+                    requested_time: null,
+                    estimated_sched: '2024-01-15T15:00:00Z',
+                    job_duration: 60, // Ends at 4 PM
+                    notes: null,
+                    service_id: 1,
+                    fixed_assignment: false,
+                    fixed_schedule_time: null,
+                    technician_notes: null
+                }
             ];
-            const targetDate = MOCK_MONDAY_DATE; // Monday
 
-            const availability = calculateAvailabilityForDay(techs, targetDate);
+            const result = applyLockedJobsToWindows(
+                new Map(baseWindows),
+                jobs,
+                mockTechnician.id,
+                targetDate,
+                currentTimeUTC
+            );
 
-            expect(availability).toHaveLength(2);
+            const windows = result.get(formatDateToString(targetDate));
+            expect(windows).toBeDefined();
+            expect(windows!.length).toBe(2);
 
-            const expectedStart = new Date(targetDate);
-            expectedStart.setUTCHours(WORK_START_HOUR_UTC, 0, 0, 0);
-            const expectedEnd = new Date(targetDate);
-            expectedEnd.setUTCHours(WORK_END_HOUR_UTC, WORK_END_MINUTE_UTC, 0, 0);
+            // First window: 9 AM to 2:30 PM (current time)
+            expect(windows![0].start.toISOString()).toBe('2024-01-15T09:00:00.000Z');
+            expect(windows![0].end.toISOString()).toBe('2024-01-15T14:30:00.000Z');
 
-            // Check Tech 1
-            const result1 = availability.find(a => a.technicianId === mockTech1.id);
-            expect(result1).toBeDefined();
-            expect(result1?.availabilityStartTimeISO).toBe(expectedStart.toISOString());
-            expect(result1?.availabilityEndTimeISO).toBe(expectedEnd.toISOString());
-            expect(result1?.startLocation).toEqual(mockTech1.home_location);
-
-            // Check Tech 2
-            const result2 = availability.find(a => a.technicianId === mockTech2.id);
-            expect(result2).toBeDefined();
-            expect(result2?.availabilityStartTimeISO).toBe(expectedStart.toISOString());
-            expect(result2?.availabilityEndTimeISO).toBe(expectedEnd.toISOString());
-            expect(result2?.startLocation).toEqual(mockTech2.home_location);
+            // Second window: 4 PM (after both jobs) to 6 PM
+            expect(windows![1].start.toISOString()).toBe('2024-01-15T16:00:00.000Z');
+            expect(windows![1].end.toISOString()).toBe('2024-01-15T18:00:00.000Z');
         });
-
-        it('should skip technicians with missing home locations', () => {
-             const techs = [
-                 JSON.parse(JSON.stringify(mockTech1)),
-                 JSON.parse(JSON.stringify(mockTech3MissingHome))
-             ];
-             const targetDate = MOCK_MONDAY_DATE; // Monday
-
-             const availability = calculateAvailabilityForDay(techs, targetDate);
-
-             expect(availability).toHaveLength(1); // Only tech1 should be included
-             expect(availability[0].technicianId).toBe(mockTech1.id);
-        });
-        
-        it('should return an empty array if all technicians are missing home locations', () => {
-            const techs = [
-                JSON.parse(JSON.stringify(mockTech3MissingHome))
-            ];
-            const targetDate = MOCK_MONDAY_DATE; // Monday
-
-            const availability = calculateAvailabilityForDay(techs, targetDate);
-
-            expect(availability).toHaveLength(0);
-        });
-
-        // Note: Holiday checking is assumed to be handled by external configuration/DB,
-        // treating holidays like weekends, so no specific holiday test needed here.
     });
 }); 

@@ -25,13 +25,23 @@ class OptimizationItem(BaseModel):
     durationSeconds: int    # Service duration in seconds
     priority: int
     eligibleTechnicianIds: List[int] # List of tech IDs who can perform this item
+    earliestStartTimeISO: Optional[str] = None
+    isFixedTime: Optional[bool] = None
+    fixedTimeISO: Optional[str] = None
 
 class OptimizationFixedConstraint(BaseModel):
     itemId: str             # ID of the OptimizationItem this applies to
     fixedTimeISO: str       # ISO 8601 string for the mandatory start time
+    assignedTechnicianId: int # Tech assigned to this fixed job
+    durationSeconds: int    # Duration of the fixed job
 
 # Type alias for the nested dictionary structure
 TravelTimeMatrix = Dict[int, Dict[int, int]]
+
+class TechnicianUnavailabilityModel(BaseModel):
+    technicianId: int
+    startTimeISO: str       # ISO 8601 string for unavailability start
+    durationSeconds: int    # Duration of unavailability in seconds
 
 class OptimizationRequestPayload(BaseModel):
     locations: List[OptimizationLocation]
@@ -39,6 +49,7 @@ class OptimizationRequestPayload(BaseModel):
     items: List[OptimizationItem]
     fixedConstraints: List[OptimizationFixedConstraint]
     travelTimeMatrix: TravelTimeMatrix
+    technicianUnavailabilities: Optional[List[TechnicianUnavailabilityModel]] = None
 
 # --- Response Payload Models ---
 

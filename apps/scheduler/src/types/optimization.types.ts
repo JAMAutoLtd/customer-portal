@@ -33,6 +33,10 @@ export interface OptimizationItem {
   priority: number;
   eligibleTechnicianIds: number[]; // List of tech IDs who can perform this item
   earliestStartTimeISO?: string; // Optional: Earliest time the item can start (ISO 8601)
+  /** Optional: ISO 8601 string for the mandatory start time if this item is fixed. */
+  fixedTimeISO?: string;
+  /** Optional: True if this item represents a fixed-time job. */
+  isFixedTime?: boolean;
 }
 
 /**
@@ -41,6 +45,8 @@ export interface OptimizationItem {
 export interface OptimizationFixedConstraint {
     itemId: string; // ID of the OptimizationItem this applies to
     fixedTimeISO: string; // ISO 8601 string for the mandatory start time
+    assignedTechnicianId: number; // Tech assigned to this fixed job
+    durationSeconds: number; // Duration of the fixed job
 }
 
 /**
@@ -54,6 +60,15 @@ export type TravelTimeMatrix = {
 };
 
 /**
+ * Represents a period of unavailability for a technician.
+ */
+export interface TechnicianUnavailability {
+  technicianId: number;
+  startTimeISO: string;       // ISO 8601 string for unavailability start
+  durationSeconds: number;    // Duration of unavailability in seconds
+}
+
+/**
  * The complete request payload sent to the Python optimization microservice.
  */
 export interface OptimizationRequestPayload {
@@ -62,6 +77,7 @@ export interface OptimizationRequestPayload {
   items: OptimizationItem[];
   fixedConstraints: OptimizationFixedConstraint[];
   travelTimeMatrix: TravelTimeMatrix;
+  technicianUnavailabilities?: TechnicianUnavailability[]; // NEW FIELD - Optional
 }
 
 // ----- Types defining the response FROM the Python optimization microservice -----

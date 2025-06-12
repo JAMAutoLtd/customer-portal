@@ -281,66 +281,30 @@ This document describes the PostgreSQL database schema used by the dynamic job s
 - Provides consistent vehicle identification for linking services to required equipment.
 - Used by all `*_equipment_requirements` tables.
 
-## 16. Equipment Requirements Tables
+## 16. Equipment Requirements (`public.equipment_requirements`)
 
-**Purpose:** These tables define the specific equipment required for a given service on a specific vehicle type (identified by `ymm_id`). The scheduler uses the job\'s `service_category` to determine which table to query.
-
-### ADAS Equipment Requirements (`public.adas_equipment_requirements`)
+**Purpose:** This unified table defines the specific equipment required for a given service on a specific vehicle type (identified by `ymm_id`). It replaces the previous category-specific tables for simplified querying and maintenance.
 
 **Fields:**
 
--   **`id`** (`int`, PK, sequence: `adas_equipment_data_id_seq`)
+-   **`id`** (`int`, PK, sequence: `equipment_requirements_id_seq`)
 -   **`ymm_id`** (`int`, NOT NULL, FK → `ymm_ref.ymm_id`)
 -   **`service_id`** (`int`, NOT NULL, FK → `services.id`)
--   **`equipment_model`** (`varchar(100)`, NOT NULL) - Specific model name required (from `equipment.model`).
--   **`has_adas_service`** (`boolean`, NOT NULL, default: `false`) - Indicates if the service is specifically ADAS-related (used for filtering?).
--   **Unique Constraint:** On (`ymm_id`, `service_id`).
+-   **`equipment_model`** (`text`, NOT NULL) - Specific model name required (e.g., 'AUTEL-CSC0602/01', 'prog', 'immo', 'airbag', 'diag').
+-   **Unique Constraint:** On (`ymm_id`, `service_id`, `equipment_model`) - Allows multiple equipment requirements per service/vehicle combination.
+-   **Indexes:**
+    -   `idx_equipment_requirements_ymm_service` on (`ymm_id`, `service_id`)
+    -   `idx_equipment_requirements_model` on (`equipment_model`)
 
-### Programming Equipment Requirements (`public.prog_equipment_requirements`)
+**Key Points**
 
-**Fields:**
-
--   **`id`** (`int`, PK, sequence: `prog_equipment_requirements_id_seq`)
--   **`ymm_id`** (`int`, NOT NULL, FK → `ymm_ref.ymm_id`)
--   **`service_id`** (`int`, NOT NULL, FK → `services.id`)
--   **`equipment_model`** (`text`, NOT NULL, default: \'\'prog\'\') - Usually the generic category name.
--   **Unique Constraint:** On (`ymm_id`, `service_id`).
-
-### Immobilizer Equipment Requirements (`public.immo_equipment_requirements`)
-
-**Fields:**
-
--   **`id`** (`int`, PK, default: `nextval(\'adas_equipment_data_id_seq\'::regclass)`) - *Note: Uses ADAS sequence based on schema dump.*\
--   **`ymm_id`** (`int`, NOT NULL, FK → `ymm_ref.ymm_id`)
--   **`service_id`** (`int`, NOT NULL, FK → `services.id`)
--   **`equipment_model`** (`text`, NOT NULL, default: \'\'immo\'\')
--   **Unique Constraint:** On (`ymm_id`, `service_id`).
-
-### Airbag Equipment Requirements (`public.airbag_equipment_requirements`)
-
-**Fields:**
-
--   **`id`** (`int`, PK, default: `nextval(\'adas_equipment_data_id_seq\'::regclass)`) - *Note: Uses ADAS sequence based on schema dump.*\
--   **`ymm_id`** (`int`, NOT NULL, FK → `ymm_ref.ymm_id`)
--   **`service_id`** (`int`, NOT NULL, FK → `services.id`)
--   **`equipment_model`** (`text`, NOT NULL, default: \'\'airbag\'\')
--   **Unique Constraint:** On (`ymm_id`, `service_id`).
-
-### Diagnostic Equipment Requirements (`public.diag_equipment_requirements`)
-
-**Fields:**
-
--   **`id`** (`int`, PK, sequence: `diag_equipment_requirements_id_seq`)
--   **`ymm_id`** (`int`, NOT NULL, FK → `ymm_ref.ymm_id`)
--   **`service_id`** (`int`, NOT NULL, FK → `services.id`)
--   **`equipment_model`** (`text`, NOT NULL, default: \'\'diag\'\')
--   **Unique Constraint:** On (`ymm_id`, `service_id`).
-
-**Key Points for All Equipment Requirement Tables**
-
-- Link specific vehicles (via YMM) and services to the required equipment (by model name or category).
+- Links specific vehicles (via YMM) and services to the required equipment (by model name or category).
 - Crucial for the scheduler's eligibility checks (`apps/scheduler/src/scheduler/eligibility.ts`).
 - Helps determine if a specific van (via `van_equipment`) has the right gear for a job.
+- Allows services to require multiple pieces of equipment through the unique constraint structure.
+- Simplifies the scheduler code by eliminating the need to query different tables based on service category.
+
+**Migration Note:** The previous category-specific tables (`adas_equipment_requirements`, `prog_equipment_requirements`, `immo_equipment_requirements`, `airbag_equipment_requirements`, `diag_equipment_requirements`) have been consolidated into this single table. See `/apps/web/src/db/migrations/002_unify_equipment_requirements.sql` for migration details.
 
 ## 17. Technician Availability Tables (Not Yet Used by Scheduler)
 

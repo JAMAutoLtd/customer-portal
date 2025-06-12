@@ -1,0 +1,92 @@
+**Product Requirements Document: Scheduler Availability Pre-Checks**
+
+**Version:** 1.0
+**Date:** 2024-08-01
+**Author:** AI Assistant (Gemini)
+
+**1. Introduction & Overview**
+
+*   **Problem:** The current `runFullReplan` function in the scheduler (`apps/scheduler/src/scheduler/orchestrator.ts`) prepares and sends optimization payloads to the optimizer service even on days when no technicians have any scheduled availability (e.g., weekends, holidays with no exceptions). This results in unnecessary processing, API calls, and optimizer runtime attempting to solve inherently impossible problems, ultimately leading to a "No solution found" error from the optimizer for that day.
+*   **Solution:** Implement pre-checks within the orchestrator logic to determine if *any* technicians have calculated availability windows for a given planning day *before* proceeding with computationally expensive steps like eligibility determination, payload generation, and calling the optimization service for that day.
+*   **Target Users:** System Operators (indirectly, through more efficient processing and clearer logs), Developers (maintaining the system).
+*   **Value:** Improve overall efficiency of the replan cycle by skipping futile work, reduce unnecessary load on the optimization service, provide clearer logging about why a particular day was skipped, and potentially speed up the process by avoiding optimizer timeouts on impossible days.
+
+**2. Goals**
+
+*   Prevent the scheduler from calling the optimization service for a specific planning day (today or an overflow day) if zero technicians have any calculated availability windows for that day.
+*   Ensure that jobs pending planning are correctly marked with a transient failure (`failed_transient` with reason `NO_TECHNICIAN_AVAILABILITY`) when a planning day is skipped due to lack of overall technician availability.
+*   Maintain the existing logic for handling *individual* technician unavailability via the "narrow time window" approach within the optimizer payload when *some* technicians *are* available.
+*   Improve logging clarity by explicitly stating when a planning pass is skipped due to lack of availability.
+
+**3. Scope**
+
+*   **In Scope:**
+    *   Modifying `apps/scheduler/src/scheduler/orchestrator.ts`.
+    *   Adding logic to check for the existence of any availability windows across all relevant technicians before starting the main processing for Pass 1 (Today).
+    *   Adding similar logic inside the `while` loop for Overflow Passes (Pass 2+).
+    *   Implementing state updates (`jobStates` map) for pending/transient jobs when a pass is skipped.
+    *   Adding relevant logging messages.
+    *   Importing necessary types (e.g., `TimeWindow`) if required.
+*   **Out of Scope:**
+    *   Changing the core availability calculation logic in `availability.ts`.
+    *   Changing the eligibility determination logic in `eligibility.ts`.
+    *   Changing the payload generation logic in `payload.ts` (other than potentially importing types if needed by the orchestrator).
+    *   Changing the optimizer service (`apps/optimiser/main.py`).
+    *   Changing how database availability records (`technician_default_hours`, `technician_availability_exceptions`) are managed.
+
+**4. Functional Requirements**
+
+**FR-ORCH-SKIP-001: Pre-Check Availability for Today Pass**
+*   Before executing the main logic for Pass 1 (Today planning), the system **shall** determine if at least one technician in the `allTechnicians` list has one or more calculated `TimeWindow` entries for the current date, after considering default hours, exceptions, and `lockedJobsToday`.
+
+**FR-ORCH-SKIP-002: Skip Today Pass If No Availability**
+*   If FR-ORCH-SKIP-001 determines that zero technicians have availability for today, the system **shall** skip the following steps for Pass 1: eligibility determination, payload preparation, and calling the optimization service.
+
+**FR-ORCH-SKIP-003: Update Job States When Skipping Today Pass**
+*   If Pass 1 is skipped due to FR-ORCH-SKIP-002, the system **shall** iterate through the `jobStates` map. For each job currently in a `pending` or `failed_transient` state, it **shall**:
+    *   Add a new `SchedulingAttempt` to the job's state indicating failure for today's date with `FailureReason.NO_TECHNICIAN_AVAILABILITY`.
+    *   Update the job's `lastStatus` to `failed_transient`.
+    *   Log this state update clearly.
+
+**FR-ORCH-SKIP-004: Pre-Check Availability for Overflow Passes**
+*   Inside the `while` loop for Overflow Passes (Pass 2+), after calculating the `currentPlanningDate` and fetching `techsForLoop`, the system **shall** determine if at least one technician in `techsForLoop` has one or more calculated `TimeWindow` entries for the `currentPlanningDate` (considering only default hours and exceptions, as locked jobs are not relevant for future days).
+
+**FR-ORCH-SKIP-005: Skip Overflow Pass If No Availability**
+*   If FR-ORCH-SKIP-004 determines that zero technicians have availability for the `currentPlanningDate`, the system **shall** skip the remaining steps within the current `while` loop iteration (eligibility, payload, optimization call) and `continue` to the next iteration (next overflow day).
+
+**FR-ORCH-SKIP-006: Update Job States When Skipping Overflow Pass**
+*   If an Overflow Pass iteration is skipped due to FR-ORCH-SKIP-005, the system **shall** iterate through the `jobStates` map. For each job currently in a `pending` or `failed_transient` state, it **shall**:
+    *   Add a new `SchedulingAttempt` to the job's state indicating failure for the `currentPlanningDate` with `FailureReason.NO_TECHNICIAN_AVAILABILITY`.
+    *   Update the job's `lastStatus` to `failed_transient`.
+    *   Log this state update clearly.
+
+**5. Technical Implementation Details**
+
+*   **File:** `apps/scheduler/src/scheduler/orchestrator.ts`
+*   **Pass 1 Check:**
+    *   Implement logic before the main `if` block for Pass 1.
+    *   Loop through `allTechnicians`.
+    *   For each tech, call `calculateWindowsForTechnician` and `applyLockedJobsToWindows` (using `lockedJobsToday`) to get the final windows for today.
+    *   Check if `windows.length > 0`. Set a boolean flag (`isAnyTechAvailableToday`) and break if true.
+    *   Modify the main `if` condition to include `&& isAnyTechAvailableToday`.
+    *   Add an `else` block for the `!isAnyTechAvailableToday` case, containing the skip logic and job state updates (as per FR-ORCH-SKIP-003).
+*   **Overflow Pass Check:**
+    *   Modify the existing availability check logic inside the `while` loop (around line 615 in the last reviewed version).
+    *   Ensure it loops through `techsForLoop`, calls `calculateWindowsForTechnician` (no locked jobs needed here), and checks `windows.length > 0`.
+    *   Ensure the subsequent `if (!isAnyTechAvailable)` block contains the correct job state update logic (as per FR-ORCH-SKIP-006) before the `continue` statement.
+*   **Imports:** Ensure `TimeWindow`, `applyLockedJobsToWindows`, and `DailyAvailabilityWindows` are imported from `./availability`.
+
+**6. Non-Functional Requirements (Impact)**
+
+*   **Performance:** Expected to improve overall `runFullReplan` performance, especially on weekends or holidays, by avoiding unnecessary computations and external API calls.
+*   **Reliability:** No negative impact expected. Should improve clarity of outcomes.
+*   **Maintainability:** Code changes should be localized to the orchestrator and clearly commented.
+
+**7. Acceptance Criteria**
+
+*   When `runFullReplan` is executed on a day where database records indicate zero technician availability (e.g., a Saturday with no default hours or exceptions), the logs should show Pass 1 being skipped with the reason "No technicians have availability windows for today".
+*   In the above scenario, jobs that were initially `queued` should have their state updated internally to `failed_transient` with the reason `NO_TECHNICIAN_AVAILABILITY` for that date.
+*   When `runFullReplan` proceeds to overflow days, if it encounters a future date where no technicians have availability, the logs should show that specific overflow pass being skipped with the reason "No technicians have availability windows for [date]".
+*   In the above overflow scenario, jobs still pending planning should have their state updated internally to `failed_transient` with the reason `NO_TECHNICIAN_AVAILABILITY` for that future date.
+*   On days where *some* technicians are available but others are not, the system should still proceed with planning, and the unavailable technicians should be handled by the optimizer receiving the "narrow time window" payload (existing logic).
+*   The final database update should correctly reflect the final status (`queued` or `pending_review`) based on the outcomes of the executed planning passes and the state updates performed during skipped passes. 

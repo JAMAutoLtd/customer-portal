@@ -1,0 +1,96 @@
+# Product Requirements Document: Enhanced Scheduler & Optimizer Logging
+
+**Version:** 1.0
+**Date:** 2025-05-01
+
+## 1. Overview
+
+*   **Problem:** Diagnosing complex scheduling failures, particularly those involving multi-day overflow logic and the interaction between the Node.js scheduler and the Python optimizer, is currently difficult due to insufficient detailed logging. Specifically, understanding why the optimizer might return "No solution found" or why the scheduler might terminate unexpectedly requires more granular insight into the data and decisions at each step.
+*   **Solution:** Implement enhanced, contextual logging within both the `apps/scheduler` and `apps/optimiser` services to provide a clearer trace of the data flow, constraint application, internal calculations, and results processing.
+*   **Target Users:** Developers (debugging), System Operators (monitoring, initial troubleshooting).
+*   **Value:** Significantly reduce debugging time for scheduling issues, improve understanding of the system's behavior under various conditions, provide clearer evidence for identifying root causes (e.g., data issues vs. logic bugs vs. optimizer limitations).
+
+## 2. Core Features (Logging Enhancements)
+
+This PRD defines the requirements for adding specific log points to aid diagnostics. Log messages should be clear and include relevant context (e.g., technician IDs, job IDs, dates, relevant data values). Appropriate log levels (e.g., DEBUG, INFO, WARN, ERROR) should be used.
+
+1.  **FEAT-LOG-001: Optimizer Payload Receipt Details (`apps/optimiser`)**
+    *   **Requirement:** Log key details of the incoming `/optimize-schedule` request payload upon receipt.
+    *   **Details:** Log technician count, item count, number of fixed constraints. Explicitly log the received time windows (`earliestStartTimeISO`, `latestEndTimeISO`) for each technician and the details (`itemId`, `fixedTimeISO`) for each fixed constraint.
+    *   **Rationale:** Confirms the optimizer is receiving the constraints intended by the scheduler.
+2.  **FEAT-LOG-002: Optimizer Constraint Application (`apps/optimiser`)**
+    *   **Requirement:** Log the specific time ranges and fixed times being applied within the OR-Tools model.
+    *   **Details:** When setting time dimension ranges (`SetRange`) for technician start/end nodes and applying fixed constraints for items/breaks, log the vehicle index/item ID, node index, and the calculated start/end times (relative to the planning epoch) being applied.
+    *   **Rationale:** Verifies correct translation of ISO times and durations into the solver's relative time model, especially for availability gaps (dummy breaks).
+3.  **FEAT-LOG-003: Optimizer Raw Solver Status (`apps/optimiser`)**
+    *   **Requirement:** Log the raw status code returned by the OR-Tools solver (`routing.status()`) immediately after `routing.SolveWithParameters()` completes.
+    *   **Details:** Log the integer status code provided by OR-Tools.
+    *   **Rationale:** Provides more specific OR-Tools failure reasons (e.g., INFEASIBLE, FAIL) beyond the application's mapped `error`/`no solution` status.
+4.  **FEAT-LOG-004: Scheduler Availability Calculation (`apps/scheduler`)**
+    *   **Requirement:** Log the results of availability window calculations.
+    *   **Details:** In `availability.ts`, log the calculated `TimeWindow[]` for a technician/date *after* applying DB defaults/exceptions (`calculateWindowsForTechnician`) and *after* applying locked jobs (`applyLockedJobsToWindows`). Logs should clearly identify the technician ID and date.
+    *   **Rationale:** Makes the core availability calculation transparent, showing the impact of defaults, exceptions, and locked jobs.
+5.  **FEAT-LOG-005: Scheduler Payload Generation (`apps/scheduler`)**
+    *   **Requirement:** Log key inputs and outputs during optimization payload preparation.
+    *   **Details:** In `payload.ts`, log the identified availability gaps (`findAvailabilityGaps`), the generated dummy break items/constraints, and a summary of the final payload object being sent (counts, technician windows, item IDs/priorities, fixed constraints). *Avoid logging the full travel matrix.*
+    *   **Rationale:** Confirms correct gap identification, dummy constraint generation, and the final data being sent to the optimizer for a specific planning day.
+6.  **FEAT-LOG-006: Scheduler Orchestration Steps (`apps/scheduler`)**
+    *   **Requirement:** Add detailed logging for the `runFullReplan` overflow loop and result processing.
+    *   **Details:** In `orchestrator.ts`, log the `targetDate` at the start of each overflow pass. Log clearly when skipping the optimizer call (and why). Log the *full raw `OptimizationResponsePayload`* received from `callOptimizationService` *before* processing. Log the specific `jobId` and `FailureReason` when updating `jobStates` after processing results.
+    *   **Rationale:** Provides a clear step-by-step trace of the multi-day planning process, showing exactly what response was received and how it affected the internal state of each job.
+7.  **FEAT-LOG-007: Scheduler Result Processing (`apps/scheduler`)**
+    *   **Requirement:** Log key information at the start of result processing.
+    *   **Details:** In `results.ts`, at the beginning of `processOptimizationResults`, log the incoming `response.status` and `response.message` from the optimizer. Log the number of routes and unassigned items received. Log clearly when throwing an error due to a non-success status.
+    *   **Rationale:** Confirms the status received from the optimizer before processing begins and clarifies the reason for thrown errors.
+
+## 3. User Experience
+
+*   **Developer/Operator:** The primary change is the availability of more detailed logs (likely at the DEBUG level) within the standard log output (e.g., `docker logs` or Cloud Logging).
+*   **Debugging Flow:** When investigating a scheduling failure:
+    1.  Review scheduler logs for the overall flow, identifying the planning day and step where failure occurred.
+    2.  Examine detailed logs for `orchestrator`, `payload`, and `availability` around the failure point to see the data being used.
+    3.  Correlate timestamps with optimizer logs.
+    4.  Review optimizer logs for payload receipt details, constraint application, and raw solver status for the relevant planning day.
+*   **Log Clarity:** Logs should include timestamps, log levels, and sufficient context (function names, relevant IDs, dates) to be easily understandable and filterable.
+
+## 4. Technical Architecture
+
+*   **Affected Components:**
+    *   `apps/scheduler` (Node.js/TypeScript)
+    *   `apps/optimiser` (Python/FastAPI)
+*   **Logging Libraries:**
+    *   Scheduler: Use the existing `pino`-based `logger` utility (`apps/scheduler/src/utils/logger.ts`). Implement new logs primarily at the `DEBUG` level.
+    *   Optimizer: Use standard Python `logging` library, configured by FastAPI/Uvicorn. Implement new logs primarily at the `INFO` or `DEBUG` level.
+*   **Data/APIs:** No changes to data models or API request/response structures. Changes only affect log output.
+*   **Infrastructure:** No direct changes. Assumes logs are captured via standard container output (e.g., Docker logs, Cloud Logging).
+
+## 5. Development Roadmap
+
+*   **Phase 1: Implementation**
+    *   Modify `apps/optimiser/main.py` to add logging for payload details, constraint application, and raw solver status (FEAT-LOG-001, FEAT-LOG-002, FEAT-LOG-003).
+    *   Modify `apps/scheduler/src/scheduler/availability.ts` to log calculated time windows (FEAT-LOG-004).
+    *   Modify `apps/scheduler/src/scheduler/payload.ts` to log gap findings, dummy breaks, and payload summary (FEAT-LOG-005).
+    *   Modify `apps/scheduler/src/scheduler/results.ts` to log incoming optimizer status/counts and error conditions (FEAT-LOG-007).
+    *   Modify `apps/scheduler/src/scheduler/orchestrator.ts` to log overflow steps, raw optimizer response, and state update reasons (FEAT-LOG-006).
+*   **Phase 2: Testing & Validation**
+    *   Run existing integration tests (especially `availability_overflow_skip_day`) and manually inspect the newly generated scheduler and optimizer logs (`debug/` folder) to verify the added context is present and helpful.
+    *   Verify log levels allow for appropriate filtering (e.g., INFO for standard flow, DEBUG for detailed diagnostics).
+
+## 6. Logical Dependency Chain
+
+*   Optimizer logging enhancements (Phase 1a) can be done independently.
+*   Scheduler logging enhancements (Phase 1b) can be done independently.
+*   Testing (Phase 2) depends on the implementation completion (Phase 1).
+
+## 7. Risks and Mitigations
+
+*   **Excessive Log Volume/Cost:** Adding significant DEBUG logging could increase log storage costs and make finding relevant information harder in production.
+    *   **Mitigation:** Use DEBUG level for highly detailed logs. Ensure production environments can configure log levels (e.g., default to INFO, enable DEBUG only for troubleshooting). Avoid logging extremely large objects (like full travel matrices) unless absolutely necessary for specific debug scenarios.
+*   **Performance Impact:** Intensive logging (especially complex object serialization) could slightly impact application performance.
+    *   **Mitigation:** Use efficient logging libraries. Avoid complex data manipulation *within* log statements. Log summaries where appropriate. Primarily target DEBUG level for intensive logs.
+*   **Incorrect/Misleading Logs:** Bugs in the logging implementation could provide false information.
+    *   **Mitigation:** Code review and validation during testing (Phase 2).
+
+## 8. Appendix
+
+*   N/A 

@@ -32,7 +32,7 @@ The system components interact in the following primary ways:
 
 3.  **Scheduling Process (Scheduler -> External APIs & Supabase):**
     *   The `apps/scheduler` service (`scheduler-node`) orchestrates the main logic:
-        *   Fetches relevant data (technicians, jobs, equipment requirements) from **Supabase** (using the Service Role Key).
+        *   Fetches relevant data (technicians including DB availability, jobs, equipment requirements) from **Supabase** (using the Service Role Key).
         *   Fetches real-time technician locations from the **One Step GPS API** (`/device-info` endpoint).
         *   Calculates travel times between locations using the **Google Maps Distance Matrix API**.
         *   Prepares an optimization payload defining the VRP.
