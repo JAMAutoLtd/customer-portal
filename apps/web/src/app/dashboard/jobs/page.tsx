@@ -8,8 +8,36 @@ import { Loader } from '@/components/ui/Loader'
 import { QueuedJobs } from '@/components/jobs/QueuedJobs'
 import { PendingJobs } from '@/components/jobs/PendingJobs'
 
+function usePendingJobsCount() {
+  const [count, setCount] = useState<number>(0)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchPendingJobsCount = async () => {
+      try {
+        const response = await fetch('/api/jobs/pending/count')
+        if (!response.ok) {
+          throw new Error('Failed to fetch pending jobs count')
+        }
+        const { count: pendingCount } = await response.json()
+        setCount(pendingCount)
+      } catch (error) {
+        console.error('Error fetching pending jobs count:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPendingJobsCount()
+  }, [])
+
+  return { count, isLoading }
+}
+
 export default function TechnicianJobs() {
   const { user, userProfile, loading } = useAuth()
+  const { count: pendingJobsCount, isLoading: countLoading } =
+    usePendingJobsCount()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
 
@@ -42,7 +70,14 @@ export default function TechnicianJobs() {
       <Tabs defaultValue="queued" className="w-full">
         <TabsList className="mb-6">
           <TabsTrigger value="queued">Queued</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="pending" className="relative">
+            Pending
+            {!countLoading && pendingJobsCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full h-4 px-1 flex items-center justify-center min-w-4">
+                {pendingJobsCount > 99 ? '99+' : pendingJobsCount}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="queued">
