@@ -1,3 +1,7 @@
+# Substitution variables for optimizer service configuration
+substitutions:
+  _LOG_LEVEL: 'INFO'
+
 steps:
   # Build the Docker image for the Python optimiser service
   # trigger
@@ -34,11 +38,12 @@ steps:
         '--image=us-west1-docker.pkg.dev/$PROJECT_ID/optimize-service/optimize-service-python:$COMMIT_SHA',
         '--platform=managed',
         '--port=8080',
-        '--no-allow-unauthenticated' # Require authentication
-        # Add other deployment flags (cpu, memory, min/max instances) if needed, matching previous manual deployment
-        # --cpu=1
-        # --memory=512Mi
-        # --max-instances=5
+        '--no-allow-unauthenticated', # Require authentication (keep existing)
+        '--cpu=1',
+        '--memory=1Gi',
+        '--max-instances=10',
+        '--timeout=3600', # 1 hour for long optimization runs
+        '--set-env-vars=LOG_LEVEL=$_LOG_LEVEL'
       ]
 
 images:
