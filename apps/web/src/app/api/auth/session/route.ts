@@ -37,10 +37,22 @@ export async function GET() {
       )
     }
 
+    // Check if user is a technician
+    const { data: technicianData } = await supabase
+      .from('technicians')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+
+    const isTechnician = !!technicianData
+
     return NextResponse.json(
       {
         user,
-        userProfile: userData,
+        userProfile: {
+          ...userData,
+          isTechnician,
+        },
       },
       { status: 200 },
     )

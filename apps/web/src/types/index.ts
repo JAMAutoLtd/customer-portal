@@ -56,6 +56,7 @@ export type UserProfile = {
   is_admin: boolean
   customer_type: CustomerType
   email?: string
+  isTechnician?: boolean
 }
 
 export enum CustomerType {
