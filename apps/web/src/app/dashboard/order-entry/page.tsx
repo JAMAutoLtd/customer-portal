@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import { User, X, Plus, Copy, CheckCircle, Shield } from 'lucide-react'
+import { User, X, Plus, CheckCircle, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CustomerCreateForm } from '@/components/CustomerCreateForm'
 import { CustomerSearch } from '@/components/CustomerSearch'
@@ -19,7 +19,7 @@ interface Customer {
 }
 
 interface NewCustomer extends Customer {
-  temporary_password?: string
+  needs_activation?: boolean
 }
 
 export default function OrderEntryPage() {
@@ -30,7 +30,6 @@ export default function OrderEntryPage() {
   const [newCustomerInfo, setNewCustomerInfo] = useState<NewCustomer | null>(
     null,
   )
-  const [passwordCopied, setPasswordCopied] = useState(false)
   const { permissionDescription, isAdminTechnician } = usePermissions()
 
   const handleSelectCustomer = (customer: Customer) => {
@@ -49,13 +48,6 @@ export default function OrderEntryPage() {
     setShowCreateModal(false)
   }
 
-  const copyPassword = () => {
-    if (newCustomerInfo?.temporary_password) {
-      navigator.clipboard.writeText(newCustomerInfo.temporary_password)
-      setPasswordCopied(true)
-      setTimeout(() => setPasswordCopied(false), 2000)
-    }
-  }
 
   const getCustomerTypeColor = (type: string) => {
     switch (type) {
@@ -189,46 +181,23 @@ export default function OrderEntryPage() {
         </div>
       )}
 
-      {/* New Customer Password Info */}
-      {newCustomerInfo?.temporary_password && (
+      {/* New Customer Success Info */}
+      {newCustomerInfo?.needs_activation && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
-          <div className="flex items-start gap-2 mb-2">
+          <div className="flex items-start gap-2">
             <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
             <div className="flex-1">
               <p className="font-medium text-green-900">
                 Customer Created Successfully!
               </p>
               <p className="text-sm text-green-700 mt-1">
-                Temporary password for {newCustomerInfo.full_name}:
+                {newCustomerInfo.full_name} can now activate their account by requesting a password reset at login.
+              </p>
+              <p className="text-xs text-green-600 mt-2">
+                💡 The customer will receive an activation email when they first try to log in
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 mt-2">
-            <code className="bg-white px-3 py-1 rounded border border-green-300 font-mono text-sm flex-1">
-              {newCustomerInfo.temporary_password}
-            </code>
-            <Button
-              onClick={copyPassword}
-              variant={passwordCopied ? 'default' : 'secondary'}
-              className="flex items-center gap-1 text-sm px-3 py-1"
-            >
-              {passwordCopied ? (
-                <>
-                  <CheckCircle className="h-4 w-4" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  Copy
-                </>
-              )}
-            </Button>
-          </div>
-          <p className="text-xs text-green-600 mt-2">
-            Please save this password. The customer will need it to activate
-            their account.
-          </p>
         </div>
       )}
 

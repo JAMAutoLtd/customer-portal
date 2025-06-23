@@ -158,13 +158,23 @@ function LoginContent() {
               </label>
             </div>
 
-            <div className="text-sm">
-              <Link
-                href="/forgot-password"
-                className="font-medium text-blue-600 hover:text-blue-500"
-              >
-                Forgot your password?
-              </Link>
+            <div className="text-sm space-y-1">
+              <div>
+                <Link
+                  href="/forgot-password"
+                  className="font-medium text-blue-600 hover:text-blue-500"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
+              <div>
+                <Link
+                  href="/activate"
+                  className="font-medium text-green-600 hover:text-green-500"
+                >
+                  Need to activate account?
+                </Link>
+              </div>
             </div>
           </div>
 

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import { requireAdminTechnician, logSecurityEvent } from '@/middleware/permissions';
 
 function generateTemporaryPassword(): string {
@@ -100,8 +102,31 @@ export async function POST(request: Request) {
     // Generate temporary password
     const temporaryPassword = generateTemporaryPassword();
     
+    // Create admin client for user creation
+    const cookieStore = await cookies();
+    const adminSupabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options),
+              )
+            } catch (error) {
+              // Handle cookie setting error
+            }
+          },
+        },
+      },
+    );
+    
     // Create auth user with temporary password
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
       email,
       password: temporaryPassword,
       email_confirm: false, // Don't auto-confirm email
@@ -162,7 +187,7 @@ export async function POST(request: Request) {
       phone: userProfile.phone,
       customer_type: userProfile.customer_type,
       home_address_id: userProfile.home_address_id,
-      temporary_password: temporaryPassword,
+      needs_activation: true,
       created_at: authData.user.created_at
     });
     

@@ -23,7 +23,7 @@ export async function withPermissions(
       return { userProfile: null }
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
     
     // Get the current user session
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -44,11 +44,46 @@ export async function withPermissions(
     // Get user profile with permission information
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
-      .select('id, full_name, phone, home_address_id, is_admin, customer_type')
+      .select(`
+        id, 
+        full_name, 
+        phone, 
+        home_address_id, 
+        is_admin, 
+        customer_type,
+        technicians!inner(user_id)
+      `)
       .eq('id', user.id)
       .single()
 
-    if (profileError || !userProfile) {
+    // If user is not a technician, try to get user profile without technician join
+    let finalUserProfile = userProfile
+    if (profileError && profileError.code === 'PGRST116') {
+      // User is not a technician, get basic profile
+      const { data: basicProfile, error: basicError } = await supabase
+        .from('users')
+        .select('id, full_name, phone, home_address_id, is_admin, customer_type')
+        .eq('id', user.id)
+        .single()
+      
+      if (basicError || !basicProfile) {
+        return {
+          userProfile: null,
+          error: NextResponse.json(
+            { error: 'User profile not found' },
+            { status: 404 }
+          )
+        }
+      }
+      
+      finalUserProfile = { ...basicProfile, isTechnician: false }
+    } else if (userProfile) {
+      // User is a technician
+      finalUserProfile = { ...userProfile, isTechnician: true }
+      delete finalUserProfile.technicians // Remove the join data
+    }
+
+    if (!finalUserProfile) {
       return {
         userProfile: null,
         error: NextResponse.json(
@@ -58,17 +93,9 @@ export async function withPermissions(
       }
     }
 
-    // Check if user is a technician (you may need to adjust this query based on your schema)
-    const { data: technicianData } = await supabase
-      .from('technicians')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
     const fullUserProfile: UserProfile = {
-      ...userProfile,
-      isTechnician: !!technicianData,
-      email: userProfile.email || user.email || undefined
+      ...finalUserProfile,
+      email: user.email || undefined
     }
 
     // Check permissions
