@@ -1,97 +1,99 @@
-"use client";
+'use client'
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { Search, Loader2, User, Phone, Mail } from 'lucide-react';
-import { formatPhoneNumber } from '@/utils/phoneNumber';
-import { debounce } from 'lodash';
+import React, { useState, useCallback, useEffect } from 'react'
+import { Search, Loader2, User, Phone, Mail } from 'lucide-react'
+import { debounce } from 'lodash'
+import { formatPhoneNumber } from '../../utils/phoneNumber'
 
 interface Customer {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  phone: string | null;
-  customer_type: 'residential' | 'commercial' | 'insurance';
-  home_address_id: number | null;
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  customer_type: 'residential' | 'commercial' | 'insurance'
+  home_address_id: number | null
 }
 
 interface CustomerSearchProps {
-  onSelectCustomer: (customer: Customer) => void;
-  placeholder?: string;
-  className?: string;
+  onSelectCustomer: (customer: Customer) => void
+  placeholder?: string
+  className?: string
 }
 
-export function CustomerSearch({ 
-  onSelectCustomer, 
-  placeholder = "Search by name, email, or phone...",
-  className = ""
+export function CustomerSearch({
+  onSelectCustomer,
+  placeholder = 'Search by name, email, or phone...',
+  className = '',
 }: CustomerSearchProps) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Customer[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<Customer[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const searchCustomers = useCallback(async (searchQuery: string) => {
     if (searchQuery.trim().length < 2) {
-      setResults([]);
-      return;
+      setResults([])
+      return
     }
 
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
 
     try {
-      const response = await fetch(`/api/customers/search?q=${encodeURIComponent(searchQuery)}`);
-      
+      const response = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(searchQuery)}`,
+      )
+
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error('You must be logged in to search customers');
+          throw new Error('You must be logged in to search customers')
         } else if (response.status === 403) {
-          throw new Error('You do not have permission to search customers');
+          throw new Error('You do not have permission to search customers')
         } else {
-          throw new Error('Failed to search customers');
+          throw new Error('Failed to search customers')
         }
       }
 
-      const data = await response.json();
-      setResults(data.customers || []);
+      const data = await response.json()
+      setResults(data.customers || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setResults([]);
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      setResults([])
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  }, []);
+  }, [])
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useCallback(
     debounce((searchQuery: string) => searchCustomers(searchQuery), 300),
-    []
-  );
+    [],
+  )
 
   useEffect(() => {
-    debouncedSearch(query);
-  }, [query, debouncedSearch]);
+    debouncedSearch(query)
+  }, [query, debouncedSearch])
 
   const handleSelectCustomer = (customer: Customer) => {
-    onSelectCustomer(customer);
-    setQuery('');
-    setResults([]);
-    setShowResults(false);
-  };
+    onSelectCustomer(customer)
+    setQuery('')
+    setResults([])
+    setShowResults(false)
+  }
 
   const getCustomerTypeColor = (type: string) => {
     switch (type) {
       case 'insurance':
-        return 'text-purple-600 bg-purple-100';
+        return 'text-purple-600 bg-purple-100'
       case 'commercial':
-        return 'text-blue-600 bg-blue-100';
+        return 'text-blue-600 bg-blue-100'
       case 'residential':
-        return 'text-green-600 bg-green-100';
+        return 'text-green-600 bg-green-100'
       default:
-        return 'text-gray-600 bg-gray-100';
+        return 'text-gray-600 bg-gray-100'
     }
-  };
+  }
 
   return (
     <div className={`relative ${className}`}>
@@ -101,8 +103,8 @@ export function CustomerSearch({
           type="text"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value);
-            setShowResults(true);
+            setQuery(e.target.value)
+            setShowResults(true)
           }}
           onFocus={() => setShowResults(true)}
           placeholder={placeholder}
@@ -116,9 +118,7 @@ export function CustomerSearch({
       {showResults && (query.length >= 2 || results.length > 0) && (
         <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
           {error ? (
-            <div className="p-4 text-red-600 text-sm">
-              {error}
-            </div>
+            <div className="p-4 text-red-600 text-sm">{error}</div>
           ) : results.length === 0 && !isLoading ? (
             <div className="p-4 text-gray-500 text-sm text-center">
               No customers found
@@ -151,7 +151,9 @@ export function CustomerSearch({
                         )}
                       </div>
                       <div className="mt-1">
-                        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${getCustomerTypeColor(customer.customer_type)}`}>
+                        <span
+                          className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${getCustomerTypeColor(customer.customer_type)}`}
+                        >
                           {customer.customer_type}
                         </span>
                       </div>
@@ -172,5 +174,5 @@ export function CustomerSearch({
         />
       )}
     </div>
-  );
+  )
 }

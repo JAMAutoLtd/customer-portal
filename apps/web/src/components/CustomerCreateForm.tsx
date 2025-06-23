@@ -1,128 +1,137 @@
-"use client";
+'use client'
 
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import AddressInput from '@/components/inputs/AddressInput';
-import { Loader2, AlertCircle } from 'lucide-react';
-import { CustomerType } from '@/types';
-import { normalizePhoneNumber, formatPhoneNumber } from '@/utils/phoneNumber';
+import React, { useState } from 'react'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import AddressInput from '@/components/inputs/AddressInput'
+import { Loader2, AlertCircle } from 'lucide-react'
+import { CustomerType } from '@/types'
+import { normalizePhoneNumber } from '../../utils/phoneNumber'
 
 interface CustomerCreateFormProps {
-  onSuccess: (customer: any) => void;
-  onCancel: () => void;
+  onSuccess: (customer: any) => void
+  onCancel: () => void
 }
 
 interface FormData {
-  full_name: string;
-  email: string;
-  phone: string;
-  customer_type: CustomerType;
-  street_address: string;
-  address_lat?: number;
-  address_lng?: number;
+  full_name: string
+  email: string
+  phone: string
+  customer_type: CustomerType
+  street_address: string
+  address_lat?: number
+  address_lng?: number
 }
 
 interface FormErrors {
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  street_address?: string;
-  general?: string;
+  full_name?: string
+  email?: string
+  phone?: string
+  street_address?: string
+  general?: string
 }
 
-export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormProps) {
+export function CustomerCreateForm({
+  onSuccess,
+  onCancel,
+}: CustomerCreateFormProps) {
   const [formData, setFormData] = useState<FormData>({
     full_name: '',
     email: '',
     phone: '',
     customer_type: CustomerType.RESIDENTIAL,
     street_address: '',
-  });
+  })
 
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
 
   const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
+    const newErrors: FormErrors = {}
 
     // Name validation
     if (!formData.full_name.trim()) {
-      newErrors.full_name = 'Full name is required';
+      newErrors.full_name = 'Full name is required'
     }
 
     // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Email is required'
     } else if (!emailRegex.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
+      newErrors.email = 'Invalid email format'
     }
 
     // Phone validation
-    const normalizedPhone = normalizePhoneNumber(formData.phone);
+    const normalizedPhone = normalizePhoneNumber(formData.phone)
     if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
+      newErrors.phone = 'Phone number is required'
     } else if (normalizedPhone.length !== 10) {
-      newErrors.phone = 'Phone number must be 10 digits';
+      newErrors.phone = 'Phone number must be 10 digits'
     }
 
     // Address validation
     if (!formData.street_address.trim()) {
-      newErrors.street_address = 'Address is required';
+      newErrors.street_address = 'Address is required'
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const checkForDuplicates = async (): Promise<boolean> => {
-    setIsCheckingDuplicate(true);
+    setIsCheckingDuplicate(true)
     try {
       // Check by email
-      const emailResponse = await fetch(`/api/customers/search?q=${encodeURIComponent(formData.email)}`);
+      const emailResponse = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(formData.email)}`,
+      )
       if (emailResponse.ok) {
-        const emailData = await emailResponse.json();
+        const emailData = await emailResponse.json()
         if (emailData.customers && emailData.customers.length > 0) {
-          setErrors({ email: 'A customer with this email already exists' });
-          return false;
+          setErrors({ email: 'A customer with this email already exists' })
+          return false
         }
       }
 
       // Check by phone
-      const phoneResponse = await fetch(`/api/customers/search?q=${encodeURIComponent(normalizePhoneNumber(formData.phone))}`);
+      const phoneResponse = await fetch(
+        `/api/customers/search?q=${encodeURIComponent(normalizePhoneNumber(formData.phone))}`,
+      )
       if (phoneResponse.ok) {
-        const phoneData = await phoneResponse.json();
+        const phoneData = await phoneResponse.json()
         if (phoneData.customers && phoneData.customers.length > 0) {
-          setErrors({ phone: 'A customer with this phone number already exists' });
-          return false;
+          setErrors({
+            phone: 'A customer with this phone number already exists',
+          })
+          return false
         }
       }
 
-      return true;
+      return true
     } catch (error) {
-      console.error('Duplicate check error:', error);
-      return true; // Allow submission if duplicate check fails
+      console.error('Duplicate check error:', error)
+      return true // Allow submission if duplicate check fails
     } finally {
-      setIsCheckingDuplicate(false);
+      setIsCheckingDuplicate(false)
     }
-  };
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     if (!validateForm()) {
-      return;
+      return
     }
 
-    const noDuplicates = await checkForDuplicates();
+    const noDuplicates = await checkForDuplicates()
     if (!noDuplicates) {
-      return;
+      return
     }
 
-    setIsSubmitting(true);
-    setErrors({});
+    setIsSubmitting(true)
+    setErrors({})
 
     try {
       const response = await fetch('/api/customers/create', {
@@ -134,40 +143,46 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
           ...formData,
           phone: normalizePhoneNumber(formData.phone),
         }),
-      });
+      })
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create customer');
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create customer')
       }
 
-      const newCustomer = await response.json();
-      onSuccess(newCustomer);
+      const newCustomer = await response.json()
+      onSuccess(newCustomer)
     } catch (error) {
-      console.error('Customer creation error:', error);
+      console.error('Customer creation error:', error)
       setErrors({
-        general: error instanceof Error ? error.message : 'Failed to create customer',
-      });
+        general:
+          error instanceof Error ? error.message : 'Failed to create customer',
+      })
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const value = e.target.value
     // Allow only digits and common phone formatting characters
-    const cleaned = value.replace(/[^\d\s()-]/g, '');
-    setFormData({ ...formData, phone: cleaned });
-  };
+    const cleaned = value.replace(/[^\d\s()-]/g, '')
+    setFormData({ ...formData, phone: cleaned })
+  }
 
-  const handleAddressSelect = (address: string, isValid: boolean, lat?: number, lng?: number) => {
+  const handleAddressSelect = (
+    address: string,
+    isValid: boolean,
+    lat?: number,
+    lng?: number,
+  ) => {
     setFormData({
       ...formData,
       street_address: address,
       address_lat: lat,
       address_lng: lng,
-    });
-  };
+    })
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -179,14 +194,19 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
       )}
 
       <div>
-        <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="full_name"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Full Name <span className="text-red-500">*</span>
         </label>
         <Input
           id="full_name"
           type="text"
           value={formData.full_name}
-          onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, full_name: e.target.value })
+          }
           className={errors.full_name ? 'border-red-500' : ''}
           disabled={isSubmitting}
         />
@@ -196,14 +216,19 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
       </div>
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Email <span className="text-red-500">*</span>
         </label>
         <Input
           id="email"
           type="email"
           value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
+          onChange={(e) =>
+            setFormData({ ...formData, email: e.target.value.toLowerCase() })
+          }
           className={errors.email ? 'border-red-500' : ''}
           disabled={isSubmitting}
         />
@@ -213,7 +238,10 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
       </div>
 
       <div>
-        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="phone"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Phone Number <span className="text-red-500">*</span>
         </label>
         <Input
@@ -231,13 +259,21 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
       </div>
 
       <div>
-        <label htmlFor="customer_type" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="customer_type"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Customer Type <span className="text-red-500">*</span>
         </label>
         <select
           id="customer_type"
           value={formData.customer_type}
-          onChange={(e) => setFormData({ ...formData, customer_type: e.target.value as CustomerType })}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              customer_type: e.target.value as CustomerType,
+            })
+          }
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={isSubmitting}
         >
@@ -248,12 +284,13 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
       </div>
 
       <div>
-        <label htmlFor="street_address" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="street_address"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Address <span className="text-red-500">*</span>
         </label>
-        <AddressInput
-          onAddressSelect={handleAddressSelect}
-        />
+        <AddressInput onAddressSelect={handleAddressSelect} />
         {errors.street_address && (
           <p className="mt-1 text-sm text-red-600">{errors.street_address}</p>
         )}
@@ -289,5 +326,5 @@ export function CustomerCreateForm({ onSuccess, onCancel }: CustomerCreateFormPr
         </Button>
       </div>
     </form>
-  );
+  )
 }
