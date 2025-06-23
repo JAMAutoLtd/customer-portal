@@ -68,11 +68,16 @@ export function CustomerSearch({
   // Debounce search to avoid too many API calls
   const debouncedSearch = useCallback(
     debounce((searchQuery: string) => searchCustomers(searchQuery), 300),
-    [],
+    [searchCustomers],
   )
 
   useEffect(() => {
     debouncedSearch(query)
+    
+    // Cleanup function to cancel pending debounced calls
+    return () => {
+      debouncedSearch.cancel()
+    }
   }, [query, debouncedSearch])
 
   const handleSelectCustomer = (customer: Customer) => {
@@ -109,6 +114,10 @@ export function CustomerSearch({
           onFocus={() => setShowResults(true)}
           placeholder={placeholder}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          role="combobox"
+          aria-expanded={showResults && (query.length >= 2 || results.length > 0)}
+          aria-autocomplete="list"
+          aria-describedby={error ? 'search-error' : undefined}
         />
         {isLoading && (
           <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 animate-spin text-gray-400" />
@@ -116,9 +125,9 @@ export function CustomerSearch({
       </div>
 
       {showResults && (query.length >= 2 || results.length > 0) && (
-        <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto" role="listbox">
           {error ? (
-            <div className="p-4 text-red-600 text-sm">{error}</div>
+            <div id="search-error" className="p-4 text-red-600 text-sm">{error}</div>
           ) : results.length === 0 && !isLoading ? (
             <div className="p-4 text-gray-500 text-sm text-center">
               No customers found
@@ -126,7 +135,7 @@ export function CustomerSearch({
           ) : (
             <ul className="py-2">
               {results.map((customer) => (
-                <li key={customer.id}>
+                <li key={customer.id} role="option">
                   <button
                     onClick={() => handleSelectCustomer(customer)}
                     className="w-full px-4 py-3 hover:bg-gray-50 flex items-start gap-3 text-left transition-colors"

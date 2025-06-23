@@ -182,6 +182,10 @@ export function CustomerCreateForm({
       address_lat: lat,
       address_lng: lng,
     })
+    // Clear address error if valid address is selected
+    if (isValid && errors.street_address) {
+      setErrors(prev => ({ ...prev, street_address: undefined }))
+    }
   }
 
   return (
@@ -209,9 +213,11 @@ export function CustomerCreateForm({
           }
           className={errors.full_name ? 'border-red-500' : ''}
           disabled={isSubmitting}
+          aria-describedby={errors.full_name ? 'full_name-error' : undefined}
+          aria-invalid={!!errors.full_name}
         />
         {errors.full_name && (
-          <p className="mt-1 text-sm text-red-600">{errors.full_name}</p>
+          <p id="full_name-error" className="mt-1 text-sm text-red-600">{errors.full_name}</p>
         )}
       </div>
 
@@ -231,9 +237,11 @@ export function CustomerCreateForm({
           }
           className={errors.email ? 'border-red-500' : ''}
           disabled={isSubmitting}
+          aria-describedby={errors.email ? 'email-error' : undefined}
+          aria-invalid={!!errors.email}
         />
         {errors.email && (
-          <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+          <p id="email-error" className="mt-1 text-sm text-red-600">{errors.email}</p>
         )}
       </div>
 
@@ -252,9 +260,11 @@ export function CustomerCreateForm({
           placeholder="(555) 123-4567"
           className={errors.phone ? 'border-red-500' : ''}
           disabled={isSubmitting}
+          aria-describedby={errors.phone ? 'phone-error' : undefined}
+          aria-invalid={!!errors.phone}
         />
         {errors.phone && (
-          <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+          <p id="phone-error" className="mt-1 text-sm text-red-600">{errors.phone}</p>
         )}
       </div>
 
@@ -318,7 +328,7 @@ export function CustomerCreateForm({
         </Button>
         <Button
           type="button"
-          variant="destructive"
+          variant="secondary"
           onClick={onCancel}
           disabled={isSubmitting}
         >
