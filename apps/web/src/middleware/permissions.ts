@@ -43,8 +43,8 @@ export async function withPermissions(
 
     // Get user profile with permission information
     const { data: userProfile, error: profileError } = await supabase
-      .from('customers')
-      .select('id, full_name, phone, home_address_id, is_admin, customer_type, email')
+      .from('users')
+      .select('id, full_name, phone, home_address_id, is_admin, customer_type')
       .eq('id', user.id)
       .single()
 
