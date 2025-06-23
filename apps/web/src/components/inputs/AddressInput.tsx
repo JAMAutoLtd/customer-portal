@@ -12,6 +12,7 @@ interface AddressAutocompleteProps {
     lat?: number,
     lng?: number
   ) => void
+  defaultValue?: string
 }
 
 declare global {
@@ -23,11 +24,21 @@ declare global {
 
 const AddressInput: React.FC<AddressAutocompleteProps> = ({
   onAddressSelect,
+  defaultValue,
 }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isAddressValid, setIsAddressValid] = useState(false)
-  const [inputValue, setInputValue] = useState('')
+  const [isAddressValid, setIsAddressValid] = useState(!!defaultValue)
+  const [inputValue, setInputValue] = useState(defaultValue || '')
+
+  // Update input value when defaultValue changes
+  useEffect(() => {
+    if (defaultValue && defaultValue !== inputValue) {
+      setInputValue(defaultValue)
+      setIsAddressValid(true)
+      onAddressSelect(defaultValue, true)
+    }
+  }, [defaultValue])
 
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
@@ -40,13 +51,15 @@ const AddressInput: React.FC<AddressAutocompleteProps> = ({
     // Function to initialize autocomplete
     const initializeAutocomplete = () => {
       try {
-        const input = document.getElementById(
-          'address-input'
-        ) as HTMLInputElement
-        if (!input) {
-          console.error('Address input element not found')
-          return
-        }
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          const input = document.getElementById(
+            'address-input'
+          ) as HTMLInputElement
+          if (!input) {
+            console.error('Address input element not found')
+            return
+          }
 
         const autocomplete = new window.google.maps.places.Autocomplete(input, {
           componentRestrictions: { country: 'ca' },
@@ -86,6 +99,7 @@ const AddressInput: React.FC<AddressAutocompleteProps> = ({
         })
 
         setIsLoading(false)
+        }, 100) // Close setTimeout
       } catch (err) {
         console.error('Error initializing autocomplete:', err)
         setError('Failed to initialize address search')

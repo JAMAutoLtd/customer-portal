@@ -65,11 +65,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
   const [customerAddress, setCustomerAddress] = useState<{
     street_address: string
-    city: string
-    state: string
-    postal_code: string
-    latitude?: number
-    longitude?: number
+    lat?: number
+    lng?: number
   } | null>(null)
 
   // Authentication check - skip if customer context provided (staff mode)
@@ -77,7 +74,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     if (!customer && !loading && !user) {
       router.push('/login')
     }
-  }, [customer, user, loading, router])
+  }, [customer, user, loading])
 
   // Initialize form data based on context (customer vs. self-service)
   React.useEffect(() => {
@@ -109,7 +106,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         try {
           const { data, error } = await supabase
             .from('addresses')
-            .select('street_address, city, state, postal_code, latitude, longitude')
+            .select('street_address, lat, lng')
             .eq('id', customer.home_address_id)
             .single()
 
@@ -123,9 +120,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             // Pre-populate form with customer's address
             setFormData(prev => ({
               ...prev,
-              address: `${data.street_address}, ${data.city}, ${data.state} ${data.postal_code}`,
-              lat: data.latitude,
-              lng: data.longitude,
+              address: data.street_address,
+              lat: data.lat,
+              lng: data.lng,
             }))
             setIsAddressValid(true)
           }
@@ -426,7 +423,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             Address
           </label>
           <AddressInput
-            defaultValue={customerAddress ? formData.address : undefined}
+            defaultValue={customerAddress?.street_address}
             onAddressSelect={(
               address: string,
               isValid: boolean,

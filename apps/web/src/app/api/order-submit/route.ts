@@ -194,7 +194,7 @@ export async function POST(request: Request) {
     const vehicleId = vehicle.id
 
     // Create order with vehicle ID and staff tracking
-    const orderData: any = {
+    const newOrderData: any = {
       user_id: orderUserId,
       vehicle_id: vehicleId,
       address_id: addressId,
@@ -204,13 +204,13 @@ export async function POST(request: Request) {
 
     // Add staff tracking fields if this is a staff-created order
     if (createdByStaff && staffUserId) {
-      orderData.created_by_staff = true
-      orderData.staff_user_id = staffUserId
+      newOrderData.created_by_staff = true
+      newOrderData.staff_user_id = staffUserId
     }
 
     const { data: orderResult, error: orderError } = await supabase
       .from('orders')
-      .insert([orderData])
+      .insert([newOrderData])
       .select()
       .single()
 

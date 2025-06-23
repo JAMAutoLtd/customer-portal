@@ -51,9 +51,9 @@ export interface OrderCardProps {
 export type UserProfile = {
   id: string
   full_name: string
-  phone?: string
-  home_address_id?: number
-  is_admin: boolean
+  phone?: string | null
+  home_address_id?: number | null
+  is_admin: boolean | null
   customer_type: CustomerType
   email?: string
   isTechnician?: boolean

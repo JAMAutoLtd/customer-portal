@@ -30,6 +30,33 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_activation_emails: {
+        Row: {
+          created_at: string | null
+          email_sent_at: string | null
+          id: string
+          ip_address: unknown | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_sent_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_sent_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       customer_vehicles: {
         Row: {
           id: number
@@ -293,31 +320,37 @@ export type Database = {
       orders: {
         Row: {
           address_id: number | null
+          created_by_staff: boolean | null
           earliest_available_time: string | null
           id: number
           invoice: number | null
           notes: string | null
           repair_order_number: string | null
+          staff_user_id: string | null
           user_id: string | null
           vehicle_id: number | null
         }
         Insert: {
           address_id?: number | null
+          created_by_staff?: boolean | null
           earliest_available_time?: string | null
           id?: number
           invoice?: number | null
           notes?: string | null
           repair_order_number?: string | null
+          staff_user_id?: string | null
           user_id?: string | null
           vehicle_id?: number | null
         }
         Update: {
           address_id?: number | null
+          created_by_staff?: boolean | null
           earliest_available_time?: string | null
           id?: number
           invoice?: number | null
           notes?: string | null
           repair_order_number?: string | null
+          staff_user_id?: string | null
           user_id?: string | null
           vehicle_id?: number | null
         }
@@ -697,42 +730,12 @@ export type Database = {
       }
     }
     Views: {
-      v_equipment_requirements_by_category: {
-        Row: {
-          equipment_model: string | null
-          id: number | null
-          service_category:
-            | Database["public"]["Enums"]["service_category"]
-            | null
-          service_id: number | null
-          ymm_id: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_requirements_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_requirements_ymm_id_fkey"
-            columns: ["ymm_id"]
-            isOneToOne: false
-            referencedRelation: "ymm_ref"
-            referencedColumns: ["ymm_id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       cleanup_expired_travel_cache: {
         Args: Record<PropertyKey, never>
         Returns: number
-      }
-      execute_sql: {
-        Args: { sql: string }
-        Returns: undefined
       }
       get_user_id_by_email: {
         Args: { user_email: string }
