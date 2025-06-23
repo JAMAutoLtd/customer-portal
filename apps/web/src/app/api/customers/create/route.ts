@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { requireAdminTechnician, logSecurityEvent } from '@/middleware/permissions';
 
 function generateTemporaryPassword(): string {
   // Generate a secure temporary password using crypto
@@ -19,23 +20,17 @@ function generateTemporaryPassword(): string {
 }
 
 export async function POST(request: Request) {
+  // Check permissions first
+  const { userProfile, error: permissionError } = await requireAdminTechnician(request);
+  
+  if (permissionError) {
+    await logSecurityEvent(userProfile, 'customer_creation_denied', 'customers/create', false, {
+      reason: 'insufficient_permissions'
+    });
+    return permissionError;
+  }
+
   const supabase = await createClient();
-  
-  // Check if the current user is an admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  
-  const { data: userData } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single();
-    
-  if (!userData?.is_admin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
   
   try {
     const body = await request.json();
@@ -153,7 +148,12 @@ export async function POST(request: Request) {
       throw new Error('Failed to create user profile');
     }
     
-    // TODO: Add audit logging when audit_logs table is created
+    // Log successful customer creation
+    await logSecurityEvent(userProfile, 'customer_created', 'customers/create', true, {
+      created_customer_id: userProfile.id,
+      customer_type: userProfile.customer_type,
+      customer_email: authData.user.email
+    });
     
     return NextResponse.json({
       id: userProfile.id,

@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import { User, X, Plus, Copy, CheckCircle } from 'lucide-react'
+import { User, X, Plus, Copy, CheckCircle, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CustomerCreateForm } from '@/components/CustomerCreateForm'
 import { CustomerSearch } from '@/components/CustomerSearch'
 import { OrderForm } from '@/components/OrderForm/OrderForm'
+import { OrderEntryGuard, usePermissions } from '@/components/guards/PermissionGuard'
 
 interface Customer {
   id: string
@@ -30,6 +31,7 @@ export default function OrderEntryPage() {
     null,
   )
   const [passwordCopied, setPasswordCopied] = useState(false)
+  const { permissionDescription, isAdminTechnician } = usePermissions()
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer)
@@ -69,8 +71,33 @@ export default function OrderEntryPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-[768px] px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Create Order for Customer</h1>
+    <OrderEntryGuard
+      showError={true}
+      fallback={
+        <div className="container mx-auto max-w-[768px] px-4 py-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <Shield className="h-8 w-8 text-red-500 mx-auto mb-3" />
+            <h1 className="text-xl font-bold text-red-800 mb-2">Access Restricted</h1>
+            <p className="text-red-600 mb-4">
+              This feature requires admin-technician privileges to create orders on behalf of customers.
+            </p>
+            <p className="text-sm text-red-500">
+              Current access level: {permissionDescription}
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <div className="container mx-auto max-w-[768px] px-4 py-8">
+        <div className="flex items-center gap-2 mb-6">
+          <h1 className="text-2xl font-bold">Create Order for Customer</h1>
+          {isAdminTechnician && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+              <Shield className="h-3 w-3" />
+              Admin-Tech
+            </div>
+          )}
+        </div>
 
       {/* Customer Selection Section */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
@@ -216,6 +243,7 @@ export default function OrderEntryPage() {
           onCancel={() => setShowCreateModal(false)}
         />
       </Modal>
-    </div>
+      </div>
+    </OrderEntryGuard>
   )
 }

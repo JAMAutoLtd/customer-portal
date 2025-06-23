@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { requireAdminTechnician, logSecurityEvent } from '@/middleware/permissions'
 import { normalizePhoneNumber } from '../../../../../utils/phoneNumber'
 import {
   nameMatchesSearchTerms,
@@ -7,6 +8,16 @@ import {
 } from '../../../../../utils/nameMatching'
 
 export async function GET(request: Request) {
+  // Check permissions first
+  const { userProfile, error: permissionError } = await requireAdminTechnician(request);
+  
+  if (permissionError) {
+    await logSecurityEvent(userProfile, 'customer_search_denied', 'customers/search', false, {
+      reason: 'insufficient_permissions'
+    });
+    return permissionError;
+  }
+
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')
 
@@ -15,24 +26,6 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient()
-
-  // Check if the current user is an admin
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData?.is_admin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
 
   const searchTerm = query.trim().toLowerCase()
 
@@ -116,6 +109,13 @@ export async function GET(request: Request) {
           home_address_id: user.home_address_id,
         }
       })
+
+      // Log successful search
+      await logSecurityEvent(userProfile, 'customer_search_success', 'customers/search', true, {
+        search_query: query,
+        results_count: customers.length,
+        search_type: 'email_phone'
+      });
 
       return NextResponse.json({ customers })
     } else {
