@@ -6,6 +6,7 @@ import { User, X, Plus, Copy, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CustomerCreateForm } from '@/components/CustomerCreateForm'
 import { CustomerSearch } from '@/components/CustomerSearch'
+import { OrderForm } from '@/components/OrderForm/OrderForm'
 
 interface Customer {
   id: string
@@ -134,10 +135,19 @@ export default function OrderEntryPage() {
       {/* Order Form Section - Only show when customer is selected */}
       {selectedCustomer && (
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4">Order Details</h2>
-          <div className="text-center text-gray-500 py-8">
-            Order form will be integrated here in the next task
-          </div>
+          <OrderForm
+            customer={selectedCustomer}
+            onSuccess={() => {
+              // Handle successful order creation
+              setSelectedCustomer(null)
+              setNewCustomerInfo(null)
+            }}
+            onCancel={() => {
+              // Handle cancel - could clear customer or just close form
+              setSelectedCustomer(null)
+              setNewCustomerInfo(null)
+            }}
+          />
         </div>
       )}
 

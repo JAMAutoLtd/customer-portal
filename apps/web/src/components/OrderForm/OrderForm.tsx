@@ -28,7 +28,26 @@ import VehicleInfoInput from './VehicleInfoInput'
 import { validateAndDecodeVin } from '@/utils/vinValidation'
 import { DATE_FORMATS, formDateToAPI } from '@/utils/date'
 
-export const OrderForm: React.FC = () => {
+interface Customer {
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  customer_type: 'residential' | 'commercial' | 'insurance'
+  home_address_id: number | null
+}
+
+interface OrderFormProps {
+  customer?: Customer | null // Optional customer context for staff mode
+  onSuccess?: () => void // Optional callback for successful submission
+  onCancel?: () => void // Optional callback for cancel action
+}
+
+export const OrderForm: React.FC<OrderFormProps> = ({ 
+  customer, 
+  onSuccess, 
+  onCancel 
+}) => {
   const { user, loading } = useAuth()
   const router = useRouter()
   const nextAvailableDate = getNextAvailableDate()
@@ -44,24 +63,80 @@ export const OrderForm: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [services, setServices] = useState<Service[]>([])
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
+  const [customerAddress, setCustomerAddress] = useState<{
+    street_address: string
+    city: string
+    state: string
+    postal_code: string
+    latitude?: number
+    longitude?: number
+  } | null>(null)
 
+  // Authentication check - skip if customer context provided (staff mode)
   React.useEffect(() => {
-    if (!loading && !user) {
+    if (!customer && !loading && !user) {
       router.push('/login')
     }
-  }, [user, loading, router])
+  }, [customer, user, loading, router])
 
+  // Initialize form data based on context (customer vs. self-service)
   React.useEffect(() => {
-    if (!loading && user) {
+    if (!loading) {
       setSelectedTime(getNextAvailableTime())
 
-      setFormData((prev) => ({
-        ...prev,
-        earliestDate: format(nextAvailableDate, 'yyyy-MM-dd'),
-        customerEmail: user.email || '',
-      }))
+      if (customer) {
+        // Staff mode: use customer's email
+        setFormData((prev) => ({
+          ...prev,
+          earliestDate: format(nextAvailableDate, 'yyyy-MM-dd'),
+          customerEmail: customer.email || '',
+        }))
+      } else if (user) {
+        // Self-service mode: use authenticated user's email
+        setFormData((prev) => ({
+          ...prev,
+          earliestDate: format(nextAvailableDate, 'yyyy-MM-dd'),
+          customerEmail: user.email || '',
+        }))
+      }
     }
-  }, [loading, user])
+  }, [loading, user, customer, nextAvailableDate])
+
+  // Fetch customer address if customer context is provided
+  React.useEffect(() => {
+    const fetchCustomerAddress = async () => {
+      if (customer?.home_address_id) {
+        try {
+          const { data, error } = await supabase
+            .from('addresses')
+            .select('street_address, city, state, postal_code, latitude, longitude')
+            .eq('id', customer.home_address_id)
+            .single()
+
+          if (error) {
+            console.error('Error fetching customer address:', error)
+            return
+          }
+
+          if (data) {
+            setCustomerAddress(data)
+            // Pre-populate form with customer's address
+            setFormData(prev => ({
+              ...prev,
+              address: `${data.street_address}, ${data.city}, ${data.state} ${data.postal_code}`,
+              lat: data.latitude,
+              lng: data.longitude,
+            }))
+            setIsAddressValid(true)
+          }
+        } catch (error) {
+          console.error('Error fetching customer address:', error)
+        }
+      }
+    }
+
+    fetchCustomerAddress()
+  }, [customer])
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -139,13 +214,33 @@ export const OrderForm: React.FC = () => {
         selectedTime,
       )
 
+      // Determine job priority based on customer type (staff mode) or default (self-service)
+      let jobPriority = 3 // Default priority for residential/self-service
+      if (customer) {
+        switch (customer.customer_type) {
+          case 'insurance':
+            jobPriority = 1 // Highest priority
+            break
+          case 'commercial':
+            jobPriority = 2 // Medium priority
+            break
+          case 'residential':
+            jobPriority = 3 // Standard priority
+            break
+        }
+      }
+
       const requestData = {
         ...submissionData,
         lat: formData.lat,
         lng: formData.lng,
         earliestDate: earliestDateTimeISO,
         selectedServiceIds,
-        customerEmail: user?.email || '',
+        customerEmail: customer ? customer.email || '' : user?.email || '',
+        customerId: customer?.id, // Include customer ID for staff mode
+        createdByStaff: !!customer, // Flag to indicate staff-created order
+        staffUserId: customer ? user?.id : undefined, // Track which staff member created it
+        jobPriority, // Include calculated priority
       }
 
       const response = await fetch('/api/order-submit', {
@@ -161,6 +256,11 @@ export const OrderForm: React.FC = () => {
       }
 
       setSuccess(true)
+
+      // Call onSuccess callback if provided (staff mode)
+      if (onSuccess) {
+        onSuccess()
+      }
 
       // Reset form
       setFormData({
@@ -243,7 +343,8 @@ export const OrderForm: React.FC = () => {
     }
   }
 
-  if (loading) {
+  // Show loading only for self-service mode (when customer context is not provided)
+  if (!customer && loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader />
@@ -251,9 +352,48 @@ export const OrderForm: React.FC = () => {
     )
   }
 
+  const getCustomerTypeColor = (type: string) => {
+    switch (type) {
+      case 'insurance':
+        return 'text-purple-600 bg-purple-100'
+      case 'commercial':
+        return 'text-blue-600 bg-blue-100'
+      case 'residential':
+        return 'text-green-600 bg-green-100'
+      default:
+        return 'text-gray-600 bg-gray-100'
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-[768px]">
-      <h1 className="text-2xl font-bold mb-8">Submit New Order</h1>
+      <h1 className="text-2xl font-bold mb-8">
+        {customer ? 'Create Order for Customer' : 'Submit New Order'}
+      </h1>
+
+      {/* Customer Context Banner */}
+      {customer && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-1">
+              <p className="font-medium text-blue-900 mb-1">
+                Creating order for: {customer.full_name || 'Unnamed Customer'}
+              </p>
+              <div className="text-sm text-blue-700 space-y-1">
+                {customer.email && <p>Email: {customer.email}</p>}
+                {customer.phone && <p>Phone: {customer.phone}</p>}
+                <div className="mt-2">
+                  <span
+                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${getCustomerTypeColor(customer.customer_type)}`}
+                  >
+                    {customer.customer_type} customer
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {success && (
         <div className="mb-4 p-4 bg-green-100 text-green-800 rounded-lg">
@@ -286,6 +426,7 @@ export const OrderForm: React.FC = () => {
             Address
           </label>
           <AddressInput
+            defaultValue={customerAddress ? formData.address : undefined}
             onAddressSelect={(
               address: string,
               isValid: boolean,
@@ -301,6 +442,11 @@ export const OrderForm: React.FC = () => {
               setIsAddressValid(isValid)
             }}
           />
+          {customerAddress && (
+            <p className="mt-1 text-sm text-blue-600">
+              ℹ️ Pre-populated with customer's home address. You can change it if needed.
+            </p>
+          )}
           {formData.address && !isAddressValid && (
             <p className="mt-1 text-sm text-red-600">
               Please select a valid address from the dropdown suggestions.
@@ -380,7 +526,13 @@ export const OrderForm: React.FC = () => {
           <Button
             variant="secondary"
             type="button"
-            onClick={() => router.push('/orders')}
+            onClick={() => {
+              if (onCancel) {
+                onCancel()
+              } else {
+                router.push('/orders')
+              }
+            }}
           >
             Cancel
           </Button>
