@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { determineJobPriority } from '@/utils/jobs'
 import { requireAuth, logSecurityEvent } from '@/middleware/permissions'
+import { Database } from '@/types/database.types'
 
 const JOB_DURATION = 90
 
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
 
     // Determine the customer for the order
     let orderUserId = user.id
-    let customerType = 'residential' // default
+    let customerType: Database["public"]["Enums"]["customer_type"] = 'residential' // default
     
     if (createdByStaff && customerId) {
       // Staff creating order for a customer - validate staff has permission

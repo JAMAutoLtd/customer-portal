@@ -174,7 +174,7 @@ export async function POST(request: Request) {
     }
     
     // Log successful customer creation
-    await logSecurityEvent(userProfile as any, 'customer_created', 'customers/create', true, {
+    await logSecurityEvent(userProfile, 'customer_created', 'customers/create', true, {
       created_customer_id: userProfile.id,
       customer_type: userProfile.customer_type,
       customer_email: authData.user.email

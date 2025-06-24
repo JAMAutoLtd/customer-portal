@@ -11,7 +11,7 @@ import { UserProfile } from '@/types'
  * Server-side permission middleware for API routes
  */
 export async function withPermissions(
-  request: Request,
+  _request: Request,
   requirements: APIPermissionCheck
 ): Promise<{ userProfile: UserProfile | null; error?: NextResponse }> {
   try {
@@ -57,7 +57,7 @@ export async function withPermissions(
       .single()
 
     // If user is not a technician, try to get user profile without technician join
-    let finalUserProfile = userProfile
+    let finalUserProfile: UserProfile | null = null
     if (profileError && profileError.code === 'PGRST116') {
       // User is not a technician, get basic profile
       const { data: basicProfile, error: basicError } = await supabase
@@ -78,9 +78,9 @@ export async function withPermissions(
       
       finalUserProfile = { ...basicProfile, isTechnician: false }
     } else if (userProfile) {
-      // User is a technician
-      finalUserProfile = { ...userProfile, isTechnician: true }
-      delete finalUserProfile.technicians // Remove the join data
+      // User is a technician - create a clean profile without the technicians join data
+      const { technicians, ...cleanProfile } = userProfile as any
+      finalUserProfile = { ...cleanProfile, isTechnician: true }
     }
 
     if (!finalUserProfile) {
@@ -213,7 +213,7 @@ export async function logSecurityEvent(
   details?: Record<string, any>
 ) {
   try {
-    const supabase = createClient()
+    // const supabase = createClient() // Commented out until needed for actual logging
     
     // You can implement security logging here
     // This could be a separate audit_logs table
