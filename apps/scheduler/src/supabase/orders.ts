@@ -66,8 +66,8 @@ export async function getYmmIdForOrder(orderId: number): Promise<number | null> 
     .from('ymm_ref')
     .select('ymm_id')
     .eq('year', vehicle.year)
-    .eq('make', vehicle.make)
-    .eq('model', vehicle.model)
+    .ilike('make', vehicle.make)
+    .ilike('model', vehicle.model)
     .single(); // Expecting a unique YMM combination
 
   if (ymmError) {
