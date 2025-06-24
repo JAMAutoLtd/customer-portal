@@ -59,7 +59,6 @@ export async function GET(request: Request) {
       })
 
       // Get auth emails for matched users
-      const userIds = matchedUsers.map((u) => u.id)
       const { data: authUsers } = await supabase.auth.admin.listUsers()
 
       const customers = matchedUsers.map((user) => {
