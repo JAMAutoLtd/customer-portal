@@ -3,7 +3,6 @@ import { createClient } from '@/utils/supabase/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { requireAdminTechnician, logSecurityEvent } from '@/middleware/permissions';
-import { CustomerType } from '@/types';
 
 function generateTemporaryPassword(): string {
   // Generate a secure temporary password using crypto
