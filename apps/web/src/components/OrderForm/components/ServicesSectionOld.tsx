@@ -6,7 +6,7 @@ import {
   OrderFormData,
   KeyType,
   ModuleService,
-} from './types'
+} from '../types'
 
 export const ServicesSection = ({
   formData,
@@ -25,14 +25,14 @@ export const ServicesSection = ({
           keySource: KeySource
           quantity: number
         }
-      | undefined
+      | undefined,
   ) => void
   handleKeyProgrammingChange: (
     service: KeyService,
     keyType: KeyType,
     keySource: KeySource,
     quantity: number,
-    partNumber?: string
+    partNumber?: string,
   ) => void
 }) => {
   return (
@@ -48,7 +48,7 @@ export const ServicesSection = ({
             onChange={(e) =>
               handleServiceChange(
                 'adasCalibration',
-                e.target.checked ? [] : undefined
+                e.target.checked ? [] : undefined,
               )
             }
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -70,7 +70,7 @@ export const ServicesSection = ({
                 <input
                   type="checkbox"
                   checked={formData.servicesRequired.adasCalibration?.includes(
-                    service
+                    service,
                   )}
                   onChange={(e) => {
                     const current =
@@ -79,7 +79,7 @@ export const ServicesSection = ({
                       'adasCalibration',
                       e.target.checked
                         ? [...current, service]
-                        : current.filter((s) => s !== service)
+                        : current.filter((s) => s !== service),
                     )
                   }}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -115,7 +115,7 @@ export const ServicesSection = ({
             onChange={(e) =>
               handleServiceChange(
                 'moduleReplacement',
-                e.target.checked ? [] : undefined
+                e.target.checked ? [] : undefined,
               )
             }
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -144,7 +144,7 @@ export const ServicesSection = ({
                 <input
                   type="checkbox"
                   checked={formData.servicesRequired.moduleReplacement?.includes(
-                    service
+                    service,
                   )}
                   onChange={(e) => {
                     const current =
@@ -153,7 +153,7 @@ export const ServicesSection = ({
                       'moduleReplacement',
                       e.target.checked
                         ? [...current, service]
-                        : current.filter((s) => s !== service)
+                        : current.filter((s) => s !== service),
                     )
                   }}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -182,7 +182,7 @@ export const ServicesSection = ({
                       keySource: 'JAM Providing',
                       quantity: defaultQuantity,
                     }
-                  : undefined
+                  : undefined,
               )
             }}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -218,7 +218,7 @@ export const ServicesSection = ({
                           service,
                           'Push Button Start',
                           'JAM Providing',
-                          1
+                          1,
                         )
                       }
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
@@ -254,14 +254,15 @@ export const ServicesSection = ({
                               type,
                               formData.servicesRequired.keyProgramming!
                                 .keySource,
-                              formData.servicesRequired.keyProgramming!.quantity
+                              formData.servicesRequired.keyProgramming!
+                                .quantity,
                             )
                           }
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                         />
                         <span className="text-sm">{type}</span>
                       </label>
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -294,14 +295,15 @@ export const ServicesSection = ({
                               formData.servicesRequired.keyProgramming!.service,
                               formData.servicesRequired.keyProgramming!.keyType,
                               source,
-                              formData.servicesRequired.keyProgramming!.quantity
+                              formData.servicesRequired.keyProgramming!
+                                .quantity,
                             )
                           }
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                         />
                         <span className="text-sm">{source}</span>
                       </label>
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -357,7 +359,7 @@ export const ServicesSection = ({
                           keyProgramming.service,
                           keyProgramming.keyType,
                           keyProgramming.keySource,
-                          newQuantity
+                          newQuantity,
                         )
                       }}
                       className={`mt-1 block w-14 text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 ${
@@ -399,7 +401,7 @@ export const ServicesSection = ({
                                 keyProgramming.keyType,
                                 keyProgramming.keySource,
                                 keyProgramming.quantity,
-                                partNumber
+                                partNumber,
                               )
                             }}
                             placeholder="Enter dealer key part number"

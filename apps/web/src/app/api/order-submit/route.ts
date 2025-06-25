@@ -8,14 +8,19 @@ import { Database } from '@/types/database.types'
 const JOB_DURATION = 90
 
 export async function POST(request: Request) {
-  // Require authentication for all order submissions
-  const { userProfile, error: permissionError } = await requireAuth(request);
-  
+  const { userProfile, error: permissionError } = await requireAuth(request)
+
   if (permissionError) {
-    await logSecurityEvent(userProfile, 'order_submit_denied', 'order-submit', false, {
-      reason: 'authentication_required'
-    });
-    return permissionError;
+    await logSecurityEvent(
+      userProfile,
+      'order_submit_denied',
+      'order-submit',
+      false,
+      {
+        reason: 'authentication_required',
+      },
+    )
+    return permissionError
   }
 
   try {
@@ -32,10 +37,10 @@ export async function POST(request: Request) {
       vehicleMake,
       vehicleModel,
       selectedServiceIds,
-      customerId,        // For staff-created orders
-      createdByStaff,    // Flag indicating staff creation
-      staffUserId,       // Which staff member created it
-      jobPriority,       // Custom priority for staff orders
+      // For staff created orders
+      customerId,
+      createdByStaff,
+      staffUserId,
     } = orderData
 
     const cookieStore = await cookies()
@@ -68,31 +73,39 @@ export async function POST(request: Request) {
 
     // Determine the customer for the order
     let orderUserId = user.id
-    let customerType: Database["public"]["Enums"]["customer_type"] = 'residential' // default
-    
+    let customerType: Database['public']['Enums']['customer_type'] =
+      'residential' // default
+
     if (createdByStaff && customerId) {
       // Staff creating order for a customer - validate staff has permission
       if (!userProfile?.is_admin || !userProfile?.isTechnician) {
-        await logSecurityEvent(userProfile, 'unauthorized_staff_order_creation', 'order-submit', false, {
-          attempted_customer_id: customerId,
-          staff_user_id: user.id
-        });
+        await logSecurityEvent(
+          userProfile,
+          'unauthorized_staff_order_creation',
+          'order-submit',
+          false,
+          {
+            attempted_customer_id: customerId,
+            staff_user_id: user.id,
+          },
+        )
         return NextResponse.json(
           { error: 'Insufficient permissions to create orders for customers' },
-          { status: 403 }
-        );
+          { status: 403 },
+        )
       }
-      
+
       // Use the customer ID from the request
       orderUserId = customerId
-      
+
       // Get customer's profile
-      const { data: customerProfile, error: customerProfileError } = await supabase
-        .from('users')
-        .select('customer_type')
-        .eq('id', customerId)
-        .single()
-      
+      const { data: customerProfile, error: customerProfileError } =
+        await supabase
+          .from('users')
+          .select('customer_type')
+          .eq('id', customerId)
+          .single()
+
       if (customerProfileError) {
         console.error('Error getting customer profile:', customerProfileError)
         return NextResponse.json(
@@ -100,7 +113,7 @@ export async function POST(request: Request) {
           { status: 500 },
         )
       }
-      
+
       customerType = customerProfile.customer_type
     } else {
       // Self-service order - use authenticated user
@@ -263,13 +276,11 @@ export async function POST(request: Request) {
 
       // Create jobs with appropriate priorities
       const jobPromises = services.map(async (service) => {
-        // Use custom priority for staff orders, otherwise calculate based on customer type
-        const priority = jobPriority || determineJobPriority(
+        const priority = determineJobPriority(
           customerType,
           service.service_category,
         )
 
-        // Create job record
         return supabase.from('jobs').insert([
           {
             order_id: orderId,
@@ -302,8 +313,8 @@ export async function POST(request: Request) {
       created_by_staff: createdByStaff || false,
       staff_user_id: createdByStaff ? user.id : undefined,
       customer_type: customerType,
-      services_count: selectedServiceIds?.length || 0
-    });
+      services_count: selectedServiceIds?.length || 0,
+    })
 
     return NextResponse.json({
       success: true,

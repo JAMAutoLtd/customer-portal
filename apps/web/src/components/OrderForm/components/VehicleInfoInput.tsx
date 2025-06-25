@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { CheckMarkIcon } from '@/components/icons/CheckMarkIcon'
 import { Button } from '@/components/ui/Button'
-import VehicleSelect from '@/components/OrderForm/VehicleSelect'
-import { VehicleInfo, VehicleInfoInputProps } from './types'
+import { VehicleSelect } from './VehicleSelect'
+import { VehicleInfo, VehicleInfoInputProps } from '../types'
 import { validateAndDecodeVin } from '@/utils/vinValidation'
 
 const API_URL = process.env.NEXT_PUBLIC_NHTSA_API_URL

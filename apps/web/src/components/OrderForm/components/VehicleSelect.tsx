@@ -5,8 +5,8 @@ import {
   ALLOWED_MAKES,
   ALLOWED_MODEL_PATTERNS,
   EXCLUDED_KEYWORDS,
-} from './constants'
-import { VehicleData, VehicleSelectProps } from './types'
+} from '../constants'
+import { VehicleData, VehicleSelectProps } from '../types'
 
 const API_URL = process.env.NEXT_PUBLIC_NHTSA_API_URL
 
@@ -14,7 +14,9 @@ if (!API_URL) {
   throw new Error('NEXT_PUBLIC_NHTSA_API_URL is not defined')
 }
 
-const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
+export const VehicleSelect: React.FC<VehicleSelectProps> = ({
+  onVehicleSelect,
+}) => {
   const [years, setYears] = useState<string[]>([])
   const [makes, setMakes] = useState<string[]>([])
   const [models, setModels] = useState<string[]>([])
@@ -30,7 +32,7 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
   useEffect(() => {
     const currentYear = new Date().getFullYear()
     const yearsList = Array.from({ length: currentYear - 1995 + 1 }, (_, i) =>
-      (currentYear - i).toString()
+      (currentYear - i).toString(),
     )
     setYears(yearsList)
   }, [])
@@ -43,13 +45,13 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
       // Fetch passenger cars, MPVs/SUVs, and light trucks
       const [carsResponse, mpvResponse, trucksResponse] = await Promise.all([
         fetch(
-          `${API_URL}/GetMakesForVehicleType/passenger car?year=${year}&format=json`
+          `${API_URL}/GetMakesForVehicleType/passenger car?year=${year}&format=json`,
         ),
         fetch(
-          `${API_URL}/GetMakesForVehicleType/multipurpose passenger vehicle (mpv)?year=${year}&format=json`
+          `${API_URL}/GetMakesForVehicleType/multipurpose passenger vehicle (mpv)?year=${year}&format=json`,
         ),
         fetch(
-          `${API_URL}/GetMakesForVehicleType/truck?year=${year}&format=json`
+          `${API_URL}/GetMakesForVehicleType/truck?year=${year}&format=json`,
         ),
       ])
 
@@ -95,13 +97,13 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
       // Fetch passenger cars, MPVs/SUVs, and light trucks
       const [carsResponse, mpvResponse, trucksResponse] = await Promise.all([
         fetch(
-          `${API_URL}/GetModelsForMakeYear/make/${make}/modelyear/${year}/vehicletype/passenger car?format=json`
+          `${API_URL}/GetModelsForMakeYear/make/${make}/modelyear/${year}/vehicletype/passenger car?format=json`,
         ),
         fetch(
-          `${API_URL}/GetModelsForMakeYear/make/${make}/modelyear/${year}/vehicletype/multipurpose passenger vehicle (mpv)?format=json`
+          `${API_URL}/GetModelsForMakeYear/make/${make}/modelyear/${year}/vehicletype/multipurpose passenger vehicle (mpv)?format=json`,
         ),
         fetch(
-          `${API_URL}/GetModelsForMakeYear/make/${make}/modelyear/${year}/vehicletype/truck?format=json`
+          `${API_URL}/GetModelsForMakeYear/make/${make}/modelyear/${year}/vehicletype/truck?format=json`,
         ),
       ])
 
@@ -139,7 +141,7 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
 
           // Check if model matches any of our allowed patterns
           const isAllowedPattern = ALLOWED_MODEL_PATTERNS.some(
-            (pattern: RegExp) => pattern.test(model)
+            (pattern: RegExp) => pattern.test(model),
           )
 
           return (
@@ -147,7 +149,7 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
             isAllowedPattern ||
             // Or models that don't contain excluded keywords and don't match unwanted patterns
             (!EXCLUDED_KEYWORDS.some((keyword: string) =>
-              upperModel.includes(keyword)
+              upperModel.includes(keyword),
             ) &&
               !/^[A-Z]\d{4,}/.test(model) && // Excludes models with very long numbers
               model.trim().length > 0) // Excludes empty model names
@@ -285,5 +287,3 @@ const VehicleSelect: React.FC<VehicleSelectProps> = ({ onVehicleSelect }) => {
     </div>
   )
 }
-
-export default VehicleSelect
