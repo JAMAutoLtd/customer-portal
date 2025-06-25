@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { requireAdminTechnician, logSecurityEvent } from '@/middleware/permissions'
+import {
+  requireAdminTechnician,
+  logSecurityEvent,
+} from '@/middleware/permissions'
 import { normalizePhoneNumber } from '../../../../../utils/phoneNumber'
 import {
   nameMatchesSearchTerms,
@@ -8,14 +11,20 @@ import {
 } from '../../../../../utils/nameMatching'
 
 export async function GET(request: Request) {
-  // Check permissions first
-  const { userProfile, error: permissionError } = await requireAdminTechnician(request);
-  
+  const { userProfile, error: permissionError } =
+    await requireAdminTechnician(request)
+
   if (permissionError) {
-    await logSecurityEvent(userProfile, 'customer_search_denied', 'customers/search', false, {
-      reason: 'insufficient_permissions'
-    });
-    return permissionError;
+    await logSecurityEvent(
+      userProfile,
+      'customer_search_denied',
+      'customers/search',
+      false,
+      {
+        reason: 'insufficient_permissions',
+      },
+    )
+    return permissionError
   }
 
   const { searchParams } = new URL(request.url)
@@ -39,10 +48,8 @@ export async function GET(request: Request) {
 
   try {
     if (isPhoneSearch) {
-      // Phone number search
       const normalizedPhone = normalizePhoneNumber(searchTerm)
 
-      // Get all users and filter by normalized phone number
       const { data: users, error } = await supabase
         .from('users')
         .select('id, full_name, phone, customer_type, home_address_id')
@@ -58,7 +65,6 @@ export async function GET(request: Request) {
         )
       })
 
-      // Get auth emails for matched users
       const { data: authUsers } = await supabase.auth.admin.listUsers()
 
       const customers = matchedUsers.map((user) => {
@@ -75,7 +81,7 @@ export async function GET(request: Request) {
 
       return NextResponse.json({ customers })
     } else if (isEmailSearch) {
-      // Email search (case-insensitive)
+      console.log('isEmailSearch', searchTerm)
       const { data: authUsers } = await supabase.auth.admin.listUsers()
 
       const matchedAuthUsers =
@@ -83,7 +89,6 @@ export async function GET(request: Request) {
           au.email?.toLowerCase().includes(searchTerm),
         ) || []
 
-      // Get user details for matched auth users
       const userIds = matchedAuthUsers.map((au) => au.id)
 
       if (userIds.length === 0) {
@@ -109,28 +114,30 @@ export async function GET(request: Request) {
         }
       })
 
-      // Log successful search
-      await logSecurityEvent(userProfile, 'customer_search_success', 'customers/search', true, {
-        search_query: query,
-        results_count: customers.length,
-        search_type: 'email_phone'
-      });
+      await logSecurityEvent(
+        userProfile,
+        'customer_search_success',
+        'customers/search',
+        true,
+        {
+          search_query: query,
+          results_count: customers.length,
+          search_type: 'email_phone',
+        },
+      )
 
       return NextResponse.json({ customers })
     } else {
-      // Name search
       const { data: users, error } = await supabase
         .from('users')
         .select('id, full_name, phone, customer_type, home_address_id')
 
       if (error) throw error
 
-      // Filter by name match
       const matchedUsers = users.filter((user) =>
         nameMatchesSearchTerms(user.full_name || '', searchTerm),
       )
 
-      // Get auth emails for matched users
       const { data: authUsers } = await supabase.auth.admin.listUsers()
 
       const customers = matchedUsers.map((user) => {
@@ -145,7 +152,6 @@ export async function GET(request: Request) {
         }
       })
 
-      // Sort by name relevance
       customers.sort((a, b) => {
         const aName = normalizeName(a.full_name || '')
         const bName = normalizeName(b.full_name || '')

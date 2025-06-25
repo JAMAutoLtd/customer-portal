@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import AddressInput from '@/components/inputs/AddressInput'
@@ -43,14 +43,13 @@ interface OrderFormProps {
   onCancel?: () => void // Optional callback for cancel action
 }
 
-export const OrderForm: React.FC<OrderFormProps> = ({ 
-  customer, 
-  onSuccess, 
-  onCancel 
+export const OrderForm: React.FC<OrderFormProps> = ({
+  customer,
+  onSuccess,
+  onCancel,
 }) => {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const nextAvailableDate = getNextAvailableDate()
   const [formData, setFormData] = useState({
     ...initialFormData,
     lat: undefined as number | undefined,
@@ -74,11 +73,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     if (!customer && !loading && !user) {
       router.push('/login')
     }
-  }, [customer, user, loading])
+  }, [customer, user, loading, router])
 
   // Initialize form data based on context (customer vs. self-service)
   React.useEffect(() => {
     if (!loading) {
+      const nextAvailableDate = getNextAvailableDate()
       setSelectedTime(getNextAvailableTime())
 
       if (customer) {
@@ -97,7 +97,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         }))
       }
     }
-  }, [loading, user, customer, nextAvailableDate])
+  }, [loading, user, customer])
 
   // Fetch customer address if customer context is provided
   React.useEffect(() => {
@@ -118,7 +118,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           if (data) {
             setCustomerAddress(data)
             // Pre-populate form with customer's address
-            setFormData(prev => ({
+            setFormData((prev) => ({
               ...prev,
               address: data.street_address,
               lat: data.lat,
@@ -153,14 +153,32 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     fetchServices()
   }, [])
 
-  const handleDateSelect = (date: Date | undefined) => {
+  // Memoize the address selection handler to prevent re-initialization
+  const handleAddressSelect = useCallback(
+    (address: string, isValid: boolean, lat?: number, lng?: number) => {
+      setFormData((prev) => ({
+        ...prev,
+        address,
+        lat,
+        lng,
+      }))
+      setIsAddressValid(isValid)
+    },
+    [],
+  )
+
+  // Memoize the date select handler to prevent re-renders
+  const handleDateSelect = useCallback((date: Date | undefined) => {
     if (date) {
       setFormData((prev) => ({
         ...prev,
         earliestDate: format(date, 'yyyy-MM-dd'),
       }))
     }
-  }
+  }, [])
+
+  // Memoize the default date to prevent re-renders
+  const defaultDate = useMemo(() => getNextAvailableDate(), [])
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedTime(e.target.value)
@@ -340,22 +358,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   }
 
-  // Memoize the address selection handler to prevent re-initialization
-  const handleAddressSelect = useCallback((
-    address: string,
-    isValid: boolean,
-    lat?: number,
-    lng?: number,
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      address,
-      lat,
-      lng,
-    }))
-    setIsAddressValid(isValid)
-  }, [])
-
   // Show loading only for self-service mode (when customer context is not provided)
   if (!customer && loading) {
     return (
@@ -442,11 +444,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             defaultValue={customerAddress?.street_address}
             onAddressSelect={handleAddressSelect}
           />
-          {customerAddress && (
-            <p className="mt-1 text-sm text-blue-600">
-              ℹ️ Pre-populated with customer's home address. You can change it if needed.
-            </p>
-          )}
           {formData.address && !isAddressValid && (
             <p className="mt-1 text-sm text-red-600">
               Please select a valid address from the dropdown suggestions.
@@ -466,7 +463,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                 Earliest Available Date
               </label>
               <DateInput
-                defaultDate={getNextAvailableDate()}
+                defaultDate={defaultDate}
                 isDateDisabled={isDateDisabled}
                 onDateSelect={handleDateSelect}
               />

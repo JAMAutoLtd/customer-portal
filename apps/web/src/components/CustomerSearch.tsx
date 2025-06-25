@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Search, Loader2, User, Phone, Mail } from 'lucide-react'
 import { debounce } from 'lodash'
 import { formatPhoneNumber } from '../../utils/phoneNumber'
+import { getCustomerTypeColor } from '@/app/dashboard/order-entry/page'
 
 interface Customer {
   id: string
@@ -65,16 +66,14 @@ export function CustomerSearch({
     }
   }, [])
 
-  // Debounce search to avoid too many API calls
   const debouncedSearch = useCallback(
-    debounce((searchQuery: string) => searchCustomers(searchQuery), 300),
+    debounce((searchQuery: string) => searchCustomers(searchQuery), 500),
     [searchCustomers],
   )
 
   useEffect(() => {
     debouncedSearch(query)
-    
-    // Cleanup function to cancel pending debounced calls
+
     return () => {
       debouncedSearch.cancel()
     }
@@ -85,19 +84,6 @@ export function CustomerSearch({
     setQuery('')
     setResults([])
     setShowResults(false)
-  }
-
-  const getCustomerTypeColor = (type: string) => {
-    switch (type) {
-      case 'insurance':
-        return 'text-purple-600 bg-purple-100'
-      case 'commercial':
-        return 'text-blue-600 bg-blue-100'
-      case 'residential':
-        return 'text-green-600 bg-green-100'
-      default:
-        return 'text-gray-600 bg-gray-100'
-    }
   }
 
   return (
@@ -115,7 +101,9 @@ export function CustomerSearch({
           placeholder={placeholder}
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           role="combobox"
-          aria-expanded={showResults && (query.length >= 2 || results.length > 0)}
+          aria-expanded={
+            showResults && (query.length >= 2 || results.length > 0)
+          }
           aria-autocomplete="list"
           aria-describedby={error ? 'search-error' : undefined}
         />
@@ -125,9 +113,14 @@ export function CustomerSearch({
       </div>
 
       {showResults && (query.length >= 2 || results.length > 0) && (
-        <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto" role="listbox">
+        <div
+          className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto"
+          role="listbox"
+        >
           {error ? (
-            <div id="search-error" className="p-4 text-red-600 text-sm">{error}</div>
+            <div id="search-error" className="p-4 text-red-600 text-sm">
+              {error}
+            </div>
           ) : results.length === 0 && !isLoading ? (
             <div className="p-4 text-gray-500 text-sm text-center">
               No customers found

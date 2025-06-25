@@ -83,13 +83,13 @@ export function CustomerCreateForm({
   const checkForDuplicates = async (): Promise<boolean> => {
     setIsCheckingDuplicate(true)
     try {
-      // Check by email
       const emailResponse = await fetch(
         `/api/customers/search?q=${encodeURIComponent(formData.email)}`,
       )
       if (emailResponse.ok) {
         const emailData = await emailResponse.json()
         if (emailData.customers && emailData.customers.length > 0) {
+          console.log('🌟 user exists')
           setErrors({ email: 'A customer with this email already exists' })
           return false
         }
@@ -147,7 +147,35 @@ export function CustomerCreateForm({
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to create customer')
+        const errorMessage = data.error || 'Failed to create customer'
+
+        // Parse specific field errors from API response
+        const newErrors: FormErrors = {}
+
+        if (
+          errorMessage.toLowerCase().includes('email') &&
+          errorMessage.toLowerCase().includes('already exists')
+        ) {
+          newErrors.email = 'A user with this email already exists'
+        } else if (
+          errorMessage.toLowerCase().includes('phone') &&
+          errorMessage.toLowerCase().includes('already exists')
+        ) {
+          newErrors.phone = 'A user with this phone number already exists'
+        } else if (errorMessage.toLowerCase().includes('invalid email')) {
+          newErrors.email = 'Invalid email format'
+        } else if (errorMessage.toLowerCase().includes('invalid phone')) {
+          newErrors.phone = 'Invalid phone number'
+        } else if (
+          errorMessage.toLowerCase().includes('missing required fields')
+        ) {
+          newErrors.general = 'Please fill in all required fields'
+        } else {
+          newErrors.general = errorMessage
+        }
+
+        setErrors(newErrors)
+        return
       }
 
       const newCustomer = await response.json()
@@ -170,23 +198,21 @@ export function CustomerCreateForm({
     setFormData({ ...formData, phone: cleaned })
   }
 
-  const handleAddressSelect = useCallback((
-    address: string,
-    isValid: boolean,
-    lat?: number,
-    lng?: number,
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      street_address: address,
-      address_lat: lat,
-      address_lng: lng,
-    }))
-    // Clear address error if valid address is selected
-    if (isValid && errors.street_address) {
-      setErrors(prev => ({ ...prev, street_address: undefined }))
-    }
-  }, [errors.street_address])
+  const handleAddressSelect = useCallback(
+    (address: string, isValid: boolean, lat?: number, lng?: number) => {
+      setFormData((prev) => ({
+        ...prev,
+        street_address: address,
+        address_lat: lat,
+        address_lng: lng,
+      }))
+      // Clear address error if valid address is selected
+      if (isValid && errors.street_address) {
+        setErrors((prev) => ({ ...prev, street_address: undefined }))
+      }
+    },
+    [errors.street_address],
+  )
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -217,7 +243,9 @@ export function CustomerCreateForm({
           aria-invalid={!!errors.full_name}
         />
         {errors.full_name && (
-          <p id="full_name-error" className="mt-1 text-sm text-red-600">{errors.full_name}</p>
+          <p id="full_name-error" className="mt-1 text-sm text-red-600">
+            {errors.full_name}
+          </p>
         )}
       </div>
 
@@ -241,7 +269,9 @@ export function CustomerCreateForm({
           aria-invalid={!!errors.email}
         />
         {errors.email && (
-          <p id="email-error" className="mt-1 text-sm text-red-600">{errors.email}</p>
+          <p id="email-error" className="mt-1 text-sm text-red-600">
+            {errors.email}
+          </p>
         )}
       </div>
 
@@ -264,7 +294,9 @@ export function CustomerCreateForm({
           aria-invalid={!!errors.phone}
         />
         {errors.phone && (
-          <p id="phone-error" className="mt-1 text-sm text-red-600">{errors.phone}</p>
+          <p id="phone-error" className="mt-1 text-sm text-red-600">
+            {errors.phone}
+          </p>
         )}
       </div>
 
@@ -312,19 +344,15 @@ export function CustomerCreateForm({
           disabled={isSubmitting || isCheckingDuplicate}
           className="flex-1"
         >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating Customer...
-            </>
-          ) : isCheckingDuplicate ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Checking for duplicates...
-            </>
-          ) : (
-            'Create Customer'
+          {isCheckingDuplicate && (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           )}
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isCheckingDuplicate
+            ? 'Checking for duplicates...'
+            : isSubmitting
+              ? 'Creating Customer...'
+              : 'Create Customer'}
         </Button>
         <Button
           type="button"
