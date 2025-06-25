@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import AddressInput from '@/components/inputs/AddressInput'
@@ -340,6 +340,22 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   }
 
+  // Memoize the address selection handler to prevent re-initialization
+  const handleAddressSelect = useCallback((
+    address: string,
+    isValid: boolean,
+    lat?: number,
+    lng?: number,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      address,
+      lat,
+      lng,
+    }))
+    setIsAddressValid(isValid)
+  }, [])
+
   // Show loading only for self-service mode (when customer context is not provided)
   if (!customer && loading) {
     return (
@@ -424,20 +440,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           </label>
           <AddressInput
             defaultValue={customerAddress?.street_address}
-            onAddressSelect={(
-              address: string,
-              isValid: boolean,
-              lat?: number,
-              lng?: number,
-            ) => {
-              setFormData((prev) => ({
-                ...prev,
-                address,
-                lat,
-                lng,
-              }))
-              setIsAddressValid(isValid)
-            }}
+            onAddressSelect={handleAddressSelect}
           />
           {customerAddress && (
             <p className="mt-1 text-sm text-blue-600">

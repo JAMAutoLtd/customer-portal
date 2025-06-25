@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import AddressInput from '@/components/inputs/AddressInput'
@@ -170,23 +170,23 @@ export function CustomerCreateForm({
     setFormData({ ...formData, phone: cleaned })
   }
 
-  const handleAddressSelect = (
+  const handleAddressSelect = useCallback((
     address: string,
     isValid: boolean,
     lat?: number,
     lng?: number,
   ) => {
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       street_address: address,
       address_lat: lat,
       address_lng: lng,
-    })
+    }))
     // Clear address error if valid address is selected
     if (isValid && errors.street_address) {
       setErrors(prev => ({ ...prev, street_address: undefined }))
     }
-  }
+  }, [errors.street_address])
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
