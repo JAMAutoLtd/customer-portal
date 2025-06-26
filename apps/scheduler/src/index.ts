@@ -12,7 +12,11 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') })
  * function and handles the final exit status.
  */
 async function main() {
+<<<<<<< feat/human-dashboard
   console.log('Starting scheduler process...') // Trigger build v2
+=======
+  console.log('Starting scheduler process...') // Trigger CI/CD v2
+>>>>>>> main
   try {
     // Pass the Supabase client instance to the replan function
     await runFullReplan(supabase)
