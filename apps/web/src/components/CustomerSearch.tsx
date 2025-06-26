@@ -3,8 +3,8 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { Search, Loader2, User, Phone, Mail } from 'lucide-react'
 import { debounce } from 'lodash'
-import { formatPhoneNumber } from '../../utils/phoneNumber'
-import { getCustomerTypeColor } from '@/app/dashboard/order-entry/page'
+import { formatPhoneNumber } from '../utils/phoneNumber'
+import { getCustomerTypeColor } from '@/utils/styles'
 
 interface Customer {
   id: string

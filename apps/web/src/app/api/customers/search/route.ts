@@ -4,11 +4,11 @@ import {
   requireAdminTechnician,
   logSecurityEvent,
 } from '@/middleware/permissions'
-import { normalizePhoneNumber } from '../../../../../utils/phoneNumber'
+import { normalizePhoneNumber } from '../../../../utils/phoneNumber'
 import {
   nameMatchesSearchTerms,
   normalizeName,
-} from '../../../../../utils/nameMatching'
+} from '../../../../utils/nameMatching'
 
 export async function GET(request: Request) {
   const { userProfile, error: permissionError } =

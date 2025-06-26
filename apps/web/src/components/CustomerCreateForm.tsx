@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input'
 import AddressInput from '@/components/inputs/AddressInput'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { CustomerType } from '@/types'
-import { normalizePhoneNumber } from '../../utils/phoneNumber'
+import { normalizePhoneNumber } from '../utils/phoneNumber'
 
 interface CustomerCreateFormProps {
   onSuccess: (customer: any) => void
