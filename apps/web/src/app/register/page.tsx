@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import AddressInput from '@/components/inputs/AddressInput'
@@ -23,7 +23,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleAddressSelect = (
+  const handleAddressSelect = useCallback((
     address: string,
     _isValid: boolean,
     lat?: number,
@@ -35,7 +35,7 @@ export default function RegisterPage() {
       lat,
       lng,
     }))
-  }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

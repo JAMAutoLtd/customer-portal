@@ -171,6 +171,7 @@ pnpm run clean
 - **Equipment Requirements**: Jobs need specific equipment; technicians must have it on their van
 - **Availability Windows**: Technician working hours minus exceptions and locked jobs
 - **Priority Handling**: Higher priority jobs have higher penalties for being unassigned
+- **Customer Activation**: Staff-created accounts require email activation (no temporary passwords shown)
 
 ### Database Schema
 - Core tables: orders, jobs, technicians, addresses, services

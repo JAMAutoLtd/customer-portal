@@ -98,3 +98,18 @@ export interface VehicleInfoInputProps {
     servicesRequired?: ServicesRequired
   }) => void
 }
+
+export interface Customer {
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  customer_type: 'residential' | 'commercial' | 'insurance'
+  home_address_id: number | null
+}
+
+export interface OrderFormProps {
+  customer?: Customer | null
+  onSuccess?: () => void
+  onCancel?: () => void
+}

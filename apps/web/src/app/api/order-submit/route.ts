@@ -2,10 +2,27 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { determineJobPriority } from '@/utils/jobs'
+import { requireAuth, logSecurityEvent } from '@/middleware/permissions'
+import { Database } from '@/types/database.types'
 
 const JOB_DURATION = 90
 
 export async function POST(request: Request) {
+  const { userProfile, error: permissionError } = await requireAuth(request)
+
+  if (permissionError) {
+    await logSecurityEvent(
+      userProfile,
+      'order_submit_denied',
+      'order-submit',
+      false,
+      {
+        reason: 'authentication_required',
+      },
+    )
+    return permissionError
+  }
+
   try {
     const orderData = await request.json()
 
@@ -20,6 +37,10 @@ export async function POST(request: Request) {
       vehicleMake,
       vehicleModel,
       selectedServiceIds,
+      // For staff created orders
+      customerId,
+      createdByStaff,
+      staffUserId,
     } = orderData
 
     const cookieStore = await cookies()
@@ -50,24 +71,68 @@ export async function POST(request: Request) {
       )
     }
 
-    const userId = user.id
+    // Determine the customer for the order
+    let orderUserId = user.id
+    let customerType: Database['public']['Enums']['customer_type'] =
+      'residential' // default
 
-    // Get user profile to determine customer type
-    const { data: userProfile, error: userProfileError } = await supabase
-      .from('users')
-      .select('customer_type')
-      .eq('id', userId)
-      .single()
+    if (createdByStaff && customerId) {
+      // Staff creating order for a customer - validate staff has permission
+      if (!userProfile?.is_admin || !userProfile?.isTechnician) {
+        await logSecurityEvent(
+          userProfile,
+          'unauthorized_staff_order_creation',
+          'order-submit',
+          false,
+          {
+            attempted_customer_id: customerId,
+            staff_user_id: user.id,
+          },
+        )
+        return NextResponse.json(
+          { error: 'Insufficient permissions to create orders for customers' },
+          { status: 403 },
+        )
+      }
 
-    if (userProfileError) {
-      console.error('Error getting user profile:', userProfileError)
-      return NextResponse.json(
-        { error: 'Failed to retrieve user profile' },
-        { status: 500 },
-      )
+      // Use the customer ID from the request
+      orderUserId = customerId
+
+      // Get customer's profile
+      const { data: customerProfile, error: customerProfileError } =
+        await supabase
+          .from('users')
+          .select('customer_type')
+          .eq('id', customerId)
+          .single()
+
+      if (customerProfileError) {
+        console.error('Error getting customer profile:', customerProfileError)
+        return NextResponse.json(
+          { error: 'Failed to retrieve customer profile' },
+          { status: 500 },
+        )
+      }
+
+      customerType = customerProfile.customer_type
+    } else {
+      // Self-service order - use authenticated user
+      const { data: userProfileData, error: userProfileError } = await supabase
+        .from('users')
+        .select('customer_type')
+        .eq('id', orderUserId)
+        .single()
+
+      if (userProfileError) {
+        console.error('Error getting user profile:', userProfileError)
+        return NextResponse.json(
+          { error: 'Failed to retrieve user profile' },
+          { status: 500 },
+        )
+      }
+
+      customerType = userProfileData.customer_type
     }
-
-    const customerType = userProfile.customer_type
 
     const earliestDateTime = new Date(earliestDate)
 
@@ -142,18 +207,24 @@ export async function POST(request: Request) {
 
     const vehicleId = vehicle.id
 
-    // Create order with vehicle ID
+    // Create order with vehicle ID and staff tracking
+    const newOrderData: any = {
+      user_id: orderUserId,
+      vehicle_id: vehicleId,
+      address_id: addressId,
+      earliest_available_time: earliestDateTime.toISOString(),
+      notes: notes || null,
+    }
+
+    // Add staff tracking fields if this is a staff-created order
+    if (createdByStaff && staffUserId) {
+      newOrderData.created_by_staff = true
+      newOrderData.staff_user_id = staffUserId
+    }
+
     const { data: orderResult, error: orderError } = await supabase
       .from('orders')
-      .insert([
-        {
-          user_id: userId,
-          vehicle_id: vehicleId,
-          address_id: addressId,
-          earliest_available_time: earliestDateTime.toISOString(),
-          notes: notes || null,
-        },
-      ])
+      .insert([newOrderData])
       .select()
       .single()
 
@@ -205,13 +276,11 @@ export async function POST(request: Request) {
 
       // Create jobs with appropriate priorities
       const jobPromises = services.map(async (service) => {
-        // Get priority using the extracted function
         const priority = determineJobPriority(
           customerType,
           service.service_category,
         )
 
-        // Create job record
         return supabase.from('jobs').insert([
           {
             order_id: orderId,
@@ -236,6 +305,16 @@ export async function POST(request: Request) {
         )
       }
     }
+
+    // Log successful order creation
+    await logSecurityEvent(userProfile, 'order_created', 'order-submit', true, {
+      order_id: orderId,
+      customer_id: orderUserId,
+      created_by_staff: createdByStaff || false,
+      staff_user_id: createdByStaff ? user.id : undefined,
+      customer_type: customerType,
+      services_count: selectedServiceIds?.length || 0,
+    })
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
 import { JobStatus } from '@/components/jobs/types'
+import { Database } from './database.types'
 
 export type Address = {
   id: number
@@ -51,11 +52,12 @@ export interface OrderCardProps {
 export type UserProfile = {
   id: string
   full_name: string
-  phone?: string
-  home_address_id?: number
-  is_admin: boolean
-  customer_type: CustomerType
+  phone?: string | null
+  home_address_id?: number | null
+  is_admin: boolean | null
+  customer_type: Database["public"]["Enums"]["customer_type"]
   email?: string
+  isTechnician?: boolean
 }
 
 export enum CustomerType {

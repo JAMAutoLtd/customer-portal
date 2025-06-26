@@ -1,249 +1,106 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
-import AddressInput from '@/components/inputs/AddressInput'
 import { Button } from '@/components/ui/Button'
 import { Loader } from '@/components/ui/Loader'
-import { format } from 'date-fns'
-import { initialFormData } from './constants'
-import {
-  formatTime,
-  getNextAvailableDate,
-  getNextAvailableTime,
-  isDateDisabled,
-} from './helpers'
-import { DateInput } from '../inputs/DateInput'
-import {
-  KeyService,
-  KeySource,
-  OrderFormData,
-  ServicesRequired,
-  KeyType,
-} from './types'
+import { OrderFormProps } from './types'
+import { ServicesSection } from './components/ServicesSection'
+import { useOrderForm } from './hooks/useOrderForm'
+import { useServices } from './hooks/useServices'
+import { useCustomerAddress } from './hooks/useCustomerAddress'
+import { CustomerBanner } from './components/CustomerBanner'
+import { StatusMessages } from './components/StatusMessages'
+import { AddressSection } from './components/AddressSection'
+import { AppointmentSection } from './components/AppointmentSection'
+import { NotesSection } from './components/NotesSection'
+import VehicleInfoInput from './components/VehicleInfoInput'
 
-import { supabase } from '@/utils/supabase/client'
-import { Service } from '@/types'
-import { ServicesSection } from './ServicesSection'
-import VehicleInfoInput from './VehicleInfoInput'
-import { validateAndDecodeVin } from '@/utils/vinValidation'
-import { DATE_FORMATS, formDateToAPI } from '@/utils/date'
-
-export const OrderForm: React.FC = () => {
+export const OrderForm: React.FC<OrderFormProps> = ({
+  customer,
+  onSuccess,
+  onCancel,
+}) => {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const nextAvailableDate = getNextAvailableDate()
-  const [formData, setFormData] = useState({
-    ...initialFormData,
-    lat: undefined as number | undefined,
-    lng: undefined as number | undefined,
+
+  const orderForm = useOrderForm({
+    customer,
+    userEmail: user?.email,
+    userId: user?.id,
   })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [isAddressValid, setIsAddressValid] = useState(false)
-  const [selectedTime, setSelectedTime] = useState<string>('')
-  const [services, setServices] = useState<Service[]>([])
-  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
-
-  React.useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login')
-    }
-  }, [user, loading, router])
-
-  React.useEffect(() => {
-    if (!loading && user) {
-      setSelectedTime(getNextAvailableTime())
-
-      setFormData((prev) => ({
-        ...prev,
-        earliestDate: format(nextAvailableDate, 'yyyy-MM-dd'),
-        customerEmail: user.email || '',
-      }))
-    }
-  }, [loading, user])
+  const { services } = useServices()
+  const { customerAddress } = useCustomerAddress(customer)
 
   useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('services')
-          .select('id, service_name, slug')
-          .order('service_name')
-
-        if (error) throw error
-        setServices(data || [])
-      } catch (error) {
-        console.error('Error fetching services:', error)
-      }
+    if (!customer && !user && !loading) {
+      router.push('/login')
     }
+  }, [customer, user, loading, router])
 
-    fetchServices()
-  }, [])
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setFormData((prev) => ({
-        ...prev,
-        earliestDate: format(date, 'yyyy-MM-dd'),
-      }))
-    }
-  }
-
-  const handleTimeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedTime(e.target.value)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!isAddressValid) {
-      setError('Please select a valid address from the dropdown suggestions.')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return
-    }
-
-    setIsSubmitting(true)
-    setError(null)
-    setSuccess(false)
-
-    try {
-      let submissionData = { ...formData }
-
-      // Check if VIN needs validation (VIN entered but no vehicle info)
-      if (
-        formData.vin &&
-        !formData.vinUnknown &&
-        (!formData.vehicleYear ||
-          !formData.vehicleMake ||
-          !formData.vehicleModel)
-      ) {
-        try {
-          const vehicleInfo = await validateAndDecodeVin(formData.vin)
-          submissionData = {
-            ...submissionData,
-            ...vehicleInfo,
-          }
-          setFormData(submissionData)
-        } catch (err) {
-          setError(
-            err instanceof Error ? err.message : 'Failed to validate VIN',
-          )
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-          return
-        }
-      }
-
-      const earliestDateTimeISO = formDateToAPI(
-        submissionData.earliestDate,
-        selectedTime,
+  useEffect(() => {
+    if (customerAddress) {
+      orderForm.updateAddress(
+        customerAddress.street_address,
+        true,
+        customerAddress.lat,
+        customerAddress.lng,
       )
-
-      const requestData = {
-        ...submissionData,
-        lat: formData.lat,
-        lng: formData.lng,
-        earliestDate: earliestDateTimeISO,
-        selectedServiceIds,
-        customerEmail: user?.email || '',
-      }
-
-      const response = await fetch('/api/order-submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to submit order')
-      }
-
-      setSuccess(true)
-
-      // Reset form
-      setFormData({
-        vin: '',
-        vinUnknown: false,
-        address: '',
-        earliestDate: format(getNextAvailableDate(), DATE_FORMATS.DATE_ONLY),
-        notes: '',
-        customerEmail: user?.email || '',
-        vehicleYear: '',
-        vehicleMake: '',
-        vehicleModel: '',
-        servicesRequired: {},
-        lat: undefined,
-        lng: undefined,
-      })
-      setSelectedTime(getNextAvailableTime())
-    } catch (err) {
-      setError('Failed to submit order. Please try again.')
-    } finally {
-      setIsSubmitting(false)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }
+  }, [customerAddress, orderForm.updateAddress])
 
-  const handleChange = React.useCallback(
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      const success = await orderForm.submitForm(onSuccess)
+      if (success || orderForm.error) {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    },
+    [orderForm, onSuccess],
+  )
+
+  const handleChange = useCallback(
     (
       e: React.ChangeEvent<
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >,
     ) => {
       const { name, value, type } = e.target
-      setFormData((prev) => ({
-        ...prev,
+      orderForm.updateFormData({
         [name]:
           type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
-      }))
+      })
     },
-    [setFormData],
+    [orderForm.updateFormData],
   )
 
-  const handleFormDataUpdate = (updates: Partial<OrderFormData>) => {
-    setFormData((prev) => ({
-      ...prev,
-      ...updates,
-    }))
-  }
+  const handleServiceSelection = useCallback(
+    (serviceId: number, checked: boolean) => {
+      orderForm.updateServices(serviceId, checked)
 
-  const handleServiceChange = (
-    service: string,
-    value:
-      | boolean
-      | string[]
-      | {
-          service: KeyService
-          keyType: KeyType
-          keySource: KeySource
-          quantity: number
-        }
-      | undefined,
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      servicesRequired: {
-        ...prev.servicesRequired,
-        [service as keyof ServicesRequired]: value,
-      },
-    }))
-  }
+      const selectedService = services.find((s) => s.id === serviceId)
+      if (selectedService) {
+        const [category] = selectedService.slug.split('_')
+        orderForm.updateFormData({
+          servicesRequired: {
+            ...orderForm.formData.servicesRequired,
+            [category]: checked,
+          },
+        })
+      }
+    },
+    [orderForm, services],
+  )
 
-  const handleServiceSelection = (serviceId: number, checked: boolean) => {
-    setSelectedServiceIds((prev) =>
-      checked ? [...prev, serviceId] : prev.filter((id) => id !== serviceId),
-    )
-
-    const selectedService = services.find((s) => s.id === serviceId)
-    if (selectedService) {
-      const [category] = selectedService.slug.split('_')
-      handleServiceChange(category, checked)
+  const handleCancel = useCallback(() => {
+    if (onCancel) {
+      onCancel()
+    } else {
+      router.push('/orders')
     }
-  }
+  }, [onCancel, router])
 
-  if (loading) {
+  if (!customer && loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader />
@@ -253,139 +110,55 @@ export const OrderForm: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-[768px]">
-      <h1 className="text-2xl font-bold mb-8">Submit New Order</h1>
+      <h1 className="text-2xl font-bold mb-8">
+        {customer ? 'Create Order for Customer' : 'Submit New Order'}
+      </h1>
 
-      {success && (
-        <div className="mb-4 p-4 bg-green-100 text-green-800 rounded-lg">
-          Order submitted successfully! You can view it in your dashboard.
-        </div>
-      )}
+      {customer && <CustomerBanner customer={customer} />}
 
-      {error && (
-        <div className="mb-4 p-4 bg-red-100 text-red-800 rounded-lg">
-          {error}
-        </div>
-      )}
+      <StatusMessages success={orderForm.success} error={orderForm.error} />
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <VehicleInfoInput
-          vin={formData.vin}
-          vinUnknown={formData.vinUnknown}
-          vehicleYear={formData.vehicleYear}
-          vehicleMake={formData.vehicleMake}
-          vehicleModel={formData.vehicleModel}
-          servicesRequired={formData.servicesRequired}
-          onFormDataUpdate={handleFormDataUpdate}
+          vin={orderForm.formData.vin}
+          vinUnknown={orderForm.formData.vinUnknown}
+          vehicleYear={orderForm.formData.vehicleYear}
+          vehicleMake={orderForm.formData.vehicleMake}
+          vehicleModel={orderForm.formData.vehicleModel}
+          servicesRequired={orderForm.formData.servicesRequired}
+          onFormDataUpdate={orderForm.updateFormData}
         />
 
-        <div className="mt-8">
-          <label
-            htmlFor="address"
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
-            Address
-          </label>
-          <AddressInput
-            onAddressSelect={(
-              address: string,
-              isValid: boolean,
-              lat?: number,
-              lng?: number,
-            ) => {
-              setFormData((prev) => ({
-                ...prev,
-                address,
-                lat,
-                lng,
-              }))
-              setIsAddressValid(isValid)
-            }}
-          />
-          {formData.address && !isAddressValid && (
-            <p className="mt-1 text-sm text-red-600">
-              Please select a valid address from the dropdown suggestions.
-            </p>
-          )}
-        </div>
+        <AddressSection
+          address={orderForm.formData.address}
+          isAddressValid={orderForm.isAddressValid}
+          defaultValue={customerAddress?.street_address}
+          onAddressSelect={orderForm.updateAddress}
+        />
 
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Appointment Details</h2>
+        <AppointmentSection
+          selectedTime={orderForm.selectedTime}
+          onDateSelect={orderForm.updateDate}
+          onTimeChange={orderForm.setSelectedTime}
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label
-                htmlFor="earliestDate"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Earliest Available Date
-              </label>
-              <DateInput
-                defaultDate={getNextAvailableDate()}
-                isDateDisabled={isDateDisabled}
-                onDateSelect={handleDateSelect}
-              />
-            </div>
-
-            <div className="flex flex-col justify-start">
-              <label
-                htmlFor="selectedTime"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Preferred Time
-              </label>
-              <select
-                id="selectedTime"
-                name="selectedTime"
-                value={selectedTime}
-                onChange={handleTimeChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select Time</option>
-                {Array.from({ length: 9 }, (_, i) => i + 9).map((hour) => (
-                  <option key={hour} value={`${hour}:00`}>
-                    {formatTime(hour)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="notes"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Additional Notes
-          </label>
-          <textarea
-            id="notes"
-            name="notes"
-            value={formData.notes}
-            onChange={handleChange}
-            rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Any additional information or special requests..."
-          />
-        </div>
+        <NotesSection
+          notes={orderForm.formData.notes}
+          onChange={handleChange}
+        />
 
         <ServicesSection
           services={services}
-          selectedServices={selectedServiceIds}
+          selectedServices={orderForm.selectedServiceIds}
           onServiceChange={handleServiceSelection}
         />
 
         <div className="flex justify-end space-x-4">
-          <Button
-            variant="secondary"
-            type="button"
-            onClick={() => router.push('/orders')}
-          >
+          <Button variant="secondary" type="button" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Submitting...' : 'Submit Order'}
+          <Button type="submit" disabled={orderForm.isSubmitting}>
+            {orderForm.isSubmitting ? 'Submitting...' : 'Submit Order'}
           </Button>
         </div>
       </form>

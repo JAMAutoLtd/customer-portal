@@ -8,6 +8,8 @@ import {
   JOBS_ROUTE,
   NEW_ORDER_ROUTE,
   ORDERS_ROUTE,
+  ORDER_ENTRY_ROUTE,
+  TECHNICIAN_ROUTES,
 } from '@/constants/routes'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
@@ -15,12 +17,19 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 
 const navigation = [
-  { name: 'Orders', href: ORDERS_ROUTE, adminOnly: false },
-  { name: 'Jobs', href: JOBS_ROUTE, adminOnly: true },
+  { name: 'Orders', href: ORDERS_ROUTE, adminOnly: false, technicianOnly: false },
+  { name: 'Jobs', href: JOBS_ROUTE, adminOnly: true, technicianOnly: false },
   {
     name: 'Availability',
     href: AVAILABILITY_ROUTE,
     adminOnly: true,
+    technicianOnly: false,
+  },
+  {
+    name: 'Order Entry',
+    href: ORDER_ENTRY_ROUTE,
+    adminOnly: false,
+    technicianOnly: true,
   },
 ]
 
@@ -35,6 +44,14 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (loading) return
+
+    // Check technician routes (admin + technician required)
+    if (TECHNICIAN_ROUTES.includes(pathname as any)) {
+      if (!userProfile?.is_admin || !userProfile?.isTechnician) {
+        router.push(userProfile?.is_admin ? JOBS_ROUTE : ORDERS_ROUTE)
+      }
+      return
+    }
 
     if (ADMIN_ROUTES.includes(pathname) && !userProfile?.is_admin) {
       router.push(ORDERS_ROUTE)
@@ -63,12 +80,20 @@ export default function DashboardLayout({
         <div className="container mx-auto flex justify-between items-center h-16 px-4 max-w-[768px]">
           <div className="flex gap-3 items-end self-end">
             {navigation
-              .filter(
-                (item) =>
-                  (item.adminOnly === false &&
-                    userProfile?.is_admin === false) ||
-                  (item.adminOnly === true && userProfile?.is_admin === true),
-              )
+              .filter((item) => {
+                // Check technician-only tabs
+                if (item.technicianOnly) {
+                  return userProfile?.is_admin && userProfile?.isTechnician
+                }
+                
+                // Check admin-only tabs
+                if (item.adminOnly) {
+                  return userProfile?.is_admin
+                }
+                
+                // Non-admin tabs are shown to customers only
+                return !userProfile?.is_admin
+              })
               .map((item) => (
                 <Link
                   key={item.name}

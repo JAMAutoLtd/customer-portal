@@ -1,6 +1,6 @@
 import React from 'react'
-import { ChevronDownIcon } from '../icons/ChevronDownIcon'
-import { ServicesSectionProps } from './types'
+import { ChevronDownIcon } from '../../icons/ChevronDownIcon'
+import { ServicesSectionProps } from '../types'
 import { Service } from '@/types'
 
 const GROUP_NAMES: Record<string, string> = {
@@ -49,7 +49,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
       name: GROUP_NAMES[slug] || slug.toUpperCase(),
       slug,
       services: services.sort((a, b) =>
-        a.service_name.localeCompare(b.service_name)
+        a.service_name.localeCompare(b.service_name),
       ),
     }))
   }, [services])
@@ -58,7 +58,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
     setOpenGroups((prev) =>
       prev.includes(groupSlug)
         ? prev.filter((slug) => slug !== groupSlug)
-        : [...prev, groupSlug]
+        : [...prev, groupSlug],
     )
   }
 
