@@ -19,6 +19,7 @@
     "autoprefixer": "^10.4.18",
     "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
+    "google-auth-library": "^10.1.0",
     "lucide-react": "^0.503.0",
     "next": "15.2.0",
     "postcss": "^8.4.35",
