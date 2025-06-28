@@ -45,7 +45,7 @@ export async function PATCH(
     // Update the job with the new technician
     const { data, error } = await supabase
       .from('jobs')
-      .update({ assigned_technician: technician_id })
+      .update({ assigned_technician: technician_id, fixed_assignment: true })
       .eq('id', parseInt(jobId))
       .select()
       .single()
