@@ -335,3 +335,37 @@ export function useMapActions() {
 
   return { openLocationInMaps, openRouteInMaps }
 }
+
+export function useCompletedJobs() {
+  const { user } = useAuth()
+  const [jobs, setJobs] = useState<TechnicianJob[]>([])
+  const [groupedJobs, setGroupedJobs] = useState<GroupedJobs>({})
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchCompletedJobs = async () => {
+      try {
+        const response = await fetch('/api/technician/jobs?status=completed')
+        if (!response.ok) {
+          throw new Error('Failed to fetch completed jobs')
+        }
+
+        const data = await response.json()
+        setJobs(data)
+
+        const grouped = groupJobsByDate(data)
+        setGroupedJobs(grouped)
+      } catch (error) {
+        console.error('Error fetching completed jobs:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (user) {
+      fetchCompletedJobs()
+    }
+  }, [user])
+
+  return { jobs, groupedJobs, isLoading }
+}

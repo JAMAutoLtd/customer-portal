@@ -1,38 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-
-// Define types to help TypeScript understand the data structure
-interface OrderData {
-  id: number
-  user: {
-    id: string
-    full_name: string
-  }
-  customer_vehicles: {
-    year: number
-    make: string
-    model: string
-  }
-}
-
-interface AddressData {
-  street_address: string
-  lat?: number
-  lng?: number
-}
-
-interface JobData {
-  id: number
-  order_id: number
-  status: string
-  requested_time: string
-  assigned_technician: number | null
-  addresses: AddressData
-  services: {
-    service_name: string
-  }
-  orders: OrderData
-}
+import { StandardJobData, AddressData, StandardJobOrderData } from '@/types/api'
 
 export async function GET() {
   try {
@@ -99,18 +67,18 @@ export async function GET() {
     console.log('Job data example:', jobsData[0])
 
     // Type assertion to help TypeScript understand the structure
-    const jobs = jobsData as unknown as JobData[]
+    const jobs = jobsData as unknown as StandardJobData[]
 
     // Format the response to match the expected structure in the frontend
     const formattedJobs = jobs.map((job) => {
       try {
         // Handle potential data structure issues safely
-        const order = job.orders || ({} as OrderData)
+        const order = job.orders || ({} as StandardJobOrderData)
         const address = job.addresses || ({} as AddressData)
 
         // Extract user info from orders.users
         const userData =
-          order.user && order.user ? order.user : { full_name: 'Unknown' }
+          order.users && order.users ? order.users : { full_name: 'Unknown' }
 
         // Extract vehicle info
         const vehicleData = order.customer_vehicles || {

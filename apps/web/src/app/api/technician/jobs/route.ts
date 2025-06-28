@@ -1,43 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import {
+  TechnicianJobData,
+  AddressData,
+  TechnicianJobOrderData,
+} from '@/types/api'
 
-// Define types to help TypeScript understand the data structure
-interface OrderData {
-  user: {
-    full_name: string
-  }
-  vehicle: {
-    year: number
-    make: string
-    model: string
-  }
-}
-
-interface AddressData {
-  street_address: string
-  lat?: number
-  lng?: number
-}
-
-interface JobData {
-  id: number
-  order_id: number
-  status: string
-  requested_time: string
-  estimated_sched: string
-  job_duration?: number
-  notes?: string
-  technician_notes?: string
-  address: AddressData
-  service: {
-    service_name: string
-  }
-  order: OrderData
-  assigned_technician: number
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const statusFilter = searchParams.get('status') // 'active', 'completed', or 'all'
+
     const supabase = await createClient()
 
     const {
@@ -66,8 +39,8 @@ export async function GET() {
 
     const technicianId = technicianData.id
 
-    // Get all jobs assigned to this technician (excluding pending_review status)
-    const { data: jobsData, error: jobsError } = await supabase
+    // Build query based on status filter
+    let query = supabase
       .from('jobs')
       .select(
         `
@@ -102,8 +75,18 @@ export async function GET() {
       `,
       )
       .eq('assigned_technician', technicianId)
-      .neq('status', 'pending_review')
-      .order('estimated_sched', { ascending: true })
+
+    if (statusFilter === 'completed') {
+      query = query.in('status', ['completed', 'cancelled'])
+      query = query.order('estimated_sched', { ascending: false }) // Most recent first for completed
+    } else if (statusFilter === 'all') {
+      query = query.order('estimated_sched', { ascending: true })
+    } else {
+      query = query.not('status', 'in', '(pending_review,completed,cancelled)')
+      query = query.order('estimated_sched', { ascending: true })
+    }
+
+    const { data: jobsData, error: jobsError } = await query
 
     if (jobsError) {
       console.error('Supabase query error:', jobsError)
@@ -117,13 +100,13 @@ export async function GET() {
       return NextResponse.json([])
     }
 
-    const jobs = jobsData as unknown as JobData[]
+    const jobs = jobsData as unknown as TechnicianJobData[]
 
     // Format the response to match the expected structure in the frontend
     const formattedJobs = jobs.map((job) => {
       try {
         // Handle potential data structure issues safely
-        const order = job.order || ({} as OrderData)
+        const order = job.order || ({} as TechnicianJobOrderData)
         const address = job.address || ({} as AddressData)
 
         // Extract user info

@@ -10,6 +10,7 @@ interface TechnicianSelectorProps {
   technicians: Technician[]
   onChange: (jobId: number, technicianId: number) => void
   allowEmptySelection?: boolean
+  disabled?: boolean
 }
 
 export function TechnicianSelector({
@@ -18,17 +19,23 @@ export function TechnicianSelector({
   technicians,
   onChange,
   allowEmptySelection = false,
+  disabled = false,
 }: TechnicianSelectorProps) {
   return (
     <select
       defaultValue={defaultValue}
-      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+      disabled={disabled}
+      className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md ${
+        disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+      }`}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => {
         e.stopPropagation()
-        const techId = parseInt(e.target.value)
-        if (!isNaN(techId)) {
-          onChange(jobId, techId)
+        if (!disabled) {
+          const techId = parseInt(e.target.value)
+          if (!isNaN(techId)) {
+            onChange(jobId, techId)
+          }
         }
       }}
     >
@@ -76,6 +83,7 @@ interface ExpandedJobContentProps {
   defaultTechnicianValue?: number | string
   allowEmptySelection?: boolean
   equipment_required?: string[]
+  disableTechnicianSelector?: boolean
 }
 
 export function ExpandedJobContent({
@@ -85,6 +93,7 @@ export function ExpandedJobContent({
   defaultTechnicianValue = '',
   allowEmptySelection = false,
   equipment_required,
+  disableTechnicianSelector = false,
 }: ExpandedJobContentProps) {
   return (
     <JobInfoGrid job={job}>
@@ -109,6 +118,7 @@ export function ExpandedJobContent({
           technicians={technicians}
           onChange={onAssignTechnician}
           allowEmptySelection={allowEmptySelection}
+          disabled={disableTechnicianSelector}
         />
       </div>
     </JobInfoGrid>

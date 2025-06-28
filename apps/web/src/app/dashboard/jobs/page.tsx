@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { Loader } from '@/components/ui/Loader'
 import { QueuedJobs } from '@/components/jobs/QueuedJobs'
 import { PendingJobs } from '@/components/jobs/PendingJobs'
+import { CompletedJobs } from '@/components/jobs/CompletedJobs'
 
 function usePendingJobsCount() {
   const [count, setCount] = useState<number>(0)
@@ -78,6 +79,7 @@ export default function TechnicianJobs() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="completed">Completed</TabsTrigger>
         </TabsList>
 
         <TabsContent value="queued">
@@ -86,6 +88,10 @@ export default function TechnicianJobs() {
 
         <TabsContent value="pending">
           <PendingJobs />
+        </TabsContent>
+
+        <TabsContent value="completed">
+          <CompletedJobs />
         </TabsContent>
       </Tabs>
     </div>
