@@ -36,9 +36,12 @@ export function QueuedJobs() {
     const fetchJobs = async () => {
       try {
         const response = await fetch('/api/technician/jobs')
-        const data = await response.json()
-        setJobs(data)
-        setGroupedJobs(groupJobsByDate(data))
+        const data: TechnicianJob[] = await response.json()
+        const scheduledJobs = data.filter(
+          ({ estimated_sched }) => estimated_sched,
+        )
+        setJobs(scheduledJobs)
+        setGroupedJobs(groupJobsByDate(scheduledJobs))
       } catch (error) {
         console.error('Error fetching jobs:', error)
       } finally {

@@ -12,12 +12,18 @@ import {
   TECHNICIAN_ROUTES,
 } from '@/constants/routes'
 import { useAuth } from '@/hooks/useAuth'
+import { LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 
 const navigation = [
-  { name: 'Orders', href: ORDERS_ROUTE, adminOnly: false, technicianOnly: false },
+  {
+    name: 'Orders',
+    href: ORDERS_ROUTE,
+    adminOnly: false,
+    technicianOnly: false,
+  },
   { name: 'Jobs', href: JOBS_ROUTE, adminOnly: true, technicianOnly: false },
   {
     name: 'Availability',
@@ -78,19 +84,19 @@ export default function DashboardLayout({
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <div className="bg-white shadow-sm sticky top-0 z-10">
         <div className="container mx-auto flex justify-between items-center h-16 px-4 max-w-[768px]">
-          <div className="flex gap-3 items-end self-end">
+          <div className="flex items-end self-end">
             {navigation
               .filter((item) => {
                 // Check technician-only tabs
                 if (item.technicianOnly) {
                   return userProfile?.is_admin && userProfile?.isTechnician
                 }
-                
+
                 // Check admin-only tabs
                 if (item.adminOnly) {
                   return userProfile?.is_admin
                 }
-                
+
                 // Non-admin tabs are shown to customers only
                 return !userProfile?.is_admin
               })
@@ -98,7 +104,7 @@ export default function DashboardLayout({
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`px-4 py-4 cursor-pointer font-bold transition-colors rounded-t-md  ${
+                  className={`px-4 py-4 cursor-pointer font-bold transition-colors rounded-t-md whitespace-nowrap ${
                     pathname === item.href
                       ? 'text-gray-900  bg-gray-50'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -116,7 +122,8 @@ export default function DashboardLayout({
             )}
 
             <Button onClick={handleLogout} variant="destructive">
-              Logout
+              <LogOut className="h-4 w-4 sm:hidden" />
+              <span className="hidden sm:block">Logout</span>
             </Button>
           </div>
         </div>

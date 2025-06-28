@@ -34,7 +34,7 @@ export default function OrderEntryPage() {
   const [newCustomerInfo, setNewCustomerInfo] = useState<NewCustomer | null>(
     null,
   )
-  const { permissionDescription, isAdminTechnician } = usePermissions()
+  const { permissionDescription } = usePermissions()
 
   const handleSelectCustomer = useCallback((customer: Customer) => {
     setSelectedCustomer(customer)
@@ -86,12 +86,6 @@ export default function OrderEntryPage() {
       <div className="container mx-auto max-w-[768px] px-4 py-8">
         <div className="flex items-center gap-2 mb-6">
           <h1 className="text-2xl font-bold">Create Order for Customer</h1>
-          {isAdminTechnician && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-              <Shield className="h-3 w-3" />
-              Admin-Tech
-            </div>
-          )}
         </div>
 
         {/* Customer Selection Section */}

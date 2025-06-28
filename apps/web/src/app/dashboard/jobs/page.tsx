@@ -8,6 +8,8 @@ import { Loader } from '@/components/ui/Loader'
 import { QueuedJobs } from '@/components/jobs/QueuedJobs'
 import { PendingJobs } from '@/components/jobs/PendingJobs'
 import { CompletedJobs } from '@/components/jobs/CompletedJobs'
+import { Button } from '@/components/ui/Button'
+import { CalendarSync } from 'lucide-react'
 
 function usePendingJobsCount() {
   const [count, setCount] = useState<number>(0)
@@ -58,6 +60,13 @@ export default function TechnicianJobs() {
     }
   }, [user, userProfile, loading, router])
 
+  const handleReplan = async () => {
+    const response = await fetch('/api/schedule-jobs')
+    if (!response.ok) {
+      throw new Error('Failed to replan jobs')
+    }
+  }
+
   if (loading || isLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -69,18 +78,28 @@ export default function TechnicianJobs() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-[768px]">
       <Tabs defaultValue="queued" className="w-full">
-        <TabsList className="mb-6">
-          <TabsTrigger value="queued">Queued</TabsTrigger>
-          <TabsTrigger value="pending" className="relative">
-            Pending
-            {!countLoading && pendingJobsCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full h-4 px-1 flex items-center justify-center min-w-4">
-                {pendingJobsCount > 99 ? '99+' : pendingJobsCount}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-        </TabsList>
+        <div className="w-full flex justify-between">
+          <TabsList className="mb-6">
+            <TabsTrigger value="queued">Queued</TabsTrigger>
+            <TabsTrigger value="pending" className="relative">
+              Pending
+              {!countLoading && pendingJobsCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full h-4 px-1 flex items-center justify-center min-w-4">
+                  {pendingJobsCount > 99 ? '99+' : pendingJobsCount}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+          </TabsList>
+
+          <Button
+            onClick={handleReplan}
+            className="whitespace-nowrap flex items-center"
+          >
+            <CalendarSync className="inline-block w-5 h-5" />
+            <span className="hidden md:inline ml-2">Replan</span>
+          </Button>
+        </div>
 
         <TabsContent value="queued">
           <QueuedJobs />
